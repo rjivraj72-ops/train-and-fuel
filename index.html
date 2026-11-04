@@ -314,7 +314,7 @@ const TYPES={strength:"Strength",run:"Run",cardio:"Cardio",cross:"Cross training
 const typeColor=t=>t==="strength"?"var(--t-str)":(t==="run"||t==="cardio")?"var(--t-run)":t==="cross"?"var(--t-cross)":"var(--t-mob)";
 
 /* ---------- state + store ---------- */
-const COLS=["meals","workouts","weights","water","saved","settings","history","chat","patterns"];
+const COLS=["meals","workouts","weights","water","saved","settings","history","chat","patterns","health"];
 const col={};COLS.forEach(c=>col[c]={});
 let view="today", date=todayStr();
 let chatTurns=null, chatBusy=false, chatCtl=null;
@@ -344,7 +344,7 @@ function fileFor(c,id,data){
   if(PROFILE_COLS.includes(c))return"profile.json";
   if(c==="chat")return"chat.json";
   if(c==="patterns")return"patterns.json";
-  const d=c==="water"?id:(data?.date||col[c][id]?.date||todayStr());
+  const d=(c==="water"||c==="health")?id:(data?.date||col[c][id]?.date||todayStr());
   return"log/"+String(d).slice(0,7)+".json";
 }
 const enc=s=>{const b=new TextEncoder().encode(s);let out="";for(let i=0;i<b.length;i+=0x8000)out+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(out)};
@@ -366,22 +366,30 @@ async function putFile(path,data,sha,msg){
   if(r.status===401||r.status===403)throw{code:"auth"};
   if(!r.ok)throw{code:"http",status:r.status};
 }
-const pending={};let flushing=false,flushTimer=null;
-function queue(c,id,val){const p=fileFor(c,id,val);(pending[p]=pending[p]||[]).push({c,id,val});clearTimeout(flushTimer);flushTimer=setTimeout(flush,700);setSync("saving")}
-const hasPending=()=>Object.values(pending).some(a=>a&&a.length);
+const pending={},inflight={};let flushing=false,flushTimer=null;
+const PEND_KEY="tf-pending";
+function persistPending(){try{const all={};for(const src of[inflight,pending])for(const[p,ops]of Object.entries(src))if(ops&&ops.length)(all[p]=all[p]||[]).push(...ops);
+  if(Object.keys(all).length)localStorage.setItem(PEND_KEY,JSON.stringify(all));else localStorage.removeItem(PEND_KEY)}catch{}}
+try{const saved=JSON.parse(localStorage.getItem(PEND_KEY)||"null");if(saved)for(const[p,ops]of Object.entries(saved))if(Array.isArray(ops)&&ops.length)(pending[p]=pending[p]||[]).push(...ops)}catch{}
+const CACHE_KEY="tf-cache";
+function saveCache(){try{const snap={at:Date.now(),col:{},checkin,chat:(chatTurns||[]).slice(-30).map(({img,imgs,...r})=>r)};COLS.forEach(c=>{if(c!=="chat")snap.col[c]=col[c]});localStorage.setItem(CACHE_KEY,JSON.stringify(snap))}catch{}}
+function loadCache(){try{const snap=JSON.parse(localStorage.getItem(CACHE_KEY)||"null");if(!snap)return false;COLS.forEach(c=>{if(snap.col[c])col[c]=snap.col[c]});if(!chatTurns)chatTurns=snap.chat||[];checkin=snap.checkin||checkin;return true}catch{return false}}
+function reapplyPending(){for(const src of[inflight,pending])for(const ops of Object.values(src))for(const o of ops||[]){col[o.c]=col[o.c]||{};if(o.val==null)delete col[o.c][o.id];else col[o.c][o.id]=o.val}}
+function queue(c,id,val){const p=fileFor(c,id,val);(pending[p]=pending[p]||[]).push({c,id,val});persistPending();clearTimeout(flushTimer);flushTimer=setTimeout(flush,700);setSync("saving")}
+const hasPending=()=>Object.values(pending).some(a=>a&&a.length)||Object.values(inflight).some(a=>a&&a.length);
 async function flush(){
   if(flushing||!cfg)return;flushing=true;
   try{
     for(const p of Object.keys(pending)){
-      const ops=pending[p];delete pending[p];if(!ops||!ops.length)continue;
+      const ops=pending[p];delete pending[p];if(!ops||!ops.length)continue;inflight[p]=ops;persistPending();
       let done=false;
       for(let t=0;t<4&&!done;t++){
         try{
           const f=await getFile(p);const d=f.data||{};
           for(const o of ops){d[o.c]=d[o.c]||{};if(o.val==null)delete d[o.c][o.id];else d[o.c][o.id]=o.val}
-          await putFile(p,d,f.sha,"Update "+p);done=true;
+          await putFile(p,d,f.sha,"Update "+p);done=true;delete inflight[p];persistPending();
         }catch(e){
-          if(e.code==="auth"||t===3){(pending[p]=pending[p]||[]).unshift(...ops);setSync(e.code==="auth"?"auth":"error");return}
+          if(e.code==="auth"||t===3){delete inflight[p];(pending[p]=pending[p]||[]).unshift(...ops);persistPending();setSync(e.code==="auth"?"auth":"error");return}
           await new Promise(r=>setTimeout(r,400+Math.random()*700));
         }
       }
@@ -395,20 +403,20 @@ const store={
   async set(c,id,data){
     const old=col[c][id];
     if(old&&old.date&&data&&data.date&&!PROFILE_COLS.includes(c)&&c!=="water"&&c!=="chat"&&old.date.slice(0,7)!==data.date.slice(0,7))queue(c,id,null);
-    col[c][id]=data;queue(c,id,data);if(c!=="chat")refresh();
+    col[c][id]=data;queue(c,id,data);if(c!=="chat")refresh();clearTimeout(store._t);store._t=setTimeout(saveCache,1500);
   },
   async add(c,data){const id=newId();await store.set(c,id,data);return id},
-  async del(c,id){queue(c,id,null);delete col[c][id];refresh()}
+  async del(c,id){queue(c,id,null);delete col[c][id];refresh();clearTimeout(store._t);store._t=setTimeout(saveCache,1500)}
 };
 async function safe(p,msg){try{await p;if(msg)toast(msg);return true}catch(e){toast("Couldn't save that. Try again.");return false}}
 function monthsBack(n,from){const out=[];const d=from?parse(from):new Date();d.setDate(1);for(let i=0;i<n;i++){out.push(d.getFullYear()+"-"+pad(d.getMonth()+1));d.setMonth(d.getMonth()-1)}return out}
 async function loadMonth(m){
   const f=await getFile("log/"+m+".json");loadedMonths.add(m);
-  for(const c of["meals","workouts","water"])for(const[k,v]of Object.entries(f.data[c]||{}))col[c][k]=v;
+  for(const c of["meals","workouts","water","health"])for(const[k,v]of Object.entries(f.data[c]||{}))col[c][k]=v;
 }
 async function ensureRange(from,to){const ms=new Set();let d=from;for(let i=0;i<40&&d<=to;i++){ms.add(d.slice(0,7));d=addDays(d,1)}for(const m of ms)if(!loadedMonths.has(m))await loadMonth(m)}
 async function loadAll(){
-  if(!cfg||hasPending())return;
+  if(!cfg||flushing)return;
   setSync("loading");
   try{
     const[p,ch,ci,pt]=await Promise.all([getFile("profile.json"),getFile("chat.json"),getRaw("checkins/latest.md").catch(()=>({text:null})),getFile("patterns.json").catch(()=>({data:{}}))]);
@@ -420,19 +428,34 @@ async function loadAll(){
     if(!chatBusy)chatTurns=Array.isArray(col.chat.log?.turns)?col.chat.log.turns.slice():[];
     loadedMonths.clear();await Promise.all(monthsBack(3).map(loadMonth));
     checkin=null;if(ci&&ci.text){const m=ci.text.match(/<!--\s*date:\s*(\d{4}-\d\d-\d\d)\s*-->/);checkin={date:m?m[1]:null,text:ci.text.replace(/<!--[\s\S]*?-->/g,"").trim()}}
-    lastLoad=Date.now();setSync("saved");
-  }catch(e){setSync(e.code==="auth"?"auth":"offline")}
+    reapplyPending();
+    await processInbox();
+    lastLoad=Date.now();saveCache();setSync(hasPending()?"saving":"saved");if(hasPending())flush();
+  }catch(e){if(!lastLoad&&loadCache())reapplyPending();setSync(e.code==="auth"?"auth":"offline")}
   render();
 }
+/* Apple Health: an iPhone Shortcut drops inbox/health-*.json files; the app folds them into the log and deletes them. */
+async function processInbox(){
+  try{const r=await gh("contents/inbox");if(!r.ok)return;const list=await r.json();if(!Array.isArray(list))return;
+    for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
+      try{const raw=await getRaw("inbox/"+f.name);const j=JSON.parse(raw.text||"{}");const d=/^\d{4}-\d\d-\d\d$/.test(j.date||"")?j.date:null;
+        if(d){const ak=Math.round(num(j.activeKcal)||0),st=Math.round(num(j.steps)||0);await store.set("health",d,{activeKcal:ak,steps:st,syncedAt:new Date().toISOString()});
+          let lb=num(j.weightLb);if(lb&&lb<130&&/kg/i.test(String(j.weightUnit||"")))lb=Math.round(lb*2.20462*10)/10;
+          if(lb&&lb>70&&lb<400&&(!col.weights[d]||Math.abs(col.weights[d].lb-lb)>0.05))await store.set("weights",d,{date:d,lb:Math.round(lb*10)/10,source:"Apple Health"})}
+        await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
+  }catch{}
+}
+const healthOn=d=>col.health[d]||null;
 function setStatus(){
   const el=$("#status");if(!el)return;
   const msg=syncState==="auth"?`GitHub didn't accept your access token (expired or missing permission). <button class="btn sm" data-act="settings">Reconnect</button>`
-    :syncState==="error"?`Couldn't save to GitHub. Your changes are kept on this screen. <button class="btn sm" data-act="retrySync">Retry</button>`
-    :syncState==="offline"?`Can't reach GitHub right now. <button class="btn sm" data-act="retryLoad">Try again</button>`
+    :syncState==="error"?`No connection to GitHub. Your entries are saved on this phone and will sync automatically. <button class="btn sm" data-act="retrySync">Sync now</button>`
+    :syncState==="offline"?`Offline: showing your log as of the last sync. Anything you add is kept on this phone and syncs when you're back online. <button class="btn sm" data-act="retryLoad">Try again</button>`
     :syncState==="loading"&&!lastLoad?`<span class="muted">Loading your log…</span>`:"";
   el.innerHTML=msg?`<div class="note row wrap" style="margin-top:12px">${msg}</div>`:"";
 }
 window.addEventListener("online",()=>{if(hasPending())flush();else loadAll()});
+setInterval(()=>{if(cfg&&hasPending()&&!flushing)flush()},60000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&cfg&&Date.now()-lastLoad>60000&&!hasPending()&&!conv)loadAll()});
 
 function importCard(){
@@ -486,6 +509,9 @@ function isLate(m){const s=S();return !!m.time&&hm2min(m.time)>=hm2min(s.close)}
 function flexDowFor(ws){const s=S();const o=(s.flexWeeks||{})[ws];if(o===0||o===6)return o;
   const sat=addDays(ws,5),sun=addDays(ws,6);const lS=mealsOn(sat).some(isLate),lU=mealsOn(sun).some(isLate);
   if(lU&&!lS)return 0;if(lS&&!lU)return 6;return s.flexDow===0?0:6}
+function isTravel(d){return !!(S().travel||{})[d]}
+const DEV_TZ=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone}catch{return HOME_TZ}})();
+function awayFromHome(){try{const now=Date.now();const off=tz=>{const f=new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(now);return f};return off(DEV_TZ)!==off(HOME_TZ)}catch{return false}}
 function isFlex(d){return dow(d)===flexDowFor(weekStart(d))}
 function dayDone(d){const t=todayStr();if(d<t)return true;if(d>t)return false;if(isFlex(d))return false;return hm2min(nowHM())>=hm2min(S().close)}
 function sessionState(d){
@@ -575,7 +601,7 @@ function vToday(){
   const kcalCls=flex?"cool":t.kcal>s.kcal+200?"bad":Math.abs(t.kcal-s.kcal)<=200?"good":"";
   const mrow=(nm,val,lo,hi,kind)=>{const[lab,c]=macroStatus(val,lo,hi,d,kind);return`<div class="macro"><span class="nm">${nm}</span><span class="v"><span class="mid">${n0(val)}<small>g</small></span>${lab!=="—"?`<span class="pill ${c}">${lab}</span>`:""}</span><span class="rg">${lo}–${hi} g</span>${meter(val,lo,hi,hi*1.2,c==="bad"&&kind!=="protein"?"bad":c)}</div>`};
   const w=waterOn(d),wp=Math.min(100,w/s.waterMl*100);
-  const burn=burnOn(d),net=t.kcal-burn;
+  const hl=healthOn(d),wburn=burnOn(d),burn=Math.max(wburn,hl?.activeKcal||0),net=t.kcal-burn;
   // kitchen
   let kitchen="";if(isT){const n=hm2min(nowHM()),o=hm2min(s.open),c=hm2min(s.close);
     kitchen=flex?`<span class="pill cool">Flex day · kitchen close optional</span>`:(n>=o&&n<c)?`<span class="pill good">Eating window open · closes ${fmtT(s.close)}</span>`:`<span class="pill warn">Kitchen closed · opens ${fmtT(s.open)}</span>`}
@@ -586,7 +612,8 @@ function vToday(){
   return`<div class="view">
   ${importCard()}
   ${checkinCard(true)}
-  ${kitchen?`<div>${kitchen}</div>`:""}
+  ${isT&&awayFromHome()&&!isTravel(d)&&!(S().travelAsked||{})[d]?`<div class="note row wrap">Your phone is on ${esc(DEV_TZ.replace(/_/g," ").split("/").pop())} time. Mark today as a travel day? <button class="btn sm" data-act="travelDay" data-d="${d}" data-on="1">Yes</button><button class="btn sm ghost" data-act="travelNo" data-d="${d}">No</button></div>`:""}
+  <div class="row wrap">${kitchen}${isTravel(d)?`<span class="pill acc">✈ Travel day</span>`:""}<button type="button" class="btn sm ghost" data-act="travelDay" data-d="${d}" data-on="${isTravel(d)?0:1}" style="margin-left:auto">${isTravel(d)?"Not a travel day":"✈ Travel day"}</button></div>
   <section class="card">
     <div class="head"><div><div class="eyebrow">${flex?"Flex day · no calorie flag":"Calories · "+n0(s.kcal)+" target"}</div>
       <div class="big" style="margin-top:8px">${n0(t.kcal)}<small>kcal</small></div></div>
@@ -604,7 +631,7 @@ function vToday(){
     </section>
     <section class="card balance"><div class="eyebrow">Energy balance</div>
       <div class="mid" style="margin-top:10px">${n0(net)}<small>kcal net</small></div>
-      <div class="sub">Net = food in minus workout burn. Excludes everyday metabolism.</div>
+      <div class="sub">${hl?`Food in minus Apple Watch active calories (${n0(hl.activeKcal)}); workouts logged ${n0(wburn)}. ${hl.steps?n0(hl.steps)+" steps.":""}`:"Net = food in minus workout burn. Excludes everyday metabolism."}</div>
       <div class="ln"><span class="small muted">In</span>${meter(t.kcal,null,null,Math.max(s.kcal,t.kcal)*1.05,"")}<span class="num small">${n0(t.kcal)}</span></div>
       <div class="ln"><span class="small muted">Out</span>${meter(burn,null,null,Math.max(s.kcal,t.kcal)*1.05,"good")}<span class="num small">${n0(burn)}</span></div>
     </section>
@@ -617,7 +644,7 @@ function vToday(){
   </section>
   <section class="card">
     <div class="head"><div><div class="eyebrow">Week of ${short(ws)}</div><h2>Weekly score</h2>
-      <p class="sub">${sc.counted?`Calories ${sc.cal}/${sc.counted} days within ±200 · protein ${sc.pro}/${sc.counted} days at ${s.proteinMin} g+ · kitchen closed on time ${sc.clean}/${sc.counted} nights`:"No completed food days yet this week"}${sc.planned?` · sessions ${sc.done}/${sc.planned}`:""}${sc.provisional?" · provisional":""}</p></div>
+      <p class="sub">${(()=>{const n=[0,1,2,3,4,5,6].filter(i=>isTravel(addDays(ws,i))).length;return n?`✈ ${n} travel day${n>1?"s":""} this week · `:""})()}${sc.counted?`Calories ${sc.cal}/${sc.counted} days within ±200 · protein ${sc.pro}/${sc.counted} days at ${s.proteinMin} g+ · kitchen closed on time ${sc.clean}/${sc.counted} nights`:"No completed food days yet this week"}${sc.planned?` · sessions ${sc.done}/${sc.planned}`:""}${sc.provisional?" · provisional":""}</p></div>
       <div class="score" style="border-color:${sc.score==null?"var(--line)":sc.score>=80?"var(--good)":sc.score>=60?"var(--warn)":"var(--bad)"}"><div><b>${sc.score??"–"}</b><span>/100</span></div></div></div>
     <div class="weekdots">${dots}</div>
     <p class="sub" style="margin-top:10px"><b style="color:var(--accent)">${st.n}</b> consecutive training weeks (3+ sessions) · best ${st.best}. Flex night this week: <span class="row" style="display:inline-flex;gap:4px;vertical-align:middle">${[6,0].map(x=>`<button type="button" class="btn sm ${flexDowFor(ws)===x?"":"ghost"}" data-act="flexWeek" data-ws="${ws}" data-d="${x}">${DOW[x]}</button>`).join("")}</span> (not scored). Each day counts once the kitchen closes at ${fmtT(s.close)}.</p>
@@ -630,11 +657,23 @@ function vToday(){
 function mItem(m){return`<button class="item" data-act="editMeal" data-id="${esc(m.id)}"><span class="t">${fmtT(m.time)}</span><span class="n">${esc(m.name)}${isLate(m)&&!isFlex(m.date)?` <span class="pill warn">after ${fmtT(S().close)}</span>`:""}<div class="m">${n0(m.protein)}g protein · ${n0(m.carbs)}g carbs · ${n0(m.fat)}g fat</div></span><span class="k">${n0(m.kcal)}<small>kcal</small></span></button>`}
 function wItem(w){const bits=[TYPES[w.type]||w.type];if(+w.minutes)bits.push(n0(w.minutes)+" min");if(+w.distanceKm)bits.push(n1(w.distanceKm)+" km");if(+w.volumeKg)bits.push(n0(w.volumeKg)+" kg volume");
   return`<button class="item" data-act="editWorkout" data-id="${esc(w.id)}"><span class="t" style="border-left:3px solid ${typeColor(w.type)};padding-left:6px">${short(w.date)}<br>${fmtT(w.time)}</span><span class="n">${esc(w.name)}<div class="m">${esc(bits.join(" · "))}${w.note?" · "+esc(w.note):""}</div></span><span class="k">${+w.kcal?n0(w.kcal)+"<small>kcal</small>":""}</span></button>`}
+function normName(n){return String(n||"").toLowerCase().replace(/\(.*?\)/g," ").replace(/^(breakfast|lunch|dinner|snack|treat)\s*[:\-]\s*/,"").replace(/[^a-z ]+/g," ").replace(/\b(a|an|the|of|with|and|about|small|large|half|cup|bowl|plate|g|ml)\b/g," ").replace(/\s+/g," ").trim().split(" ").slice(0,5).join(" ")}
+function usualCandidates(){
+  const t=todayStr(),since=addDays(t,-30),s=S(),dis=new Set(s.usualDismissed||[]);
+  const savedKeys=new Set(savedList().flatMap(m=>[normName(m.name),normName(m.desc)]).filter(Boolean));
+  const g={};Object.values(col.meals).filter(m=>m.date>=since&&m.date<=t).forEach(m=>{const k=normName(m.name);if(k.length<3)return;(g[k]=g[k]||[]).push(m)});
+  return Object.entries(g).filter(([k,v])=>v.length>=3&&!dis.has(k)&&!savedKeys.has(k)).map(([k,v])=>{const last=v.slice().sort((a,b)=>(b.date+(b.time||"")).localeCompare(a.date+(a.time||"")))[0];const av=f=>Math.round(v.reduce((a,m)=>a+(+m[f]||0),0)/v.length);
+    return{key:k,n:v.length,name:last.name,kcal:av("kcal"),protein:av("protein"),carbs:av("carbs"),fat:av("fat")}}).sort((a,b)=>b.n-a.n).slice(0,2);
+}
+function usualCard(){const c=usualCandidates();if(!c.length)return"";
+  return`<section class="card" style="border-color:var(--accent)"><div class="eyebrow">Spotted a usual</div>${c.map((u,i)=>`<div class="item" style="grid-template-columns:1fr;padding-block:10px"><div class="n">${esc(u.name)}<div class="m">Logged ${u.n} times in 30 days · about ${n0(u.kcal)} kcal, ${n0(u.protein)} g protein</div>
+  <div class="row" style="margin-top:8px"><button class="btn sm" data-act="saveUsual" data-k="${esc(u.key)}">Save as a usual</button><button class="btn sm ghost" data-act="dismissUsual" data-k="${esc(u.key)}">No thanks</button></div></div></div>`).join("")}</section>`}
 function vFood(){
   const d=date,ms=mealsOn(d),t=totals(d),sv=savedList();
   return`<div class="view">
   <section class="card"><div class="head"><div><div class="eyebrow">Food log · ${longD(d)}</div><h2>${ms.length} ${ms.length===1?"entry":"entries"} · ${n0(t.kcal)} kcal</h2><p class="sub">${n0(t.protein)} g protein · ${n0(t.carbs)} g carbs · ${n0(t.fat)} g fat</p></div><div class="row"><button class="btn ghost" data-act="photo" aria-label="Log from a photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><button class="btn" data-act="addMeal">Add meal</button></div></div>
     <div class="list" style="margin-top:8px">${ms.length?ms.slice().reverse().map(mItem).join(""):`<div class="empty">Nothing logged for this day. Tap <b>Add meal</b>, log a usual below, or tell the Coach what you ate.</div>`}</div></section>
+  ${usualCard()}
   <section class="card"><div class="head"><div><div class="eyebrow">Saved meals</div><h2>Your usuals, one tap to log</h2><p class="sub">Logs the full meal as stored, at the current time on ${d===todayStr()?"today":short(d)}.</p></div><button class="btn line sm" data-act="addSaved">Add</button></div>
     <div class="list" style="margin-top:6px">${sv.length?sv.map((m,i)=>`<div class="item" style="grid-template-columns:1fr auto"><div class="n">${esc(m.name)}<div class="m">${esc(m.desc||"")}</div><div class="m num">${n0(m.protein)}g P · ${n0(m.carbs)}g C · ${n0(m.fat)}g F</div>
       <div class="row" style="margin-top:8px"><button class="btn sm" data-act="logSaved" data-id="${esc(m.id)}">Log meal</button><button class="btn sm ghost" data-act="editSaved" data-id="${esc(m.id)}">Edit</button><button class="btn sm ghost" data-act="moveSaved" data-id="${esc(m.id)}" data-dir="-1" ${i?"":"disabled"} aria-label="Move up">↑</button><button class="btn sm ghost" data-act="moveSaved" data-id="${esc(m.id)}" data-dir="1" ${i<sv.length-1?"":"disabled"} aria-label="Move down">↓</button></div></div>
@@ -707,6 +746,38 @@ function patternsCard(){
   <div class="list" style="margin-top:6px">${ins.map(x=>`<div class="item" style="grid-template-columns:1fr;padding-block:9px"><span class="small${x.pending?" muted":""}">${esc(x.text)}</span></div>`).join("")}
   ${cp.map(x=>`<div class="item" style="grid-template-columns:1fr auto;padding-block:9px"><span class="small"><span class="pill acc">Check-in</span> ${esc(x.text)}</span><button type="button" class="btn sm ghost" data-act="dismissPattern" data-t="${esc(x.text)}">Not right</button></div>`).join("")}</div></section>`;
 }
+let reportMonth=null;const reportText={};
+function monthStats(m){
+  const s=S(),first=m+"-01";const days=[];let d=first;while(d.slice(0,7)===m){if(dayDone(d)||d<todayStr())days.push(d);d=addDays(d,1)}
+  const ws=Object.values(col.workouts).filter(w=>(w.date||"").slice(0,7)===m);
+  const by=t=>ws.filter(w=>w.type===t).length;
+  const logged=days.filter(x=>totals(x).n),core=logged.filter(x=>!isFlex(x));
+  const avg=f=>logged.length?Math.round(logged.reduce((a,x)=>a+totals(x)[f],0)/logged.length):null;
+  const wts=weights().filter(w=>w.date.slice(0,7)===m);
+  const best=ws.filter(w=>w.type==="strength"&&+w.volumeKg).sort((a,b)=>b.volumeKg-a.volumeKg)[0];
+  return{days:days.length,workouts:ws.length,strength:by("strength"),runs:by("run")+by("cardio"),mob:by("yoga"),cross:by("cross"),other:by("other"),
+    vol:ws.reduce((a,w)=>a+(+w.volumeKg||0),0),km:ws.reduce((a,w)=>a+(+w.distanceKm||0),0),wkcal:ws.reduce((a,w)=>a+(+w.kcal||0),0),
+    logged:logged.length,kcal:avg("kcal"),protein:avg("protein"),fat:avg("fat"),
+    calOn:core.filter(x=>Math.abs(totals(x).kcal-s.kcal)<=200).length,proOn:core.filter(x=>totals(x).protein>=s.proteinMin).length,clean:core.filter(x=>!mealsOn(x).some(isLate)).length,core:core.length,
+    travel:days.filter(isTravel).length,w0:wts[0],w1:wts[wts.length-1],best};
+}
+function monthCard(){
+  const t=todayStr();const m=reportMonth||t.slice(0,7);const [y,mo]=m.split("-").map(Number);const label=MON[mo-1]+" "+y;
+  const prev=(mo===1?(y-1)+"-12":y+"-"+pad(mo-1)),next=(mo===12?(y+1)+"-01":y+"-"+pad(mo+1));
+  if(!loadedMonths.has(m)&&cfg&&!monthCard.busy?.[m]){(monthCard.busy=monthCard.busy||{})[m]=1;loadMonth(m).then(()=>{reapplyPending();render()}).catch(()=>{})}
+  if(reportText[m]===undefined&&cfg){reportText[m]=null;getRaw("reports/"+m+".md").then(f=>{reportText[m]=f.text?f.text.replace(/<!--[\s\S]*?-->/g,"").trim():"";render()}).catch(()=>{reportText[m]=""})}
+  const st=monthStats(m),imp=(H().monthly||{})[m];
+  const tile=(l,v,u)=>`<div class="stat"><div class="l">${l}</div><div class="mid">${v}${u?`<small>${u}</small>`:""}</div></div>`;
+  const W=st.workouts||imp?.workouts||0;
+  return`<section class="card"><div class="head"><div><div class="eyebrow">Monthly report</div><h2>${label}</h2></div><div class="row"><button class="btn sm ghost" data-act="month" data-m="${prev}" aria-label="Previous month">‹</button><button class="btn sm ghost" data-act="month" data-m="${next}" ${next>t.slice(0,7)?"disabled":""} aria-label="Next month">›</button></div></div>
+  <div class="stats" style="margin-top:12px">${tile("Workouts",n0(W))}${tile("Volume",n0((st.vol||imp?.volumeKg||0)/1000),"t")}${tile("Run",n1(st.km||imp?.runKm||0),"km")}</div>
+  ${st.workouts?`<p class="sub">${st.strength} strength · ${st.runs} runs/cardio · ${st.cross} cross · ${st.mob} yoga/mobility${st.best?` · best session ${n0(st.best.volumeKg)} kg (${short(st.best.date)})`:""}</p>`:imp?`<p class="sub">${esc(imp.note||"")}</p>`:""}
+  ${st.logged?`<div class="stats" style="margin-top:12px">${tile("Avg kcal",n0(st.kcal))}${tile("Avg protein",n0(st.protein),"g")}${tile("Days logged",st.logged)}</div>
+  <p class="sub">On target: calories ${st.calOn}/${st.core} · protein ${st.proOn}/${st.core} · kitchen closed ${st.clean}/${st.core}${st.travel?` · ✈ ${st.travel} travel days`:""}</p>`:""}
+  ${st.w0?`<p class="sub">Weight ${n1(st.w0.lb)} → ${n1(st.w1.lb)} lb (${st.w1.lb-st.w0.lb>0?"+":""}${n1(st.w1.lb-st.w0.lb)})</p>`:""}
+  ${reportText[m]?`<details style="margin-top:10px" open><summary class="eyebrow" style="cursor:pointer">Coach's write-up</summary><div class="small" style="white-space:pre-wrap;margin-top:8px;line-height:1.55">${mdLite(reportText[m])}</div></details>`:""}
+  </section>`;
+}
 function vTrends(){
   const s=S(),t=todayStr(),wts=weights(),last=wts[wts.length-1],first=wts[0];
   const ws0=weekStart(t);const weeks=[];for(let i=7;i>=0;i--)weeks.push(addDays(ws0,-7*i));
@@ -721,6 +792,7 @@ function vTrends(){
   const pr=days.map(d=>{const x=totals(d);return x.n?x.protein:null});
   const mon=H().monthly||{};const monKeys=Object.keys(mon).sort().reverse();
   return`<div class="view">
+  ${monthCard()}
   ${patternsCard()}
   <section class="card"><div class="head"><div><div class="eyebrow">Weight · target ${s.weightLo}–${s.weightHi} lb</div>
     <div class="big" style="margin-top:8px">${last?n1(last.lb):"—"}<small>lb</small></div>
@@ -837,6 +909,26 @@ function weightSheet(){
     el.querySelector("[data-x]").onclick=closeSheet;
     el.querySelector("#wtForm").onsubmit=async e=>{e.preventDefault();const lb=num(fv("wtLb")),d=fv("wtDate")||todayStr();if(!lb)return;closeSheet();await safe(store.set("weights",d,{date:d,lb}),"Weigh-in saved")}});
 }
+function healthSheet(){
+  const url=`https://api.github.com/repos/${cfg?.repo||DEFAULT_REPO}/contents/inbox/health-[Stamp].json`;
+  const body='{"date":"[Day]","activeKcal":"[Active]","steps":"[Steps]","weightLb":"[Weight]"}';
+  openSheet(`<div class="head"><h3>Apple Health sync</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
+  <p class="sub">An iPhone Shortcut sends today's Apple Watch active calories, steps and latest weight to your log. The app picks it up next time it opens. Workouts still come from screenshots or the Coach: Shortcuts can't read Watch workouts reliably.</p>
+  <ol class="small" style="padding-left:18px;line-height:1.65">
+   <li>Shortcuts app → <b>+</b> → name it <b>Train & Fuel Sync</b>.</li>
+   <li><b>Find Health Samples</b> → Type <b>Active Energy</b>, filter Start Date <b>is today</b>. Then <b>Get Details of Health Samples</b> → <b>Value</b>. Then <b>Calculate Statistics</b> → <b>Sum</b>. Then <b>Set Variable</b> → <b>Active</b>.</li>
+   <li>Same again with Type <b>Steps</b>, saving to variable <b>Steps</b>.</li>
+   <li><b>Find Health Samples</b> → Type <b>Weight</b>, Sort by Start Date <b>Latest First</b>, Limit <b>1</b> → <b>Get Details</b> → <b>Value</b> → <b>Set Variable</b> → <b>Weight</b>.</li>
+   <li><b>Format Date</b> (Current Date, Custom <code>yyyy-MM-dd</code>) → variable <b>Day</b>. Another <b>Format Date</b> (Custom <code>yyyyMMdd-HHmmss</code>) → variable <b>Stamp</b>.</li>
+   <li><b>Text</b>: paste the line below and swap each [ ] for the matching variable.</li>
+   <li><b>Base64 Encode</b> the Text (Line Breaks: <b>None</b>).</li>
+   <li><b>Get Contents of URL</b>: the URL below (swap in Stamp). Method <b>PUT</b>. Headers: <code>Authorization</code> = <code>Bearer your-token</code> (the same token you pasted into this app) and <code>Accept</code> = <code>application/vnd.github+json</code>. Request Body <b>JSON</b>: <code>message</code> = <code>Health sync</code>, <code>content</code> = <b>Base64 Encoded</b>.</li>
+   <li>Run it once and allow Health access. Then reopen this app: Today's energy balance shows Watch calories and steps.</li>
+   <li>To make it automatic: Automation → <b>Time of Day</b> 7:50 PM → Run Immediately → Train & Fuel Sync. iPhone blocks Health while the phone is locked, so if a run is missed, tap the shortcut yourself.</li>
+  </ol>
+  <div class="f"><label>Text line</label><input readonly value='${esc(body)}' onclick="this.select()"></div>
+  <div class="f" style="margin-top:8px"><label>URL</label><input readonly value="${esc(url)}" onclick="this.select()"></div>`,el=>{el.querySelector("[data-x]").onclick=closeSheet});
+}
 function settingsSheet(){
   const s=S();const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   openSheet(`<div class="head"><h3>Targets & routine</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
@@ -858,6 +950,7 @@ function settingsSheet(){
     <div class="f"><label>Weekly routine</label></div>
     ${s.plan.map((p,i)=>`<div class="planedit"><b class="small">${days[i]}</b><input id="pT${i}" value="${esc(p.title)}" aria-label="${days[i]} session"><input id="pD${i}" value="${esc(p.detail)}" aria-label="${days[i]} details"><select id="pK${i}" aria-label="${days[i]} kind">${["strength","cardio","cross","rest"].map(k=>`<option ${p.kind===k?"selected":""}>${k}</option>`).join("")}</select></div>`).join("")}
     <div class="f" style="margin-top:6px"><button class="btn" type="submit">Save</button></div>
+    <div class="f"><button type="button" class="btn sm line" data-act="healthHelp">Apple Health sync setup</button><span class="hint">${(()=>{const ks=Object.keys(col.health||{}).sort();const l=ks.length?col.health[ks[ks.length-1]]:null;return l?.syncedAt?"Last synced "+new Date(l.syncedAt).toLocaleString("en-CA",{timeZone:HOME_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"Not synced yet"})()}</span></div>
     <div class="f row" style="flex-direction:row;gap:8px;flex-wrap:wrap;margin-top:8px"><button type="button" class="btn sm ghost" data-act="syncNow">Sync now</button><button type="button" class="btn sm danger" data-act="disconnect">Disconnect this device</button></div>
     <p class="hint" style="grid-column:span 4">Log saved to GitHub: ${esc(cfg?.repo||"")}</p>
   </form>`,el=>{
@@ -872,7 +965,7 @@ function settingsSheet(){
 
 /* ---------- coach (ElevenLabs agent: voice + text) ---------- */
 let conv=null,convMode=null,convStatus="disconnected",agentSpeaking=false,idleTimer=null,pendingActions=[],awaiting=false,saveChatT=null;
-function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);return`${d} (${DOW[dow(d)]}): ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" kg vol":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
+function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" kg vol":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
 function buildContext(){
   const s=S(),t=todayStr(),now=nowHM(),ws=weekStart(t),[cLo,cHi]=carbRange(s);
   const today=mealsOn(t);
@@ -884,7 +977,7 @@ function buildContext(){
   return`NOW: ${longD(t)}, ${fmtT(now)} Vancouver time (date ${t}, time ${now}). All dates and times in the log and in your tool calls are Vancouver time, even when they travel. If they give a time in another zone (e.g. Seattle or a trip abroad), convert it to Vancouver time before logging.
 TARGETS: ${s.kcal} kcal/day (±200 counts as on target); protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g; carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except one weekend flex night (Saturday or Sunday). This week's flex night: ${DOW[flexDowFor(weekStart(t))]} (no calorie flag, not scored). A day counts in the weekly score once the kitchen closes.
 ${(s.about||s.profile)?"ABOUT THEM (in their words):\n"+(s.about||s.profile)+"\n":""}${s.coachStyle?"THEIR COACHING STYLE INSTRUCTIONS (follow these): "+s.coachStyle+"\n":""}${notes().length?"LEARNED IN PAST CHATS:\n"+notes().map(n=>"- "+n.text).join("\n")+"\n":""}PATTERNS FROM THEIR LOG (last 8 weeks):\n${insights().map(x=>"- "+x.text).join("\n")}\n${coachPatterns().length?"PATTERNS FROM WEEKLY CHECK-INS:\n"+coachPatterns().map(x=>"- "+x.text).join("\n")+"\n":""}
-TODAY: ${dayDigest(t)}
+${Object.keys(S().travel||{}).length?"TRAVEL DAYS (recent): "+Object.keys(S().travel||{}).filter(x=>x>=addDays(t,-30)).sort().join(", ")+". On travel days, estimate restaurant portions generously (bigger plates, more oil and sauce) and read their numbers in that context.\n":""}TODAY: ${dayDigest(t)}
 TODAY'S MEALS (id | time | name | kcal P/C/F):${today.length?today.map(m=>`\n- ${m.id} | ${m.time} | ${m.name} | ${m.kcal} ${m.protein}/${m.carbs}/${m.fat}`).join(""):" none yet"}
 TODAY'S WORKOUTS (id | name): ${workoutsOn(t).map(w=>`${w.id} | ${w.name}`).join("; ")||"none"}
 THIS WEEK'S ROUTINE:
@@ -1062,6 +1155,12 @@ document.addEventListener("click",async e=>{
   else if(a==="retryLoad"){loadAll()}
   else if(a==="disconnect"){if(b.dataset.armed){try{localStorage.removeItem(CFG_KEY)}catch{};cfg=null;closeSheet();await endConv();COLS.forEach(c=>col[c]={});render()}else{b.dataset.armed="1";b.textContent="Tap again to disconnect"}}
   else if(a==="syncNow"){closeSheet();if(hasPending())flush();else{lastLoad=0;loadAll()}toast("Syncing")}
+  else if(a==="travelDay"){const st=S();const tr={...(st.travel||{})};if(b.dataset.on==="1")tr[b.dataset.d]=true;else delete tr[b.dataset.d];await safe(store.set("settings","main",{...(col.settings.main||{}),travel:tr}),b.dataset.on==="1"?"Marked as a travel day":"Travel day removed")}
+  else if(a==="travelNo"){const st=S();await safe(store.set("settings","main",{...(col.settings.main||{}),travelAsked:{...(st.travelAsked||{}),[b.dataset.d]:true}}))}
+  else if(a==="saveUsual"){const u=usualCandidates().find(x=>x.key===b.dataset.k);if(u){const sv=savedList();await safe(store.add("saved",{name:u.name,desc:"",kcal:u.kcal,protein:u.protein,carbs:u.carbs,fat:u.fat,order:sv.length?Math.max(...sv.map(x=>x.order??0))+1:0}),"Saved as a usual")}}
+  else if(a==="dismissUsual"){const st=S();await safe(store.set("settings","main",{...(col.settings.main||{}),usualDismissed:[...new Set([...(st.usualDismissed||[]),b.dataset.k])]}))}
+  else if(a==="month"){reportMonth=b.dataset.m;render()}
+  else if(a==="healthHelp"){healthSheet()}
   else if(a==="dismissPattern"){const P={...(col.patterns.main||{})};P.dismissed=[...new Set([...(P.dismissed||[]),b.dataset.t])];await safe(store.set("patterns","main",P),"Removed. The check-in won't bring it back.")}
   else if(a==="forgetNote"){const list=notes().slice();list.splice(+b.dataset.i,1);await safe(store.set("settings","memory",{notes:list}),"Removed")}
   else if(a==="clearChat"){if(b.dataset.armed){chatTurns=[];await saveChat();renderChat()}else{b.dataset.armed="1";b.textContent="Tap again to clear"}}
@@ -1089,9 +1188,10 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-03n";
+const BUILD="2026-11-03o";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
+if(cfg&&loadCache())reapplyPending();
 route();setStatus();if(cfg)loadAll();
 </script>
 </body>

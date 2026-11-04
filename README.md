@@ -27,3 +27,15 @@ Bump `const BUILD` in `index.html` on every change. On open, the app fetches its
 - `insights()` computes patterns from the last 8 weeks of the log each time the app opens (protein by 5 PM, weakest protein weekday, late-eating nights, calorie hit rate, flex vs other days, most-missed session, water, weight trend). Nothing shows until ~7 logged days.
 - `patterns.json` in the data repo holds patterns written by the Sunday check-in (`patterns.main.items[]`) plus any the user dismissed (`patterns.main.dismissed[]`).
 - Both go into the Coach's context every session.
+
+## Offline
+Unsynced writes are kept in localStorage (`tf-pending`) and retried every minute and when the phone comes back online. The last loaded log is cached (`tf-cache`) so the app opens with data even without a connection.
+
+## Apple Health
+An iPhone Shortcut PUTs `inbox/health-<stamp>.json` (`{date, activeKcal, steps, weightLb}`, strings OK) into the data repo. On open, the app folds each file into `log/YYYY-MM.json` → `health[date]` (and `weights[date]` if the weight changed), then deletes the inbox file. Setup steps are in Settings → Apple Health sync setup.
+
+## Travel days
+`settings.main.travel[date] = true`. The app offers to mark a day when the phone's time zone differs from Vancouver. Travel days are flagged to the Coach and in summaries; scoring is unchanged.
+
+## Monthly report
+Trends → Monthly report computes the month from the log. A scheduled task on the 1st writes `reports/YYYY-MM.md`, shown as the Coach's write-up.
