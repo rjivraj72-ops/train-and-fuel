@@ -186,7 +186,7 @@ button.item:hover .n{color:var(--accent)}
 .hint{font-size:12px;color:var(--muted)}
 .aibox{grid-column:span 4;background:var(--accent-soft);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
 .aibox .row input[type=text]{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px}
-.filebtn{position:relative;overflow:hidden}
+.filebtn{position:relative;cursor:pointer;overflow:hidden}
 .filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .planedit{grid-column:span 4;display:grid;grid-template-columns:40px 1fr 1fr 96px;gap:6px;align-items:center}
 .planedit>*{min-width:0}
@@ -306,7 +306,7 @@ const DEFAULT_REPO="rjivraj72-ops/train-and-fuel-data";
 const CFG_KEY="tf-github";
 let cfg=null;try{cfg=JSON.parse(localStorage.getItem(CFG_KEY)||"null")}catch{}
 const PROFILE_COLS=["settings","saved","history","weights"];
-let checkin=null, lastLoad=0, syncState="idle";
+let checkin=null, lastLoad=0, syncState="idle", needsImport=false;
 const loadedMonths=new Set();
 function fileFor(c,id,data){
   if(PROFILE_COLS.includes(c))return"profile.json";
@@ -379,6 +379,7 @@ async function loadAll(){
   setSync("loading");
   try{
     const[p,ch,ci]=await Promise.all([getFile("profile.json"),getFile("chat.json"),getRaw("checkins/latest.md").catch(()=>({text:null}))]);
+    needsImport=!p.sha;
     COLS.forEach(c=>col[c]={});
     for(const c of PROFILE_COLS)col[c]=p.data[c]||{};
     col.chat=ch.data.chat||{};
@@ -400,6 +401,23 @@ function setStatus(){
 window.addEventListener("online",()=>{if(hasPending())flush();else loadAll()});
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&cfg&&Date.now()-lastLoad>60000&&!hasPending()&&!conv)loadAll()});
 
+function importCard(){
+  if(!needsImport)return"";
+  return`<section class="card" style="border-color:var(--accent)"><div class="eyebrow">Connected · your log is empty</div><h2>Load your starting data</h2>
+  <p class="sub">If Claude sent you a file named <b>train-and-fuel-starting-data.json</b>, choose it here. It adds your targets, routine, About me, saved meals, weigh-ins and recent log to your private repo.</p>
+  <div class="row wrap" style="margin-top:12px"><span class="btn filebtn">Choose file<input type="file" id="importFile" accept=".json,application/json"></span><button class="btn ghost" data-act="skipImport">Start fresh</button></div><p class="hint" id="importMsg"></p></section>`;
+}
+document.addEventListener("change",async e=>{
+  if(e.target.id!=="importFile")return;const f=e.target.files?.[0];if(!f)return;const msg=$("#importMsg");
+  try{const j=JSON.parse(await f.text());const files=j.files||{};const paths=Object.keys(files).filter(p=>/^(profile\.json|chat\.json|README\.md|log\/\d{4}-\d\d\.json)$/.test(p));
+    if(!paths.includes("profile.json")){msg.textContent="That file doesn't look like Train & Fuel data.";return}
+    let i=0;for(const p of paths){msg.textContent="Saving "+(++i)+" of "+paths.length+"…";const cur=await getRaw(p);
+      const body=typeof files[p]==="string"?files[p]:JSON.stringify(files[p],null,1);
+      const r=await gh("contents/"+p,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Import "+p,content:enc(body),...(cur.sha?{sha:cur.sha}:{})})});
+      if(!r.ok)throw new Error("GitHub said "+r.status)}
+    toast("Starting data loaded");needsImport=false;lastLoad=0;await loadAll();
+  }catch(err){msg.textContent="Import failed: "+(err.message||err)}
+});
 function vSetup(){
   return`<div class="view"><section class="card"><div class="eyebrow">One-time setup on this device</div><h2>Connect your log</h2>
   <p class="sub">Your log lives in your private GitHub repo. This device needs an access token that can read and write that one repo. It's stored only in this browser.</p>
@@ -525,6 +543,7 @@ function vToday(){
   const ss=sessionState(d);const ws=weekStart(d),sc=weekScore(ws),st=streak();
   const dots=[0,1,2,3,4,5,6].map(i=>{const dd=addDays(ws,i),x=sessionState(dd);return`<div class="${x.st==="done"?"done":x.st==="today"?"today":x.st==="miss"?"miss":x.st==="rest"?"rest":""}"><i></i>${DOW[dow(dd)][0]}</div>`}).join("");
   return`<div class="view">
+  ${importCard()}
   ${checkinCard(true)}
   ${kitchen?`<div>${kitchen}</div>`:""}
   <section class="card">
@@ -892,6 +911,7 @@ document.addEventListener("click",async e=>{
     sv.forEach((x,k)=>{if(k!==i&&k!==j&&x.order!==k){const{id:ix,...dx}=x;store.set("saved",ix,{...dx,order:k}).catch(()=>{})}})}
   else if(a==="water"){const ml=+b.dataset.ml;const cur=waterOn(date);waterUndo.push({d:date,ml});await safe(store.set("water",date,{ml:cur+ml}))}
   else if(a==="waterUndo"){const u=waterUndo.pop();if(!u)return;await safe(store.set("water",u.d,{ml:Math.max(0,waterOn(u.d)-u.ml)}),"Undone")}
+  else if(a==="skipImport"){needsImport=false;render()}
   else if(a==="retrySync"){setSync("saving");flush()}
   else if(a==="retryLoad"){loadAll()}
   else if(a==="disconnect"){if(b.dataset.armed){try{localStorage.removeItem(CFG_KEY)}catch{};cfg=null;closeSheet();await endConv();COLS.forEach(c=>col[c]={});render()}else{b.dataset.armed="1";b.textContent="Tap again to disconnect"}}
