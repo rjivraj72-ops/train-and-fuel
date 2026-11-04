@@ -291,7 +291,7 @@ const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 const parse=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
 const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return ymd(d)};
 const dow=s=>parse(s).getDay();
-const weekStart=s=>addDays(s,-((dow(s)+6)%7));
+const weekStart=s=>addDays(s,-dow(s));
 /* All dates and times are home time (Vancouver), whatever time zone the phone is set to. */
 const HOME_TZ="America/Vancouver";
 const homeFmt=new Intl.DateTimeFormat("en-CA",{timeZone:HOME_TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
@@ -515,13 +515,15 @@ document.addEventListener("submit",async e=>{
 function carbRange(s){return[Math.max(0,Math.round((s.kcal-s.proteinMax*4-s.fatMax*9)/4/5)*5),Math.max(0,Math.round((s.kcal-s.proteinMin*4-s.fatMin*9)/4/5)*5)]}
 /* flex day: one weekend night (Sat or Sun) per week. Manual pick wins; otherwise Sunday if only Sunday had a late meal; otherwise the default. */
 function isLate(m){const s=S();return !!m.time&&hm2min(m.time)>=hm2min(s.close)}
-function flexDowFor(ws){const s=S();const o=(s.flexWeeks||{})[ws];if(o===0||o===6)return o;
-  const sat=addDays(ws,5),sun=addDays(ws,6);const lS=mealsOn(sat).some(isLate),lU=mealsOn(sun).some(isLate);
-  if(lU&&!lS)return 0;if(lS&&!lU)return 6;return s.flexDow===0?0:6}
+function weekendSat(d){const w=dow(d);return w===0?addDays(d,-1):addDays(d,6-w)}
+function flexDayFor(sat){const s=S();const sun=addDays(sat,1);const o=(s.flexNights||{})[sat];if(o===sat||o===sun)return o;
+  const leg=(s.flexWeeks||{})[addDays(sat,-5)];if(leg===6)return sat;if(leg===0)return sun;
+  const lS=mealsOn(sat).some(isLate),lU=mealsOn(sun).some(isLate);
+  if(lU&&!lS)return sun;if(lS&&!lU)return sat;return s.flexDow===0?sun:sat}
 function isTravel(d){return !!(S().travel||{})[d]}
 const DEV_TZ=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone}catch{return HOME_TZ}})();
 function awayFromHome(){try{const now=Date.now();const off=tz=>{const f=new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(now);return f};return off(DEV_TZ)!==off(HOME_TZ)}catch{return false}}
-function isFlex(d){return dow(d)===flexDowFor(weekStart(d))}
+function isFlex(d){const w=dow(d);return(w===0||w===6)&&flexDayFor(weekendSat(d))===d}
 function dayDone(d){const t=todayStr();if(d<t)return true;if(d>t)return false;if(isFlex(d))return false;return hm2min(nowHM())>=hm2min(S().close)}
 function sessionState(d){
   const s=S(),p=s.plan[(dow(d)+6)%7],ws=workoutsOn(d),t=todayStr();
@@ -540,7 +542,7 @@ function weekScore(ws){
   return{score:parts.length?Math.round(parts.reduce((a,b)=>a+b,0)/parts.length*100):null,counted,cal,pro,clean,planned,done,provisional:addDays(ws,6)>=t};
 }
 function weekWorkouts(ws){const e=addDays(ws,6);return allWorkouts().filter(w=>w.date>=ws&&w.date<=e)}
-function weekVolume(ws){const imp=H().weeklyVolume?.[ws];if(imp!=null)return imp;const v=weekWorkouts(ws).filter(w=>w.type==="strength").reduce((s,w)=>s+(+w.volumeKg||0),0);return v||null}
+function weekVolume(ws){const hv=H().weeklyVolume||{};const imp=hv[ws]??hv[addDays(ws,1)];if(imp!=null)return imp;const v=weekWorkouts(ws).filter(w=>w.type==="strength").reduce((s,w)=>s+(+w.volumeKg||0),0);return v||null}
 function streak(){
   const base=H().streak||{};let n=0,ws=weekStart(todayStr());
   const qual=w=>weekWorkouts(w).length>=3;
@@ -656,7 +658,7 @@ function vToday(){
       <p class="sub">${(()=>{const n=[0,1,2,3,4,5,6].filter(i=>isTravel(addDays(ws,i))).length;return n?`✈ ${n} travel day${n>1?"s":""} this week · `:""})()}${sc.counted?`Calories ${sc.cal}/${sc.counted} days within ±200 · protein ${sc.pro}/${sc.counted} days at ${s.proteinMin} g+ · kitchen closed on time ${sc.clean}/${sc.counted} nights`:"No completed food days yet this week"}${sc.planned?` · sessions ${sc.done}/${sc.planned}`:""}${sc.provisional?" · provisional":""}</p></div>
       <div class="score" style="border-color:${sc.score==null?"var(--line)":sc.score>=80?"var(--good)":sc.score>=60?"var(--warn)":"var(--bad)"}"><div><b>${sc.score??"–"}</b><span>/100</span></div></div></div>
     <div class="weekdots">${dots}</div>
-    <p class="sub" style="margin-top:10px"><b style="color:var(--accent)">${st.n}</b> consecutive training weeks (3+ sessions) · best ${st.best}. Flex night this week: <span class="row" style="display:inline-flex;gap:4px;vertical-align:middle">${[6,0].map(x=>`<button type="button" class="btn sm ${flexDowFor(ws)===x?"":"ghost"}" data-act="flexWeek" data-ws="${ws}" data-d="${x}">${DOW[x]}</button>`).join("")}</span> (not scored). Each day counts once the kitchen closes at ${fmtT(s.close)}.</p>
+    <p class="sub" style="margin-top:10px"><b style="color:var(--accent)">${st.n}</b> consecutive training weeks (3+ sessions) · best ${st.best}. Flex night this weekend: <span class="row" style="display:inline-flex;gap:4px;vertical-align:middle">${(()=>{const sat=weekendSat(todayStr());return[sat,addDays(sat,1)].map(x=>`<button type="button" class="btn sm ${flexDayFor(sat)===x?"":"ghost"}" data-act="flexWeek" data-ws="${sat}" data-d="${x}">${DOW[dow(x)]}</button>`).join("")})()}</span> (not scored). Each day counts once the kitchen closes at ${fmtT(s.close)}.</p>
   </section>
   <section class="card"><div class="eyebrow">Overnight stretch</div>
     <div class="stats" style="margin-top:10px"><div class="stat"><div class="l">Last night</div><div class="mid">${hmF(on)}</div></div><div class="stat"><div class="l">7-day avg</div><div class="mid">${hmF(avgv)}</div></div><div class="stat"><div class="l">Kitchen</div><div class="mid" style="font-size:20px">${fmtT(s.close)}</div></div></div>
@@ -694,11 +696,11 @@ function vTrain(){
   const rows=[0,1,2,3,4,5,6].map(i=>{const d=addDays(ws,i),x=sessionState(d),flex=isFlex(d);
     const det=x.ws.length?"Logged: "+x.ws.map(w=>w.name).join(", "):x.p.detail;
     return`<div class="pday ${x.st}"><span class="bar"></span><div class="dw">${DOW[dow(d)]}<span>${short(d)}</span></div><div><div class="ti">${esc(x.p.title)} ${flex?'<span class="pill cool">Flex day</span>':""}</div><div class="de">${esc(det)}</div></div><span class="pill ${x.st==="done"?"good":x.st==="today"?"acc":x.st==="miss"?"bad":""}">${x.label}</span></div>`}).join("");
-  const planned=[0,1,2,3,4,5,6].filter(i=>s.plan[i].kind!=="rest").length,done=[0,1,2,3,4,5,6].filter(i=>sessionState(addDays(ws,i)).st==="done").length;
+  const planned=[0,1,2,3,4,5,6].filter(i=>s.plan[(dow(addDays(ws,i))+6)%7].kind!=="rest").length,done=[0,1,2,3,4,5,6].filter(i=>sessionState(addDays(ws,i)).st==="done").length;
   const vol=ww.filter(w=>w.type==="strength").reduce((a,w)=>a+(+w.volumeKg||0),0),km=ww.filter(w=>w.type==="run").reduce((a,w)=>a+(+w.distanceKm||0),0);
   const pr=prs(),rec=allWorkouts().slice(0,10);
   return`<div class="view">
-  <section class="card"><div class="head"><div><div class="eyebrow">Week of Mon, ${short(ws)}</div><h2>This week</h2><p class="sub">${done} of ${planned} planned sessions complete${s.profile?" · "+esc(s.profile):""}</p></div><button class="btn line sm" data-act="settings">Edit routine</button></div>
+  <section class="card"><div class="head"><div><div class="eyebrow">Week of Sun, ${short(ws)}</div><h2>This week</h2><p class="sub">${done} of ${planned} planned sessions complete${s.profile?" · "+esc(s.profile):""}</p></div><button class="btn line sm" data-act="settings">Edit routine</button></div>
     <div class="plan" style="margin-top:10px">${rows}</div>
     <div class="row" style="margin-top:12px"><button class="btn" style="flex:1" data-act="addWorkout">Log workout</button><button class="btn ghost" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Screenshot</button></div></section>
   <section class="card"><div class="stats"><div class="stat"><div class="l">Sessions</div><div class="mid">${ww.length}</div></div><div class="stat"><div class="l">Volume</div><div class="mid">${n0(vol)}<small>kg</small></div></div><div class="stat"><div class="l">Run</div><div class="mid">${n1(km)}<small>km</small></div></div></div></section>
@@ -762,7 +764,7 @@ function weekStats(ws){
   const avg=(arr,f)=>arr.length?arr.reduce((a,d)=>a+f(d),0)/arr.length:null;
   const ww=weekWorkouts(ws);const sc=weekScore(ws);const wd=days.filter(d=>waterOn(d)>0);
   const wts=weights().filter(w=>w.date>=ws&&w.date<=addDays(ws,6));
-  const imp=(H().weeklyScores||{})[ws];
+  const imp=(H().weeklyScores||{})[ws]??(H().weeklyScores||{})[addDays(ws,1)];
   return{ws,days:days.length,logged:logged.length,core:core.length,score:imp?.score??sc.score,
     kcal:avg(logged,d=>totals(d).kcal),protein:avg(logged,d=>totals(d).protein),
     calOn:sc.cal,proOn:sc.pro,clean:sc.clean,counted:sc.counted,done:sc.done,planned:sc.planned,
@@ -788,7 +790,7 @@ function weekFlags(a,b){
   return f;
 }
 function weekCard(){
-  const t=todayStr();const ws=reportWeek||weekStart(t),prev=addDays(ws,-7),next=addDays(ws,7);
+  const t=todayStr();const ws=reportWeek||(dow(t)===0?addDays(weekStart(t),-7):weekStart(t)),prev=addDays(ws,-7),next=addDays(ws,7);
   const a=weekStats(ws),b=weekStats(prev),fl=weekFlags(a,b);
   const fmt=(v,k)=>v==null?"–":k==="lb"?n1(v):k==="km"?n1(v):k==="pct"?v+"":n0(v);
   const delta=(x,y,good,k)=>{if(x==null||y==null)return"";const d=x-y;if(Math.abs(d)<(k==="lb"||k==="km"?0.05:0.5))return`<span class="muted">same</span>`;const up=d>0;const ok=good===0?null:(good>0?up:!up);
@@ -839,7 +841,7 @@ function vTrends(){
   const s=S(),t=todayStr(),wts=weights(),last=wts[wts.length-1],first=wts[0];
   const ws0=weekStart(t);const weeks=[];for(let i=7;i>=0;i--)weeks.push(addDays(ws0,-7*i));
   const hs=H().weeklyScores||{};
-  const scores=weeks.map(w=>{const live=weekScore(w);const imp=hs[w];return imp?.score??((live.counted||weekWorkouts(w).length)?live.score:null)});
+  const scores=weeks.map(w=>{const live=weekScore(w);const imp=hs[w]??hs[addDays(w,1)];return imp?.score??((live.counted||weekWorkouts(w).length)?live.score:null)});
   const scoreCol=scores.map(v=>v==null?"var(--line)":v>=80?"var(--good)":v>=60?"var(--warn)":"var(--bad)");
   const vols=weeks.map(weekVolume);
   const days=[];for(let i=13;i>=0;i--)days.push(addDays(t,-i));
@@ -1033,7 +1035,7 @@ function buildContext(){
   const sc=weekScore(ws);const mon=H().monthly||{};
   const chat=(chatTurns||[]).slice(-8).map(x=>(x.role==="user"?"Them: ":"You: ")+(x.quote?"(replying to \""+x.quote+"\") ":"")+x.content.replace(/\s+/g," ").slice(0,300)+(x.react?" [they reacted "+x.react+"]":"")).join("\n");
   return`NOW: ${longD(t)}, ${fmtT(now)} Vancouver time (date ${t}, time ${now}). All dates and times in the log and in your tool calls are Vancouver time, even when they travel. If they give a time in another zone (e.g. Seattle or a trip abroad), convert it to Vancouver time before logging.
-TARGETS: ${s.kcal} kcal/day (±200 counts as on target); protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g; carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except one weekend flex night (Saturday or Sunday). This week's flex night: ${DOW[flexDowFor(weekStart(t))]} (no calorie flag, not scored). A day counts in the weekly score once the kitchen closes.
+TARGETS: ${s.kcal} kcal/day (±200 counts as on target); protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g; carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except one weekend flex night (Saturday or Sunday). Weeks run Sunday to Saturday. This weekend's flex night: ${DOW[dow(flexDayFor(weekendSat(t)))]} ${flexDayFor(weekendSat(t))} (no calorie flag, not scored). A day counts in the weekly score once the kitchen closes.
 ${(s.about||s.profile)?"ABOUT THEM (in their words):\n"+(s.about||s.profile)+"\n":""}${s.coachStyle?"THEIR COACHING STYLE INSTRUCTIONS (follow these): "+s.coachStyle+"\n":""}${notes().length?"LEARNED IN PAST CHATS:\n"+notes().map(n=>"- "+n.text).join("\n")+"\n":""}WEEK-OVER-WEEK FLAGS (this week vs last): ${(()=>{const ws0=weekStart(t);const f=weekFlags(weekStats(ws0),weekStats(addDays(ws0,-7)));return f.length?f.map(x=>x.level.toUpperCase()+": "+x.txt).join(" | "):"none"})()}\nPATTERNS FROM THEIR LOG (last 8 weeks):\n${insights().map(x=>"- "+x.text).join("\n")}\n${coachPatterns().length?"PATTERNS FROM WEEKLY CHECK-INS:\n"+coachPatterns().map(x=>"- "+x.text).join("\n")+"\n":""}
 ${Object.keys(S().travel||{}).length?"TRAVEL DAYS (recent): "+Object.keys(S().travel||{}).filter(x=>x>=addDays(t,-30)).sort().join(", ")+". On travel days, estimate restaurant portions generously (bigger plates, more oil and sauce) and read their numbers in that context.\n":""}TODAY: ${dayDigest(t)}
 TODAY'S MEALS (id | time | name | kcal P/C/F):${today.length?today.map(m=>`\n- ${m.id} | ${m.time} | ${m.name} | ${m.kcal} ${m.protein}/${m.carbs}/${m.fat}`).join(""):" none yet"}
@@ -1211,7 +1213,7 @@ document.addEventListener("click",async e=>{
   else if(a==="replyTo"){setReply(+b.dataset.i)}
   else if(a==="react"){const t=chatTurns&&chatTurns[+b.dataset.i];if(t){t.react=t.react===b.dataset.e?undefined:b.dataset.e;if(!t.react)delete t.react;saveChatSoon();renderChat()}}
   else if(a==="cancelReply"){setReply(-1)}
-  else if(a==="flexWeek"){const st=S();const fw={...(st.flexWeeks||{})};fw[b.dataset.ws]=+b.dataset.d;await safe(store.set("settings","main",{...(col.settings.main||{}),flexWeeks:fw}),DOW[+b.dataset.d]+" is this week's flex night")}
+  else if(a==="flexWeek"){const st=S();const fn={...(st.flexNights||{})};fn[b.dataset.ws]=b.dataset.d;await safe(store.set("settings","main",{...(col.settings.main||{}),flexNights:fn}),DOW[dow(b.dataset.d)]+" is this weekend's flex night")}
   else if(a==="retrySync"){setSync("saving");flush()}
   else if(a==="retryLoad"){loadAll()}
   else if(a==="disconnect"){if(b.dataset.armed){try{localStorage.removeItem(CFG_KEY)}catch{};cfg=null;closeSheet();await endConv();COLS.forEach(c=>col[c]={});render()}else{b.dataset.armed="1";b.textContent="Tap again to disconnect"}}
@@ -1250,7 +1252,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-04a";
+const BUILD="2026-11-04b";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 if(cfg&&loadCache())reapplyPending();
