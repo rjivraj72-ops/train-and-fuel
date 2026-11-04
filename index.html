@@ -208,6 +208,15 @@ body.kb .tabs{display:none}
 body.kb .app{padding-bottom:8px}
 body.kb .composer{bottom:0}
 .composer{z-index:4}
+.flags{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.flag{font-size:13px;padding:8px 10px;border-radius:10px;border-left:3px solid var(--warn);background:var(--warn-soft)}
+.flag.concern{border-left-color:var(--bad);background:var(--bad-soft)}
+.flag b{margin-right:4px}
+table.wk{width:100%;border-collapse:collapse;font-size:13px}
+table.wk th{text-align:right;font-weight:700;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:6px 4px;border-bottom:1px solid var(--line)}
+table.wk th:first-child{text-align:left}
+table.wk td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+table.wk td:first-child{text-align:left;white-space:normal}
 .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;max-width:240px}
 .thumbs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
 .mwrap{display:flex;flex-direction:column;gap:2px;position:relative;transition:transform .2s ease;touch-action:pan-y}
@@ -746,7 +755,55 @@ function patternsCard(){
   <div class="list" style="margin-top:6px">${ins.map(x=>`<div class="item" style="grid-template-columns:1fr;padding-block:9px"><span class="small${x.pending?" muted":""}">${esc(x.text)}</span></div>`).join("")}
   ${cp.map(x=>`<div class="item" style="grid-template-columns:1fr auto;padding-block:9px"><span class="small"><span class="pill acc">Check-in</span> ${esc(x.text)}</span><button type="button" class="btn sm ghost" data-act="dismissPattern" data-t="${esc(x.text)}">Not right</button></div>`).join("")}</div></section>`;
 }
-let reportMonth=null;const reportText={};
+let reportMonth=null;const reportText={};let reportWeek=null;
+function weekStats(ws){
+  const s=S(),t=todayStr();const days=[0,1,2,3,4,5,6].map(i=>addDays(ws,i)).filter(d=>d<=t&&dayDone(d)||d<t);
+  const logged=days.filter(d=>totals(d).n),core=logged.filter(d=>!isFlex(d));
+  const avg=(arr,f)=>arr.length?arr.reduce((a,d)=>a+f(d),0)/arr.length:null;
+  const ww=weekWorkouts(ws);const sc=weekScore(ws);const wd=days.filter(d=>waterOn(d)>0);
+  const wts=weights().filter(w=>w.date>=ws&&w.date<=addDays(ws,6));
+  const imp=(H().weeklyScores||{})[ws];
+  return{ws,days:days.length,logged:logged.length,core:core.length,score:imp?.score??sc.score,
+    kcal:avg(logged,d=>totals(d).kcal),protein:avg(logged,d=>totals(d).protein),
+    calOn:sc.cal,proOn:sc.pro,clean:sc.clean,counted:sc.counted,done:sc.done,planned:sc.planned,
+    workouts:ww.length,vol:weekVolume(ws),km:ww.filter(w=>w.type==="run").reduce((a,w)=>a+(+w.distanceKm||0),0),
+    water:avg(wd,waterOn),weight:wts.length?wts[wts.length-1].lb:null,travel:days.filter(isTravel).length,late:core.filter(d=>mealsOn(d).some(isLate)).length};
+}
+function weekFlags(a,b){
+  const s=S(),f=[];const add=(level,txt)=>f.push({level,txt});const cmp=b.logged>=3;
+  if(a.days>=3&&a.logged<a.days-1)add("watch",`Food logged on ${a.logged} of ${a.days} days so far, so the numbers below are thin.`);
+  if(!cmp&&b.days)add("watch",`Last week has only ${b.logged} day${b.logged===1?"":"s"} of food logged, so week-over-week food changes aren't flagged yet.`);
+  if(a.protein!=null&&a.protein<s.proteinMin)add("concern",`Protein averaging ${Math.round(a.protein)} g, under the ${s.proteinMin} g floor${b.protein!=null?` (last week ${Math.round(b.protein)} g)`:""}.`);
+  else if(cmp&&a.protein!=null&&b.protein!=null&&b.protein-a.protein>=15)add("watch",`Protein down ${Math.round(b.protein-a.protein)} g/day vs last week (${Math.round(a.protein)} vs ${Math.round(b.protein)} g).`);
+  if(a.kcal!=null&&a.kcal>s.kcal+200)add("concern",`Calories averaging ${n0(a.kcal)}, ${n0(a.kcal-s.kcal)} over target${b.kcal!=null?` (last week ${n0(b.kcal)})`:""}.`);
+  else if(cmp&&a.kcal!=null&&b.kcal!=null&&a.kcal-b.kcal>=250)add("watch",`Calories up ${n0(a.kcal-b.kcal)}/day vs last week.`);
+  if(a.late>=2)add("concern",`Food after ${fmtT(s.close)} on ${a.late} non-flex nights${b.late!=null?` (last week ${b.late})`:""}.`);
+  else if(cmp&&a.late>b.late&&a.late>=1)add("watch",`${a.late} late night this week vs ${b.late} last week.`);
+  if(a.planned>=2&&a.done/a.planned<0.67)add("concern",`Sessions ${a.done} of ${a.planned} planned so far.`);
+  if(a.vol&&b.vol&&a.days===7&&a.vol<b.vol*0.8)add("watch",`Strength volume down ${Math.round((1-a.vol/b.vol)*100)}% (${n0(a.vol)} vs ${n0(b.vol)} kg).`);
+  if(a.water!=null&&a.water<s.waterMl*0.7)add("watch",`Water averaging ${n0(a.water)} ml of ${n0(s.waterMl)}.`);
+  const allW0=weights();const lw=a.weight??(allW0.length?allW0[allW0.length-1].lb:null);if(lw!=null&&(lw<s.weightLo||lw>s.weightHi))add("concern",`Weight ${n1(lw)} lb is ${lw<s.weightLo?"below":"above"} your ${s.weightLo}–${s.weightHi} lb range.`);
+  const allW=weights();if(allW.length>=2){const L=allW[allW.length-1],P=allW[allW.length-2];const wk=(parse(L.date)-parse(P.date))/6048e5;if(L.date>=addDays(todayStr(),-14)&&wk>0&&wk<=3&&Math.abs(L.lb-P.lb)/wk>=1.5)add("watch",`Weight moved ${n1(L.lb-P.lb)} lb in ${Math.round(wk*7)} days.`)}
+  if(a.score!=null&&b.score!=null&&b.score-a.score>=15)add("watch",`Weekly score ${a.score}, down from ${b.score}.`);
+  return f;
+}
+function weekCard(){
+  const t=todayStr();const ws=reportWeek||weekStart(t),prev=addDays(ws,-7),next=addDays(ws,7);
+  const a=weekStats(ws),b=weekStats(prev),fl=weekFlags(a,b);
+  const fmt=(v,k)=>v==null?"–":k==="lb"?n1(v):k==="km"?n1(v):k==="pct"?v+"":n0(v);
+  const delta=(x,y,good,k)=>{if(x==null||y==null)return"";const d=x-y;if(Math.abs(d)<(k==="lb"||k==="km"?0.05:0.5))return`<span class="muted">same</span>`;const up=d>0;const ok=good===0?null:(good>0?up:!up);
+    return`<span style="color:${ok==null?"var(--muted)":ok?"var(--good)":"var(--bad)"}">${up?"▲":"▼"} ${k==="lb"||k==="km"?n1(Math.abs(d)):n0(Math.abs(d))}</span>`};
+  const rows=[["Score",a.score,b.score,1,""],["Avg kcal",a.kcal,b.kcal,0,""],["Avg protein (g)",a.protein,b.protein,1,""],
+    ["Calories on target",a.counted?`${a.calOn}/${a.counted}`:null,b.counted?`${b.calOn}/${b.counted}`:null],["Protein days ≥ "+S().proteinMin,a.counted?`${a.proOn}/${a.counted}`:null,b.counted?`${b.proOn}/${b.counted}`:null],
+    ["Kitchen closed",a.counted?`${a.clean}/${a.counted}`:null,b.counted?`${b.clean}/${b.counted}`:null],["Sessions",a.planned?`${a.done}/${a.planned}`:null,b.planned?`${b.done}/${b.planned}`:null],
+    ["Workouts",a.workouts,b.workouts,1,""],["Strength volume (kg)",a.vol,b.vol,1,""],["Run (km)",a.km,b.km,1,"km"],["Avg water (ml)",a.water,b.water,1,""],["Weight (lb)",a.weight,b.weight,0,"lb"]];
+  return`<section class="card"><div class="head"><div><div class="eyebrow">Weekly report</div><h2>Week of ${short(ws)}${ws===weekStart(t)?" (so far)":""}</h2><p class="sub">Compared with week of ${short(prev)}${a.travel?` · ✈ ${a.travel} travel day${a.travel>1?"s":""}`:""}</p></div>
+   <div class="row"><button class="btn sm ghost" data-act="week" data-w="${prev}" aria-label="Previous week">‹</button><button class="btn sm ghost" data-act="week" data-w="${next}" ${next>t?"disabled":""} aria-label="Next week">›</button></div></div>
+   ${fl.length?`<div class="flags">${fl.map(x=>`<div class="flag ${x.level}"><b>${x.level==="concern"?"Concern":"Watch"}</b> ${esc(x.txt)}</div>`).join("")}</div>`:`<p class="sub" style="color:var(--good)">Nothing flagged vs last week.</p>`}
+   <div style="overflow-x:auto;margin-top:10px"><table class="wk"><thead><tr><th></th><th>This week</th><th>Last week</th><th>Change</th></tr></thead><tbody>
+   ${rows.map(r=>`<tr><td>${r[0]}</td><td class="num">${typeof r[1]==="string"?r[1]:fmt(r[1],r[4])}</td><td class="num muted">${typeof r[2]==="string"?r[2]:fmt(r[2],r[4])}</td><td class="num">${r.length>3&&typeof r[1]!=="string"?delta(r[1],r[2],r[3],r[4]):""}</td></tr>`).join("")}
+   </tbody></table></div></section>`;
+}
 function monthStats(m){
   const s=S(),first=m+"-01";const days=[];let d=first;while(d.slice(0,7)===m){if(dayDone(d)||d<todayStr())days.push(d);d=addDays(d,1)}
   const ws=Object.values(col.workouts).filter(w=>(w.date||"").slice(0,7)===m);
@@ -792,6 +849,7 @@ function vTrends(){
   const pr=days.map(d=>{const x=totals(d);return x.n?x.protein:null});
   const mon=H().monthly||{};const monKeys=Object.keys(mon).sort().reverse();
   return`<div class="view">
+  ${weekCard()}
   ${monthCard()}
   ${patternsCard()}
   <section class="card"><div class="head"><div><div class="eyebrow">Weight · target ${s.weightLo}–${s.weightHi} lb</div>
@@ -976,7 +1034,7 @@ function buildContext(){
   const chat=(chatTurns||[]).slice(-8).map(x=>(x.role==="user"?"Them: ":"You: ")+(x.quote?"(replying to \""+x.quote+"\") ":"")+x.content.replace(/\s+/g," ").slice(0,300)+(x.react?" [they reacted "+x.react+"]":"")).join("\n");
   return`NOW: ${longD(t)}, ${fmtT(now)} Vancouver time (date ${t}, time ${now}). All dates and times in the log and in your tool calls are Vancouver time, even when they travel. If they give a time in another zone (e.g. Seattle or a trip abroad), convert it to Vancouver time before logging.
 TARGETS: ${s.kcal} kcal/day (±200 counts as on target); protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g; carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except one weekend flex night (Saturday or Sunday). This week's flex night: ${DOW[flexDowFor(weekStart(t))]} (no calorie flag, not scored). A day counts in the weekly score once the kitchen closes.
-${(s.about||s.profile)?"ABOUT THEM (in their words):\n"+(s.about||s.profile)+"\n":""}${s.coachStyle?"THEIR COACHING STYLE INSTRUCTIONS (follow these): "+s.coachStyle+"\n":""}${notes().length?"LEARNED IN PAST CHATS:\n"+notes().map(n=>"- "+n.text).join("\n")+"\n":""}PATTERNS FROM THEIR LOG (last 8 weeks):\n${insights().map(x=>"- "+x.text).join("\n")}\n${coachPatterns().length?"PATTERNS FROM WEEKLY CHECK-INS:\n"+coachPatterns().map(x=>"- "+x.text).join("\n")+"\n":""}
+${(s.about||s.profile)?"ABOUT THEM (in their words):\n"+(s.about||s.profile)+"\n":""}${s.coachStyle?"THEIR COACHING STYLE INSTRUCTIONS (follow these): "+s.coachStyle+"\n":""}${notes().length?"LEARNED IN PAST CHATS:\n"+notes().map(n=>"- "+n.text).join("\n")+"\n":""}WEEK-OVER-WEEK FLAGS (this week vs last): ${(()=>{const ws0=weekStart(t);const f=weekFlags(weekStats(ws0),weekStats(addDays(ws0,-7)));return f.length?f.map(x=>x.level.toUpperCase()+": "+x.txt).join(" | "):"none"})()}\nPATTERNS FROM THEIR LOG (last 8 weeks):\n${insights().map(x=>"- "+x.text).join("\n")}\n${coachPatterns().length?"PATTERNS FROM WEEKLY CHECK-INS:\n"+coachPatterns().map(x=>"- "+x.text).join("\n")+"\n":""}
 ${Object.keys(S().travel||{}).length?"TRAVEL DAYS (recent): "+Object.keys(S().travel||{}).filter(x=>x>=addDays(t,-30)).sort().join(", ")+". On travel days, estimate restaurant portions generously (bigger plates, more oil and sauce) and read their numbers in that context.\n":""}TODAY: ${dayDigest(t)}
 TODAY'S MEALS (id | time | name | kcal P/C/F):${today.length?today.map(m=>`\n- ${m.id} | ${m.time} | ${m.name} | ${m.kcal} ${m.protein}/${m.carbs}/${m.fat}`).join(""):" none yet"}
 TODAY'S WORKOUTS (id | name): ${workoutsOn(t).map(w=>`${w.id} | ${w.name}`).join("; ")||"none"}
@@ -1163,6 +1221,7 @@ document.addEventListener("click",async e=>{
   else if(a==="saveUsual"){const u=usualCandidates().find(x=>x.key===b.dataset.k);if(u){const sv=savedList();await safe(store.add("saved",{name:u.name,desc:"",kcal:u.kcal,protein:u.protein,carbs:u.carbs,fat:u.fat,order:sv.length?Math.max(...sv.map(x=>x.order??0))+1:0}),"Saved as a usual")}}
   else if(a==="dismissUsual"){const st=S();await safe(store.set("settings","main",{...(col.settings.main||{}),usualDismissed:[...new Set([...(st.usualDismissed||[]),b.dataset.k])]}))}
   else if(a==="month"){reportMonth=b.dataset.m;render()}
+  else if(a==="week"){reportWeek=b.dataset.w;render()}
   else if(a==="healthHelp"){healthSheet()}
   else if(a==="dismissPattern"){const P={...(col.patterns.main||{})};P.dismissed=[...new Set([...(P.dismissed||[]),b.dataset.t])];await safe(store.set("patterns","main",P),"Removed. The check-in won't bring it back.")}
   else if(a==="forgetNote"){const list=notes().slice();list.splice(+b.dataset.i,1);await safe(store.set("settings","memory",{notes:list}),"Removed")}
@@ -1191,7 +1250,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-03q";
+const BUILD="2026-11-03r";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 if(cfg&&loadCache())reapplyPending();
