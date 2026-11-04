@@ -832,7 +832,7 @@ async function startConv(mode){
   if(conv)await endConv();
   if(!window.ElevenLabsClient)throw new Error("Voice library didn't load");
   convMode=mode;convStatus="connecting";updateMic();
-  const opts={agentId:AGENT_ID,connectionType:"websocket",dynamicVariables:{context:buildContext()},clientTools:clientTools(),
+  const opts={agentId:AGENT_ID,connectionType:mode==="voice"?"webrtc":"websocket",dynamicVariables:{context:buildContext()},clientTools:clientTools(),
     onMessage:m=>{const role=m.role||(m.source==="ai"?"agent":"user");if(!m.message)return;if(role==="user"){if(convMode==="voice")addTurn("user",m.message);return}awaiting=false;addTurn("assistant",m.message);touchIdle()},
     onModeChange:({mode:md})=>{agentSpeaking=md==="speaking";updateMic()},
     onStatusChange:({status})=>{convStatus=status;updateMic()},
@@ -951,7 +951,7 @@ window.addEventListener("hashchange",route);
 let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(date===lastDay)date=t;lastDay=t}if(view==="today"&&!sheetEl)render()},60000);
 
 /* ---------- boot ---------- */
-const BUILD="2026-11-03c";
+const BUILD="2026-11-03d";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 route();setStatus();if(cfg)loadAll();
