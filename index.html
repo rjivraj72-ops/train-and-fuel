@@ -233,6 +233,7 @@ button.item:hover .n{color:var(--accent)}
     <button class="iconbtn" id="settingsBtn" aria-label="Targets and routine"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
   </header>
   <div id="status"></div>
+  <input type="file" id="photoIn" accept="image/*" hidden>
   <main id="main"></main>
 </div>
 
@@ -553,7 +554,7 @@ function vToday(){
     ${meter(t.kcal,s.kcal-200,s.kcal+200,s.kcal*1.25,kcalCls)}
     <p class="sub">${t.n} ${t.n===1?"entry":"entries"} · green band is ±200 kcal of target</p>
     <div style="margin-top:8px">${mrow("Protein",t.protein,s.proteinMin,s.proteinMax,"protein")}${mrow("Fat",t.fat,s.fatMin,s.fatMax,"fat")}${mrow("Carbs",t.carbs,cLo,cHi,"carbs")}</div>
-    <div class="row" style="margin-top:6px"><button class="btn block" data-act="addMeal">Add meal</button></div>
+    <div class="row" style="margin-top:6px"><button class="btn" style="flex:1" data-act="addMeal">Add meal</button><button class="btn ghost" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Photo</button></div>
   </section>
   <div class="grid2 stack">
     <section class="card"><div class="eyebrow">Hydration</div>
@@ -592,7 +593,7 @@ function wItem(w){const bits=[TYPES[w.type]||w.type];if(+w.minutes)bits.push(n0(
 function vFood(){
   const d=date,ms=mealsOn(d),t=totals(d),sv=savedList();
   return`<div class="view">
-  <section class="card"><div class="head"><div><div class="eyebrow">Food log · ${longD(d)}</div><h2>${ms.length} ${ms.length===1?"entry":"entries"} · ${n0(t.kcal)} kcal</h2><p class="sub">${n0(t.protein)} g protein · ${n0(t.carbs)} g carbs · ${n0(t.fat)} g fat</p></div><button class="btn" data-act="addMeal">Add meal</button></div>
+  <section class="card"><div class="head"><div><div class="eyebrow">Food log · ${longD(d)}</div><h2>${ms.length} ${ms.length===1?"entry":"entries"} · ${n0(t.kcal)} kcal</h2><p class="sub">${n0(t.protein)} g protein · ${n0(t.carbs)} g carbs · ${n0(t.fat)} g fat</p></div><div class="row"><button class="btn ghost" data-act="photo" aria-label="Log from a photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><button class="btn" data-act="addMeal">Add meal</button></div></div>
     <div class="list" style="margin-top:8px">${ms.length?ms.slice().reverse().map(mItem).join(""):`<div class="empty">Nothing logged for this day. Tap <b>Add meal</b>, log a usual below, or tell the Coach what you ate.</div>`}</div></section>
   <section class="card"><div class="head"><div><div class="eyebrow">Saved meals</div><h2>Your usuals, one tap to log</h2><p class="sub">Logs the full meal as stored, at the current time on ${d===todayStr()?"today":short(d)}.</p></div><button class="btn line sm" data-act="addSaved">Add</button></div>
     <div class="list" style="margin-top:6px">${sv.length?sv.map((m,i)=>`<div class="item" style="grid-template-columns:1fr auto"><div class="n">${esc(m.name)}<div class="m">${esc(m.desc||"")}</div><div class="m num">${n0(m.protein)}g P · ${n0(m.carbs)}g C · ${n0(m.fat)}g F</div>
@@ -611,7 +612,7 @@ function vTrain(){
   return`<div class="view">
   <section class="card"><div class="head"><div><div class="eyebrow">Week of Mon, ${short(ws)}</div><h2>This week</h2><p class="sub">${done} of ${planned} planned sessions complete${s.profile?" · "+esc(s.profile):""}</p></div><button class="btn line sm" data-act="settings">Edit routine</button></div>
     <div class="plan" style="margin-top:10px">${rows}</div>
-    <div class="row" style="margin-top:12px"><button class="btn block" data-act="addWorkout">Log workout</button></div></section>
+    <div class="row" style="margin-top:12px"><button class="btn" style="flex:1" data-act="addWorkout">Log workout</button><button class="btn ghost" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Screenshot</button></div></section>
   <section class="card"><div class="stats"><div class="stat"><div class="l">Sessions</div><div class="mid">${ww.length}</div></div><div class="stat"><div class="l">Volume</div><div class="mid">${n0(vol)}<small>kg</small></div></div><div class="stat"><div class="l">Run</div><div class="mid">${n1(km)}<small>km</small></div></div></div></section>
   <section class="card"><div class="eyebrow">Personal records</div><h2>Your best work</h2>
     <div class="list" style="margin-top:6px">
@@ -843,8 +844,8 @@ async function startConv(mode){
 async function endConv(){const c=conv;conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;clearTimeout(idleTimer);try{await c?.endSession()}catch{}updateMic()}
 function touchIdle(){clearTimeout(idleTimer);idleTimer=setTimeout(()=>{if(convMode==="text")endConv()},4*60000)}
 function addTurn(role,content){chatTurns=chatTurns||[];const t={role,content:String(content),at:Date.now()};if(role==="assistant"&&pendingActions.length)t.actions=pendingActions.splice(0);chatTurns.push(t);saveChatSoon();renderChat()}
-function saveChatSoon(){clearTimeout(saveChatT);saveChatT=setTimeout(()=>{chatTurns=(chatTurns||[]).slice(-60);store.set("chat","log",{turns:chatTurns})},1500)}
-async function saveChat(){chatTurns=(chatTurns||[]).slice(-60);await store.set("chat","log",{turns:chatTurns})}
+function saveChatSoon(){clearTimeout(saveChatT);saveChatT=setTimeout(()=>{chatTurns=(chatTurns||[]).slice(-60);store.set("chat","log",{turns:chatTurns.map(({img,...r})=>r)})},1500)}
+async function saveChat(){chatTurns=(chatTurns||[]).slice(-60);await store.set("chat","log",{turns:chatTurns.map(({img,...r})=>r)})}
 async function sendText(text){
   addTurn("user",text);awaiting=true;renderChat();
   try{const c=await startConv(convMode==="voice"?"voice":"text");c.sendUserMessage(text);touchIdle()}
@@ -854,6 +855,25 @@ async function toggleVoice(){
   if(convMode==="voice"){await endConv();return}
   try{await startConv("voice")}catch(e){convMode=null;convStatus="disconnected";updateMic();toast(/permission|NotAllowed/i.test(String(e?.message||e))?"Allow microphone access to talk to the Coach.":"Couldn't start voice. Check your connection.")}
 }
+async function shrinkImage(file){
+  try{const bmp=await createImageBitmap(file);const k=Math.min(1,1600/Math.max(bmp.width,bmp.height));const c=document.createElement("canvas");c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+    return await new Promise(r=>c.toBlob(b=>r(b||file),"image/jpeg",0.85))}catch{return file}
+}
+const PHOTO_ASK="Here's a photo. If it's food or a drink, estimate what's in it and log it with log_meal. If it's a workout summary screenshot (Apple Watch, Peloton or similar), read it and log it with log_workout using the date and time shown (lb to kg, miles to km). Then confirm in one line with the numbers. If you can't tell what it is, ask.";
+async function sendPhoto(file){
+  if(location.hash!=="#coach")location.hash="coach";
+  await new Promise(r=>setTimeout(r,60));
+  const ta=$("#chatIn");const extra=ta&&ta.value.trim();if(ta)ta.value="";
+  const url=URL.createObjectURL(file);
+  chatTurns=chatTurns||[];addTurn("user",extra?"[Photo] "+extra:"[Photo]");
+  chatTurns[chatTurns.length-1].img=url;
+  awaiting=true;renderChat();
+  try{const c=await startConv(convMode==="voice"?"voice":"text");const blob=await shrinkImage(file);
+    const {fileId}=await c.uploadFile(blob);
+    c.sendMultimodalMessage({text:extra?extra+"\n\n"+PHOTO_ASK:PHOTO_ASK,fileIds:[fileId]});touchIdle();
+  }catch(e){awaiting=false;addTurn("assistant","I couldn't send that photo ("+(e?.message||"upload failed")+"). Try again, or describe it in words.")}
+}
+document.addEventListener("change",e=>{if(e.target.id==="photoIn"){const f=e.target.files?.[0];if(f)sendPhoto(f)}});
 function mdLite(s){return esc(s).replace(/^#{1,3} (.+)$/gm,"<b>$1</b>").replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^[-*] (.+)$/gm,"• $1")}
 function checkinCard(compact){
   if(!checkin?.text)return"";
@@ -867,7 +887,7 @@ function vCoach(){
   <details class="card knows"><summary>What the Coach knows about you</summary><div id="knowsBody"></div></details>
   <div class="chat" id="chatLog"></div>
   <div class="qp" id="qp"></div>
-  <form class="composer" id="composer"><textarea id="chatIn" rows="1" placeholder="What did you eat? Or ask…" aria-label="Message"></textarea><button class="btn" id="chatSend" type="submit">Send</button></form></div>`;
+  <form class="composer" id="composer"><button type="button" class="btn ghost" data-act="photo" aria-label="Log from a photo or screenshot" style="padding:10px 12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><textarea id="chatIn" rows="1" placeholder="What did you eat? Or ask…" aria-label="Message"></textarea><button class="btn" id="chatSend" type="submit">Send</button></form></div>`;
 }
 function renderChat(){
   const el=$("#chatLog");if(!el)return;
@@ -879,7 +899,7 @@ function renderChat(){
   const qp=$("#qp");if(qp)qp.innerHTML=(S().quickPrompts||[]).map(x=>`<button type="button" data-sugg="${esc(x)}">${esc(x)}</button>`).join("");
   const turns=chatTurns||[];
   if(!turns.length&&!awaiting){el.innerHTML=`<div class="card"><h2>Ask about your day, or just tell me what you ate</h2><p class="sub">Try “two boiled eggs and GF toast at 8:30”, “drank a bottle of water”, or “did the 45 min upper body”. I'll log it and give you the numbers.</p></div>`;return}
-  el.innerHTML=turns.slice(-40).map(t=>`<div class="msg ${t.role==="user"?"u":"a"}">${md(t.content)}${t.actions?.length?`<div class="acts">${t.actions.map(a=>`<span>✓ ${esc(a)}</span>`).join("")}</div>`:""}</div>`).join("")
+  el.innerHTML=turns.slice(-40).map(t=>`<div class="msg ${t.role==="user"?"u":"a"}">${md(t.content)}${t.img?`<img src="${t.img}" alt="Photo you sent" style="display:block;max-width:220px;border-radius:10px;margin-top:6px">`:""}${t.actions?.length?`<div class="acts">${t.actions.map(a=>`<span>✓ ${esc(a)}</span>`).join("")}</div>`:""}</div>`).join("")
     +(awaiting?`<div class="msg a think">Thinking…</div>`:"")
     +(turns.length?`<button type="button" class="btn sm ghost" data-act="clearChat" style="align-self:center">Clear conversation</button>`:"");
   const last=el.querySelector(".msg:last-of-type");last&&last.scrollIntoView({block:"nearest"});
@@ -912,6 +932,7 @@ document.addEventListener("click",async e=>{
   else if(a==="water"){const ml=+b.dataset.ml;const cur=waterOn(date);waterUndo.push({d:date,ml});await safe(store.set("water",date,{ml:cur+ml}))}
   else if(a==="waterUndo"){const u=waterUndo.pop();if(!u)return;await safe(store.set("water",u.d,{ml:Math.max(0,waterOn(u.d)-u.ml)}),"Undone")}
   else if(a==="skipImport"){needsImport=false;render()}
+  else if(a==="photo"){closeSheet();const pi=$("#photoIn");pi.value="";pi.click()}
   else if(a==="retrySync"){setSync("saving");flush()}
   else if(a==="retryLoad"){loadAll()}
   else if(a==="disconnect"){if(b.dataset.armed){try{localStorage.removeItem(CFG_KEY)}catch{};cfg=null;closeSheet();await endConv();COLS.forEach(c=>col[c]={});render()}else{b.dataset.armed="1";b.textContent="Tap again to disconnect"}}
