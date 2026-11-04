@@ -19,3 +19,6 @@ Personal workout and food accountability app. Runs on GitHub Pages; no build ste
 
 ## Coach agent
 ElevenLabs agent `agent_7601m6j5ksxtfg59e823qjgjz6cc`, locked to `rjivraj72-ops.github.io`. All app data reaches it through the `{{context}}` dynamic variable at session start; logging happens through client tools (`log_meal`, `log_workout`, `log_water`, `log_weight`, `delete_entry`, `remember_about_me`, `get_days`).
+
+## Updating
+Bump `const BUILD` in `index.html` on every change. On open, the app fetches itself with `cache: no-store`; if the published BUILD differs, it reloads with `?v=<build>` so phones and browsers don't keep showing a stale cached copy.
