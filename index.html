@@ -308,7 +308,7 @@ const DEFAULT_PLAN=[
  {title:"Full Body Strength",detail:"Peloton Strength+",kind:"strength"},
  {title:"Zone 4/5 Training",detail:"Intervals",kind:"cardio"},
  {title:"Rest",detail:"Recover and reset",kind:"rest"}];
-const DEFAULT_PROMPTS=["How am I doing today?","Plan a dinner that closes my protein gap","What should I eat before tomorrow's session?","Give me my weekly check-in","How did October compare with this week?"];
+const DEFAULT_PROMPTS=["Summarize today","Summarize yesterday","How am I doing today?","Plan a dinner that closes my protein gap","What should I eat before tomorrow's session?","Give me my weekly check-in","How did October compare with this week?"];
 const DEFAULTS={kcal:2400,proteinMin:130,proteinMax:160,fatMin:55,fatMax:90,waterMl:3000,weightLo:182,weightHi:185,open:"07:00",close:"20:00",flexDow:6,profile:"",plan:DEFAULT_PLAN,coachStyle:"",quickPrompts:DEFAULT_PROMPTS};
 const TYPES={strength:"Strength",run:"Run",cardio:"Cardio",cross:"Cross training",yoga:"Yoga / mobility",other:"Other"};
 const typeColor=t=>t==="strength"?"var(--t-str)":(t==="run"||t==="cardio")?"var(--t-run)":t==="cross"?"var(--t-cross)":"var(--t-mob)";
@@ -1000,7 +1000,10 @@ function clientTools(){return{
   log_weight:async p=>{const lb=+p.lb;if(!lb)return"Error: lb required";const d=okDate(p.date);await store.set("weights",d,{date:d,lb});pendingActions.push(`Weigh-in ${lb} lb`);return"saved"},
   delete_entry:async p=>{const c=p.kind==="workout"?"workouts":"meals";const id=String(p.id||"");const ex=col[c][id];if(!ex)return"Error: no entry with that id";await store.del(c,id);pendingActions.push(`Removed ${ex.name}`);return JSON.stringify({ok:true,...todayLine()})},
   remember_about_me:async p=>{const f=String(p.fact||"").trim().slice(0,240);if(!f)return"Error: fact required";await store.set("settings","memory",{notes:notes().concat([{text:f,at:todayStr()}]).slice(-60)});pendingActions.push("Remembered: "+f);return"saved"},
-  get_days:async p=>{const from=okDate(p.from),to=okDate(p.to);await ensureRange(from,to);let d=from,out=[];for(let k=0;k<31&&d<=to;k++){out.push({day:dayDigest(d),meals:mealsOn(d).map(m=>({id:m.id,time:m.time,name:m.name,kcal:m.kcal,p:m.protein}))});d=addDays(d,1)}return JSON.stringify(out)}
+  get_days:async p=>{const from=okDate(p.from),to=okDate(p.to);await ensureRange(from,to);let d=from,out=[];for(let k=0;k<31&&d<=to;k++){const ms=mealsOn(d),t=totals(d),x=sessionState(d);out.push({date:d,weekday:DOW[dow(d)],planned_session:x.p.title+" ("+x.p.kind+")",session_status:x.label,flex_night:isFlex(d),travel_day:isTravel(d),
+      totals:{kcal:t.kcal,protein:t.protein,carbs:t.carbs,fat:t.fat},water_ml:waterOn(d),last_food:ms.length?ms[ms.length-1].time:null,after_close:ms.filter(isLate).map(m=>m.time+" "+m.name),
+      meals:ms.map(m=>({id:m.id,time:m.time,name:m.name,kcal:m.kcal,protein:m.protein,carbs:m.carbs,fat:m.fat})),
+      workouts:workoutsOn(d).map(w=>({name:w.name,type:w.type,minutes:w.minutes,km:w.distanceKm,volume_kg:w.volumeKg,kcal:w.kcal})),watch:healthOn(d)});d=addDays(d,1)}return JSON.stringify(out)}
 }}
 function setCoachStatus(text){const el=$("#coachStatus");if(!el)return;el.textContent=text||"";el.hidden=!text}
 function updateMic(){const b=$("#micBtn");if(!b)return;const on=convMode==="voice"&&convStatus!=="disconnected";b.classList.toggle("live",on);b.classList.toggle("speaking",on&&agentSpeaking);b.setAttribute("aria-pressed",on);b.setAttribute("aria-label",on?"End voice conversation":"Start voice conversation");
@@ -1188,7 +1191,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-03p";
+const BUILD="2026-11-03q";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 if(cfg&&loadCache())reapplyPending();
