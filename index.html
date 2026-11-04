@@ -210,7 +210,10 @@ body.kb .composer{bottom:0}
 .composer{z-index:4}
 .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;max-width:240px}
 .thumbs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
-.mwrap{display:flex;flex-direction:column;gap:2px}
+.mwrap{display:flex;flex-direction:column;gap:2px;position:relative;transition:transform .2s ease;touch-action:pan-y}
+.mwrap::before{content:"↩";position:absolute;top:50%;transform:translateY(-70%);font-size:20px;font-weight:700;color:var(--accent);opacity:var(--sw,0);pointer-events:none}
+.mwrap.swr::before{left:-32px}.mwrap.swl::before{right:-32px}
+@media (prefers-reduced-motion:reduce){.mwrap{transition:none}}
 .mwrap.u{align-items:flex-end}.mwrap.a{align-items:flex-start}
 .mwrap .msg{max-width:88%}
 .mact{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
@@ -947,6 +950,17 @@ function bindComposer(){
   ta.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!matchMedia("(pointer:coarse)").matches){e.preventDefault();f.requestSubmit()}});
   f.onsubmit=e=>{e.preventDefault();const v=ta.value.trim();if(!v)return;ta.value="";ta.style.height="auto";sendText(v)};
   $("#micBtn").onclick=toggleVoice;updateMic();
+  /* swipe a message left or right to reply to it */
+  const log=$("#chatLog");let sw=null;
+  log.addEventListener("touchstart",e=>{const w=e.target.closest(".mwrap");if(!w||e.touches.length>1)return;const t=e.touches[0];sw={w,x:t.clientX,y:t.clientY,dx:0,lock:null};w.style.transition="none"},{passive:true});
+  log.addEventListener("touchmove",e=>{if(!sw)return;const t=e.touches[0];const dx=t.clientX-sw.x,dy=t.clientY-sw.y;
+    if(!sw.lock){if(Math.abs(dx)>10&&Math.abs(dx)>Math.abs(dy)*1.3)sw.lock="h";else if(Math.abs(dy)>10)sw.lock="v"}
+    if(sw.lock!=="h")return;e.preventDefault();
+    sw.dx=Math.max(-90,Math.min(90,dx));const p=Math.min(1,Math.abs(sw.dx)/60);
+    sw.w.style.transform=`translateX(${sw.dx}px)`;sw.w.style.setProperty("--sw",p);sw.w.classList.toggle("swr",sw.dx>0);sw.w.classList.toggle("swl",sw.dx<0)},{passive:false});
+  const endSwipe=()=>{if(!sw)return;const {w,dx,lock}=sw;sw=null;w.style.transition="";w.style.transform="";w.style.setProperty("--sw",0);
+    if(lock==="h"&&Math.abs(dx)>=60){const b=w.querySelector("[data-act=replyTo]");if(b)setReply(+b.dataset.i)}};
+  log.addEventListener("touchend",endSwipe);log.addEventListener("touchcancel",endSwipe);
 }
 
 /* ---------- events ---------- */
@@ -1002,7 +1016,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-03h";
+const BUILD="2026-11-03i";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 route();setStatus();if(cfg)loadAll();
