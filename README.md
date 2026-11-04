@@ -22,3 +22,8 @@ ElevenLabs agent `agent_7601m6j5ksxtfg59e823qjgjz6cc`, locked to `rjivraj72-ops.
 
 ## Updating
 Bump `const BUILD` in `index.html` on every change. On open, the app fetches itself with `cache: no-store`; if the published BUILD differs, it reloads with `?v=<build>` so phones and browsers don't keep showing a stale cached copy.
+
+## Learning
+- `insights()` computes patterns from the last 8 weeks of the log each time the app opens (protein by 5 PM, weakest protein weekday, late-eating nights, calorie hit rate, flex vs other days, most-missed session, water, weight trend). Nothing shows until ~7 logged days.
+- `patterns.json` in the data repo holds patterns written by the Sunday check-in (`patterns.main.items[]`) plus any the user dismissed (`patterns.main.dismissed[]`).
+- Both go into the Coach's context every session.
