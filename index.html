@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
 <title>Train & Fuel</title>
 <meta name="theme-color" content="#0f1413">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -202,6 +202,12 @@ button.item:hover .n{color:var(--accent)}
 .acts span{font-size:11px;font-weight:700;background:var(--good-soft);color:var(--good);border-radius:999px;padding:3px 8px;white-space:normal}
 .composer{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom,0px));background:var(--bg);padding-block:10px;display:flex;gap:8px;align-items:flex-end}
 .composer textarea{flex:1;min-width:0;resize:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 12px;max-height:140px;min-height:46px}
+/* iOS: 16px inputs stop Safari zooming on focus; keyboard mode hides the tab bar and pins the composer */
+input,select,textarea{font-size:16px!important}
+body.kb .tabs{display:none}
+body.kb .app{padding-bottom:8px}
+body.kb .composer{bottom:0}
+.composer{z-index:4}
 .knows summary,.checkin summary{cursor:pointer;font-weight:700}
 .micbtn{width:58px;height:58px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none;box-shadow:0 0 0 0 var(--accent-soft);transition:box-shadow .3s}
 .micbtn.live{background:var(--good);box-shadow:0 0 0 8px var(--good-soft)}
@@ -950,8 +956,20 @@ function route(){const h=location.hash.slice(1);const nv=VIEWS.includes(h)?h:"to
 window.addEventListener("hashchange",route);
 let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(date===lastDay)date=t;lastDay=t}if(view==="today"&&!sheetEl)render()},60000);
 
+/* ---------- keyboard handling (phones) ---------- */
+(function(){
+  const isField=el=>el&&(el.tagName==="TEXTAREA"||(el.tagName==="INPUT"&&!["checkbox","radio","file","button","submit"].includes(el.type))||el.tagName==="SELECT");
+  const vv=window.visualViewport;
+  function update(){
+    const open=isField(document.activeElement)&&(!vv||window.innerHeight-vv.height>120||matchMedia("(pointer:coarse)").matches);
+    document.body.classList.toggle("kb",!!open);
+  }
+  document.addEventListener("focusin",e=>{if(isField(e.target)){update();if(e.target.id==="chatIn")setTimeout(()=>e.target.scrollIntoView({block:"end"}),250)}});
+  document.addEventListener("focusout",()=>setTimeout(update,80));
+  vv&&vv.addEventListener("resize",update);
+})();
 /* ---------- boot ---------- */
-const BUILD="2026-11-03d";
+const BUILD="2026-11-03e";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 route();setStatus();if(cfg)loadAll();
