@@ -228,9 +228,11 @@ body.kb .composer{bottom:0}
 .replybar{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:8px 10px}
 .replybar .rq{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .knows summary,.checkin summary{cursor:pointer;font-weight:700}
-.micbtn{width:58px;height:58px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none;box-shadow:0 0 0 0 var(--accent-soft);transition:box-shadow .3s}
+.micbtn{width:46px;height:46px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none;box-shadow:0 0 0 0 var(--accent-soft);transition:box-shadow .3s}
 .micbtn.live{background:var(--good);box-shadow:0 0 0 8px var(--good-soft)}
-.micbtn.live.speaking{box-shadow:0 0 0 14px var(--good-soft)}
+.micbtn.live.speaking{box-shadow:0 0 0 10px var(--good-soft)}
+.composer{flex-wrap:wrap}
+.cstatus{flex-basis:100%;font-size:13px;font-weight:700;color:var(--good);padding-inline:4px}
 @media (prefers-reduced-motion:reduce){.micbtn{transition:none}}
 .qp{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
 .qp button{flex:none;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:13px;white-space:nowrap}
@@ -856,9 +858,10 @@ function clientTools(){return{
   remember_about_me:async p=>{const f=String(p.fact||"").trim().slice(0,240);if(!f)return"Error: fact required";await store.set("settings","memory",{notes:notes().concat([{text:f,at:todayStr()}]).slice(-60)});pendingActions.push("Remembered: "+f);return"saved"},
   get_days:async p=>{const from=okDate(p.from),to=okDate(p.to);await ensureRange(from,to);let d=from,out=[];for(let k=0;k<31&&d<=to;k++){out.push({day:dayDigest(d),meals:mealsOn(d).map(m=>({id:m.id,time:m.time,name:m.name,kcal:m.kcal,p:m.protein}))});d=addDays(d,1)}return JSON.stringify(out)}
 }}
-function setCoachStatus(text){const el=$("#coachStatus");if(el)el.textContent=text}
+function setCoachStatus(text){const el=$("#coachStatus");if(!el)return;el.textContent=text||"";el.hidden=!text}
 function updateMic(){const b=$("#micBtn");if(!b)return;const on=convMode==="voice"&&convStatus!=="disconnected";b.classList.toggle("live",on);b.classList.toggle("speaking",on&&agentSpeaking);b.setAttribute("aria-pressed",on);b.setAttribute("aria-label",on?"End voice conversation":"Start voice conversation");
-  setCoachStatus(convStatus==="connecting"?"Connecting…":on?(agentSpeaking?"Coach is talking. Just speak to interrupt.":"Listening… tap the mic to finish."):"Tap the mic to talk. Typing works too.")}
+  setCoachStatus(convStatus==="connecting"&&convMode==="voice"?"Connecting…":on?(agentSpeaking?"Coach is talking. Just speak to interrupt.":"Listening… tap the green mic to finish."):"");syncSendMic()}
+function syncSendMic(){const ta=$("#chatIn"),sb=$("#chatSend"),mb=$("#micBtn");if(!ta||!sb||!mb)return;const typed=!!ta.value.trim();const live=convMode==="voice";sb.hidden=!typed;mb.hidden=typed&&!live}
 async function startConv(mode){
   if(conv&&convMode===mode&&convStatus==="connected")return conv;
   if(conv)await endConv();
@@ -932,14 +935,13 @@ function checkinCard(compact){
   return`<details class="card checkin" ${compact?"":"open"}><summary><span class="eyebrow">Weekly check-in${checkin.date?" · "+short(checkin.date):""}</span></summary><div class="small" style="white-space:pre-wrap;margin-top:10px;line-height:1.55">${mdLite(checkin.text)}</div></details>`;
 }
 function vCoach(){
-  return`<div class="view"><div class="head"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2><p class="sub" id="coachStatus">Tap the mic to talk. Typing works too.</p></div>
-  <button type="button" class="micbtn" id="micBtn" aria-pressed="false" aria-label="Start voice conversation"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></div>
+  return`<div class="view"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2><p class="sub">Mic and camera are in the message bar at the bottom.</p></div>
   <div id="checkinSlot"></div>
   <details class="card knows"><summary>What the Coach knows about you</summary><div id="knowsBody"></div></details>
   <div class="chat" id="chatLog"></div>
   <div class="qp" id="qp"></div>
   <div id="replyBar" class="replybar" hidden></div>
-  <form class="composer" id="composer"><button type="button" class="btn ghost" data-act="photo" aria-label="Log from a photo or screenshot" style="padding:10px 12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><textarea id="chatIn" rows="1" placeholder="What did you eat? Or ask…" aria-label="Message"></textarea><button class="btn" id="chatSend" type="submit">Send</button></form></div>`;
+  <form class="composer" id="composer"><div id="coachStatus" class="cstatus" hidden></div><button type="button" class="btn ghost" data-act="photo" aria-label="Log from a photo or screenshot" style="padding:10px 12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><textarea id="chatIn" rows="1" placeholder="What did you eat? Or ask…" aria-label="Message"></textarea><button type="button" class="micbtn" id="micBtn" aria-pressed="false" aria-label="Start voice conversation"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><button class="btn" id="chatSend" type="submit" hidden>Send</button></form></div>`;
 }
 function renderChat(){
   const el=$("#chatLog");if(!el)return;
@@ -960,9 +962,9 @@ function renderChat(){
 function md(s){return esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>")}
 function bindComposer(){
   const f=$("#composer"),ta=$("#chatIn");
-  ta.addEventListener("input",()=>{ta.style.height="auto";ta.style.height=Math.min(140,ta.scrollHeight)+"px"});
+  ta.addEventListener("input",()=>{ta.style.height="auto";ta.style.height=Math.min(140,ta.scrollHeight)+"px";syncSendMic()});
   ta.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!matchMedia("(pointer:coarse)").matches){e.preventDefault();f.requestSubmit()}});
-  f.onsubmit=e=>{e.preventDefault();const v=ta.value.trim();if(!v)return;ta.value="";ta.style.height="auto";sendText(v)};
+  f.onsubmit=e=>{e.preventDefault();const v=ta.value.trim();if(!v)return;ta.value="";ta.style.height="auto";syncSendMic();sendText(v)};
   $("#micBtn").onclick=toggleVoice;updateMic();
   /* swipe a message left or right to reply to it */
   const log=$("#chatLog");let sw=null;
@@ -1031,7 +1033,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-03k";
+const BUILD="2026-11-03l";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 route();setStatus();if(cfg)loadAll();
