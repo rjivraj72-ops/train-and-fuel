@@ -208,6 +208,8 @@ body.kb .tabs{display:none}
 body.kb .app{padding-bottom:8px}
 body.kb .composer{bottom:0}
 .composer{z-index:4}
+.thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;max-width:240px}
+.thumbs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
 .knows summary,.checkin summary{cursor:pointer;font-weight:700}
 .micbtn{width:58px;height:58px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none;box-shadow:0 0 0 0 var(--accent-soft);transition:box-shadow .3s}
 .micbtn.live{background:var(--good);box-shadow:0 0 0 8px var(--good-soft)}
@@ -239,7 +241,7 @@ body.kb .composer{bottom:0}
     <button class="iconbtn" id="settingsBtn" aria-label="Targets and routine"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
   </header>
   <div id="status"></div>
-  <input type="file" id="photoIn" accept="image/*" hidden>
+  <input type="file" id="photoIn" accept="image/*" multiple hidden>
   <main id="main"></main>
 </div>
 
@@ -845,13 +847,13 @@ async function startConv(mode){
     onDisconnect:()=>{conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;awaiting=false;clearTimeout(idleTimer);updateMic();renderChat()},
     onError:msg=>{console.warn("coach error",msg);if(convMode==="voice")toast("Voice error: "+String(msg).slice(0,80))}};
   if(mode==="text"){opts.textOnly=true;opts.overrides={conversation:{textOnly:true},agent:{firstMessage:""}}}
-  conv=await ElevenLabsClient.Conversation.startSession(opts);convStatus="connected";updateMic();touchIdle();return conv;
+  conv=await ElevenLabsClient.Conversation.startSession(opts);convFiles=0;convStatus="connected";updateMic();touchIdle();return conv;
 }
 async function endConv(){const c=conv;conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;clearTimeout(idleTimer);try{await c?.endSession()}catch{}updateMic()}
 function touchIdle(){clearTimeout(idleTimer);idleTimer=setTimeout(()=>{if(convMode==="text")endConv()},4*60000)}
 function addTurn(role,content){chatTurns=chatTurns||[];const t={role,content:String(content),at:Date.now()};if(role==="assistant"&&pendingActions.length)t.actions=pendingActions.splice(0);chatTurns.push(t);saveChatSoon();renderChat()}
-function saveChatSoon(){clearTimeout(saveChatT);saveChatT=setTimeout(()=>{chatTurns=(chatTurns||[]).slice(-60);store.set("chat","log",{turns:chatTurns.map(({img,...r})=>r)})},1500)}
-async function saveChat(){chatTurns=(chatTurns||[]).slice(-60);await store.set("chat","log",{turns:chatTurns.map(({img,...r})=>r)})}
+function saveChatSoon(){clearTimeout(saveChatT);saveChatT=setTimeout(()=>{chatTurns=(chatTurns||[]).slice(-60);store.set("chat","log",{turns:chatTurns.map(({img,imgs,...r})=>r)})},1500)}
+async function saveChat(){chatTurns=(chatTurns||[]).slice(-60);await store.set("chat","log",{turns:chatTurns.map(({img,imgs,...r})=>r)})}
 async function sendText(text){
   addTurn("user",text);awaiting=true;renderChat();
   try{const c=await startConv(convMode==="voice"?"voice":"text");c.sendUserMessage(text);touchIdle()}
@@ -865,21 +867,25 @@ async function shrinkImage(file){
   try{const bmp=await createImageBitmap(file);const k=Math.min(1,1600/Math.max(bmp.width,bmp.height));const c=document.createElement("canvas");c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
     return await new Promise(r=>c.toBlob(b=>r(b||file),"image/jpeg",0.85))}catch{return file}
 }
-const PHOTO_ASK="Here's a photo. If it's food or a drink, estimate what's in it and log it with log_meal. If it's a workout summary screenshot (Apple Watch, Peloton or similar), read it and log it with log_workout using the date and time shown (lb to kg, miles to km). Then confirm in one line with the numbers. If you can't tell what it is, ask.";
-async function sendPhoto(file){
+const photoAsk=n=>(n>1?"Here are "+n+" photos. Log each separate meal, drink or workout as its own entry. If several photos show the same thing (a plate and its label, two angles of one meal, two screens of one workout), combine them into one entry. ":"Here's a photo. ")+"If it's food or a drink, estimate what's in it and log it with log_meal. If it's a workout summary screenshot (Apple Watch, Peloton or similar), read it and log it with log_workout using the date and time shown (lb to kg, miles to km). Then confirm with the numbers, one line per entry. If you can't tell what something is, ask.";
+let convFiles=0;
+async function sendPhotos(list){
+  const files=[...list].slice(0,6);if(!files.length)return;
+  if(list.length>6)toast("Sending the first 6 photos");
   if(location.hash!=="#coach")location.hash="coach";
   await new Promise(r=>setTimeout(r,60));
   const ta=$("#chatIn");const extra=ta&&ta.value.trim();if(ta)ta.value="";
-  const url=URL.createObjectURL(file);
-  chatTurns=chatTurns||[];addTurn("user",extra?"[Photo] "+extra:"[Photo]");
-  chatTurns[chatTurns.length-1].img=url;
+  chatTurns=chatTurns||[];addTurn("user",(files.length>1?"["+files.length+" photos]":"[Photo]")+(extra?" "+extra:""));
+  chatTurns[chatTurns.length-1].imgs=files.map(f=>URL.createObjectURL(f));
   awaiting=true;renderChat();
-  try{const c=await startConv(convMode==="voice"?"voice":"text");const blob=await shrinkImage(file);
-    const {fileId}=await c.uploadFile(blob);
-    c.sendMultimodalMessage({text:extra?extra+"\n\n"+PHOTO_ASK:PHOTO_ASK,fileIds:[fileId]});touchIdle();
-  }catch(e){awaiting=false;addTurn("assistant","I couldn't send that photo ("+(e?.message||"upload failed")+"). Try again, or describe it in words.")}
+  try{
+    if(conv&&convFiles+files.length>10)await endConv();
+    const c=await startConv(convMode==="voice"?"voice":"text");
+    const ids=[];for(const f of files){const blob=await shrinkImage(f);const {fileId}=await c.uploadFile(blob);ids.push(fileId);convFiles++}
+    c.sendMultimodalMessage({text:extra?extra+"\n\n"+photoAsk(ids.length):photoAsk(ids.length),fileIds:ids});touchIdle();
+  }catch(e){awaiting=false;addTurn("assistant","I couldn't send "+(files.length>1?"those photos":"that photo")+" ("+(e?.message||"upload failed")+"). Try again, or describe it in words.")}
 }
-document.addEventListener("change",e=>{if(e.target.id==="photoIn"){const f=e.target.files?.[0];if(f)sendPhoto(f)}});
+document.addEventListener("change",e=>{if(e.target.id==="photoIn"&&e.target.files?.length)sendPhotos(e.target.files)});
 function mdLite(s){return esc(s).replace(/^#{1,3} (.+)$/gm,"<b>$1</b>").replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^[-*] (.+)$/gm,"• $1")}
 function checkinCard(compact){
   if(!checkin?.text)return"";
@@ -905,7 +911,7 @@ function renderChat(){
   const qp=$("#qp");if(qp)qp.innerHTML=(S().quickPrompts||[]).map(x=>`<button type="button" data-sugg="${esc(x)}">${esc(x)}</button>`).join("");
   const turns=chatTurns||[];
   if(!turns.length&&!awaiting){el.innerHTML=`<div class="card"><h2>Ask about your day, or just tell me what you ate</h2><p class="sub">Try “two boiled eggs and GF toast at 8:30”, “drank a bottle of water”, or “did the 45 min upper body”. I'll log it and give you the numbers.</p></div>`;return}
-  el.innerHTML=turns.slice(-40).map(t=>`<div class="msg ${t.role==="user"?"u":"a"}">${md(t.content)}${t.img?`<img src="${t.img}" alt="Photo you sent" style="display:block;max-width:220px;border-radius:10px;margin-top:6px">`:""}${t.actions?.length?`<div class="acts">${t.actions.map(a=>`<span>✓ ${esc(a)}</span>`).join("")}</div>`:""}</div>`).join("")
+  el.innerHTML=turns.slice(-40).map(t=>`<div class="msg ${t.role==="user"?"u":"a"}">${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(u=>`<img src="${u}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(a=>`<span>✓ ${esc(a)}</span>`).join("")}</div>`:""}</div>`).join("")
     +(awaiting?`<div class="msg a think">Thinking…</div>`:"")
     +(turns.length?`<button type="button" class="btn sm ghost" data-act="clearChat" style="align-self:center">Clear conversation</button>`:"");
   const last=el.querySelector(".msg:last-of-type");last&&last.scrollIntoView({block:"nearest"});
@@ -969,7 +975,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-03e";
+const BUILD="2026-11-03f";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 route();setStatus();if(cfg)loadAll();
