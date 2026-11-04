@@ -783,7 +783,7 @@ function weekFlags(a,b){
   if(a.vol&&b.vol&&a.days===7&&a.vol<b.vol*0.8)add("watch",`Strength volume down ${Math.round((1-a.vol/b.vol)*100)}% (${n0(a.vol)} vs ${n0(b.vol)} kg).`);
   if(a.water!=null&&a.water<s.waterMl*0.7)add("watch",`Water averaging ${n0(a.water)} ml of ${n0(s.waterMl)}.`);
   const allW0=weights();const lw=a.weight??(allW0.length?allW0[allW0.length-1].lb:null);if(lw!=null&&(lw<s.weightLo||lw>s.weightHi))add("concern",`Weight ${n1(lw)} lb is ${lw<s.weightLo?"below":"above"} your ${s.weightLo}–${s.weightHi} lb range.`);
-  const allW=weights();if(allW.length>=2){const L=allW[allW.length-1],P=allW[allW.length-2];const wk=(parse(L.date)-parse(P.date))/6048e5;if(L.date>=addDays(todayStr(),-14)&&wk>0&&wk<=3&&Math.abs(L.lb-P.lb)/wk>=1.5)add("watch",`Weight moved ${n1(L.lb-P.lb)} lb in ${Math.round(wk*7)} days.`)}
+  const allW=weights();if(allW.length>=2){const L=allW[allW.length-1];const P=allW.slice(0,-1).reverse().find(w=>(parse(L.date)-parse(w.date))/864e5>=5);if(P){const wk=(parse(L.date)-parse(P.date))/6048e5;if(L.date>=addDays(todayStr(),-14)&&wk<=3&&Math.abs(L.lb-P.lb)/wk>=1.5)add("watch",`Weight moved ${n1(L.lb-P.lb)} lb in ${Math.round(wk*7)} days.`)}}
   if(a.score!=null&&b.score!=null&&b.score-a.score>=15)add("watch",`Weekly score ${a.score}, down from ${b.score}.`);
   return f;
 }
@@ -1250,7 +1250,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-03r";
+const BUILD="2026-11-04a";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 if(cfg&&loadCache())reapplyPending();
