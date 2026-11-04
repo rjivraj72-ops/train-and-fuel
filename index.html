@@ -146,9 +146,12 @@ button.item:hover .n{color:var(--accent)}
 .pday .ti{font-weight:700;min-width:0}.pday .de{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pday .ti, .pday>div:nth-child(3){min-width:0}
 .weekdots{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:12px}
-.weekdots div{text-align:center;font-size:11px;color:var(--muted)}
-.weekdots i{display:block;height:8px;border-radius:4px;background:var(--surface-2);margin-bottom:4px}
-.weekdots .done i{background:var(--good)} .weekdots .today i{background:var(--accent)} .weekdots .miss i{background:var(--bad-soft)} .weekdots .rest i{background:var(--line)}
+.weekdots div{text-align:center;font-size:13px;font-weight:600;color:var(--muted)}
+.weekdots i{display:block;height:10px;border-radius:5px;background:var(--surface-2);margin-bottom:5px}
+.weekdots .done i.s{background:var(--good)} .weekdots .today i.s{background:var(--accent)} .weekdots .miss i.s{background:var(--bad-soft)} .weekdots .rest i.s{background:var(--line)}
+.weekdots i.f.good{background:var(--good)} .weekdots i.f.part{background:var(--warn)} .weekdots i.f.bad{background:var(--bad)} .weekdots i.f.flex{background:transparent;border:2px dashed var(--line);box-sizing:border-box}
+.weekkey{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:13px;color:var(--muted)}
+.weekkey b{display:inline-block;width:14px;height:10px;border-radius:5px;margin-right:5px;vertical-align:middle}
 
 /* stats row */
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
@@ -534,6 +537,9 @@ function sessionState(d){
   if(d<t)return{p,st:"miss",label:"Missed",ws};
   return{p,st:"plan",label:"Planned",ws};
 }
+function foodState(d){if(!dayDone(d))return{st:"",label:""};if(isFlex(d))return{st:"flex",label:"Flex night, not scored"};const s=S(),tt=totals(d);if(!tt.n)return{st:"",label:"No food logged"};
+  const cal=Math.abs(tt.kcal-s.kcal)<=200,pro=tt.protein>=s.proteinMin,clean=!mealsOn(d).some(isLate),h=cal+pro+clean;
+  return{st:h===3?"good":h===0?"bad":"part",label:`${n0(tt.kcal)} kcal${cal?"":" (off target)"} · ${n0(tt.protein)} g protein${pro?"":" (under)"} · ${clean?"kitchen closed on time":"ate after close"}`}}
 function weekScore(ws){
   const s=S(),t=todayStr();let counted=0,cal=0,pro=0,clean=0,logged=0;
   for(let i=0;i<7;i++){const d=addDays(ws,i);if(!dayDone(d))continue;if(isFlex(d))continue;const tt=totals(d);if(!tt.n)continue;counted++;if(Math.abs(tt.kcal-s.kcal)<=200)cal++;if(tt.protein>=s.proteinMin)pro++;if(!mealsOn(d).some(isLate))clean++}
@@ -619,7 +625,7 @@ function vToday(){
   const on=overnight(d);let avg=[];for(let i=0;i<7;i++){const v=overnight(addDays(d,-i));if(v!=null)avg.push(v)}
   const avgv=avg.length?avg.reduce((a,b)=>a+b,0)/avg.length:null;const hmF=m=>m==null?"—":Math.floor(m/60)+"h "+pad(Math.round(m%60))+"m";
   const ss=sessionState(d);const ws=weekStart(d),sc=weekScore(ws),st=streak();
-  const dots=[0,1,2,3,4,5,6].map(i=>{const dd=addDays(ws,i),x=sessionState(dd);return`<div class="${x.st==="done"?"done":x.st==="today"?"today":x.st==="miss"?"miss":x.st==="rest"?"rest":""}"><i></i>${DOW[dow(dd)][0]}</div>`}).join("");
+  const dots=[0,1,2,3,4,5,6].map(i=>{const dd=addDays(ws,i),x=sessionState(dd),f=foodState(dd);const sl=x.st==="done"?"Session done":x.st==="today"?"Session today":x.st==="miss"?"Session missed":x.st==="rest"?"Rest day":"Session planned";return`<div class="${x.st==="done"?"done":x.st==="today"?"today":x.st==="miss"?"miss":x.st==="rest"?"rest":""}" title="${esc(DOW[dow(dd)]+" "+short(dd)+": "+sl+(f.label?" · "+f.label:""))}"><i class="s"></i><i class="f ${f.st}"></i>${DOW[dow(dd)][0]}</div>`}).join("");
   return`<div class="view">
   ${importCard()}
   ${checkinCard(true)}
@@ -658,6 +664,7 @@ function vToday(){
       <p class="sub">${(()=>{const n=[0,1,2,3,4,5,6].filter(i=>isTravel(addDays(ws,i))).length;return n?`✈ ${n} travel day${n>1?"s":""} this week · `:""})()}${sc.counted?`Calories ${sc.cal}/${sc.counted} days within ±200 · protein ${sc.pro}/${sc.counted} days at ${s.proteinMin} g+ · kitchen closed on time ${sc.clean}/${sc.counted} nights`:"No completed food days yet this week"}${sc.planned?` · sessions ${sc.done}/${sc.planned}`:""}${sc.provisional?" · provisional":""}</p></div>
       <div class="score" style="border-color:${sc.score==null?"var(--line)":sc.score>=80?"var(--good)":sc.score>=60?"var(--warn)":"var(--bad)"}"><div><b>${sc.score??"–"}</b><span>/100</span></div></div></div>
     <div class="weekdots">${dots}</div>
+    <div class="weekkey"><span>Top bar: training</span><span>Bottom bar: food</span><span><b style="background:var(--good)"></b>all 3 hit</span><span><b style="background:var(--warn)"></b>1–2 hit</span><span><b style="background:var(--bad)"></b>none</span><span><b style="border:2px dashed var(--line);box-sizing:border-box"></b>flex</span></div>
     <p class="sub" style="margin-top:10px"><b style="color:var(--accent)">${st.n}</b> consecutive training weeks (3+ sessions) · best ${st.best}. Flex night this weekend: <span class="row" style="display:inline-flex;gap:4px;vertical-align:middle">${(()=>{const sat=weekendSat(todayStr());return[sat,addDays(sat,1)].map(x=>`<button type="button" class="btn sm ${flexDayFor(sat)===x?"":"ghost"}" data-act="flexWeek" data-ws="${sat}" data-d="${x}">${DOW[dow(x)]}</button>`).join("")})()}</span> (not scored). Each day counts once the kitchen closes at ${fmtT(s.close)}.</p>
   </section>
   <section class="card"><div class="eyebrow">Overnight stretch</div>
@@ -1252,7 +1259,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-04b";
+const BUILD="2026-11-04c";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 if(cfg&&loadCache())reapplyPending();
