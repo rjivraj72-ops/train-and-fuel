@@ -1199,7 +1199,7 @@ function bindComposer(){
 
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
-  const sg=e.target.closest("[data-sugg]");if(sg){sendChat(sg.dataset.sugg);return}
+  const sg=e.target.closest("[data-sugg]");if(sg){sendText(sg.dataset.sugg);return}
   const b=e.target.closest("[data-act]");if(!b)return;const a=b.dataset.act,id=b.dataset.id;
   if(a==="addMeal")mealSheet();
   else if(a==="editMeal")mealSheet({id,...col.meals[id]});
@@ -1259,7 +1259,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-04c";
+const BUILD="2026-11-05a";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 if(cfg&&loadCache())reapplyPending();
