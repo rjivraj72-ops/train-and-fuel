@@ -249,6 +249,19 @@ table.wk td:first-child{text-align:left;white-space:normal}
 .qp{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
 .qp button{flex:none;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:13px;white-space:nowrap}
 .qp button:hover{border-color:var(--accent)}
+/* Coach text size (per device): --chat-fs set from localStorage tf-chat-fs */
+:root{--chat-fs:18px}
+.chat .msg{font-size:var(--chat-fs);line-height:1.45}
+.chat .quote{font-size:calc(var(--chat-fs)*.85)}
+.chat .acts span{font-size:calc(var(--chat-fs)*.72)}
+.chat .replybtn{font-size:calc(var(--chat-fs)*.75)}
+.qp button{font-size:calc(var(--chat-fs)*.85)}
+#chatIn{font-size:max(16px,var(--chat-fs))!important;line-height:1.35}
+.replybar{font-size:calc(var(--chat-fs)*.85)}
+.cstatus{font-size:calc(var(--chat-fs)*.8)}
+.chatsize{display:flex;align-items:center;gap:6px;margin-top:10px}
+.chatsize>span{font-size:14px;font-weight:700;color:var(--muted);margin-right:2px}
+.chatsize button{min-width:44px;min-height:40px;font-weight:800;line-height:1}
 .sugg{display:flex;flex-wrap:wrap;gap:8px}
 .sugg button{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:13px;text-align:left}
 .sugg button:hover{border-color:var(--accent)}
@@ -384,6 +397,9 @@ function persistPending(){try{const all={};for(const src of[inflight,pending])fo
   if(Object.keys(all).length)localStorage.setItem(PEND_KEY,JSON.stringify(all));else localStorage.removeItem(PEND_KEY)}catch{}}
 try{const saved=JSON.parse(localStorage.getItem(PEND_KEY)||"null");if(saved)for(const[p,ops]of Object.entries(saved))if(Array.isArray(ops)&&ops.length)(pending[p]=pending[p]||[]).push(...ops)}catch{}
 const CACHE_KEY="tf-cache";
+const CHAT_FS=[18,21,25];
+function chatFs(){let v=18;try{v=+localStorage.getItem("tf-chat-fs")||18}catch{}return CHAT_FS.includes(v)?v:18}
+document.documentElement.style.setProperty("--chat-fs",chatFs()+"px");
 function saveCache(){try{const snap={at:Date.now(),col:{},checkin,chat:(chatTurns||[]).slice(-30).map(({img,imgs,...r})=>r)};COLS.forEach(c=>{if(c!=="chat")snap.col[c]=col[c]});localStorage.setItem(CACHE_KEY,JSON.stringify(snap))}catch{}}
 function loadCache(){try{const snap=JSON.parse(localStorage.getItem(CACHE_KEY)||"null");if(!snap)return false;COLS.forEach(c=>{if(snap.col[c])col[c]=snap.col[c]});if(!chatTurns)chatTurns=snap.chat||[];checkin=snap.checkin||checkin;return true}catch{return false}}
 function reapplyPending(){for(const src of[inflight,pending])for(const ops of Object.values(src))for(const o of ops||[]){col[o.c]=col[o.c]||{};if(o.val==null)delete col[o.c][o.id];else col[o.c][o.id]=o.val}}
@@ -1152,13 +1168,13 @@ function checkinCard(compact){
   return`<details class="card checkin" ${compact?"":"open"}><summary><span class="eyebrow">Weekly check-in${checkin.date?" · "+short(checkin.date):""}</span></summary><div class="small" style="white-space:pre-wrap;margin-top:10px;line-height:1.55">${mdLite(checkin.text)}</div></details>`;
 }
 function vCoach(){
-  return`<div class="view"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2><p class="sub">Mic and camera are in the message bar at the bottom.</p></div>
+  return`<div class="view"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2><p class="sub">Mic and camera are in the message bar at the bottom.</p><div class="chatsize" role="group" aria-label="Chat text size"><span>Text size</span>${CHAT_FS.map((v,i)=>`<button type="button" class="btn sm ${chatFs()===v?"":"ghost"}" data-act="chatSize" data-v="${v}" aria-pressed="${chatFs()===v}" aria-label="${["Normal","Large","Extra large"][i]}" style="font-size:${14+i*4}px">A</button>`).join("")}</div></div>
   <div id="checkinSlot"></div>
   <details class="card knows"><summary>What the Coach knows about you</summary><div id="knowsBody"></div></details>
   <div class="chat" id="chatLog"></div>
   <div class="qp" id="qp"></div>
   <div id="replyBar" class="replybar" hidden></div>
-  <form class="composer" id="composer"><div id="coachStatus" class="cstatus" hidden></div><button type="button" class="btn ghost" data-act="photo" aria-label="Log from a photo or screenshot" style="padding:10px 12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><textarea id="chatIn" rows="1" placeholder="What did you eat? Or ask…" aria-label="Message"></textarea><button type="button" class="micbtn" id="micBtn" aria-pressed="false" aria-label="Start voice conversation"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><button class="btn" id="chatSend" type="submit" hidden>Send</button></form></div>`;
+  <form class="composer" id="composer"><div id="coachStatus" class="cstatus" hidden></div><button type="button" class="btn ghost" data-act="photo" aria-label="Log from a photo or screenshot" style="padding:10px 12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><textarea id="chatIn" rows="1" placeholder="Message the Coach" aria-label="Message"></textarea><button type="button" class="micbtn" id="micBtn" aria-pressed="false" aria-label="Start voice conversation"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><button class="btn" id="chatSend" type="submit" hidden>Send</button></form></div>`;
 }
 function renderChat(){
   const el=$("#chatLog");if(!el)return;
@@ -1234,6 +1250,7 @@ document.addEventListener("click",async e=>{
   else if(a==="healthHelp"){healthSheet()}
   else if(a==="dismissPattern"){const P={...(col.patterns.main||{})};P.dismissed=[...new Set([...(P.dismissed||[]),b.dataset.t])];await safe(store.set("patterns","main",P),"Removed. The check-in won't bring it back.")}
   else if(a==="forgetNote"){const list=notes().slice();list.splice(+b.dataset.i,1);await safe(store.set("settings","memory",{notes:list}),"Removed")}
+  else if(a==="chatSize"){const v=+b.dataset.v;try{localStorage.setItem("tf-chat-fs",String(v))}catch{}document.documentElement.style.setProperty("--chat-fs",v+"px");document.querySelectorAll("[data-act=chatSize]").forEach(x=>{const on=+x.dataset.v===v;x.classList.toggle("ghost",!on);x.setAttribute("aria-pressed",String(on))})}
   else if(a==="clearChat"){if(b.dataset.armed){chatTurns=[];await saveChat();renderChat()}else{b.dataset.armed="1";b.textContent="Tap again to clear"}}
 });
 $("#prevDay").onclick=()=>{date=addDays(date,-1);render()};
@@ -1259,7 +1276,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-05a";
+const BUILD="2026-11-05b";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 if(cfg&&loadCache())reapplyPending();
