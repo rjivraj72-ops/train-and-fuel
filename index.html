@@ -363,7 +363,7 @@ const DEFAULT_REPO="rjivraj72-ops/train-and-fuel-data";
 const CFG_KEY="tf-github";
 let cfg=null;try{cfg=JSON.parse(localStorage.getItem(CFG_KEY)||"null")}catch{}
 const PROFILE_COLS=["settings","saved","history","weights"];
-let checkin=null, lastLoad=0, syncState="idle", needsImport=false;
+let checkin=null, nudge=null, lastLoad=0, syncState="idle", needsImport=false;
 const loadedMonths=new Set();
 function fileFor(c,id,data){
   if(PROFILE_COLS.includes(c))return"profile.json";
@@ -447,7 +447,7 @@ async function loadAll(){
   if(!cfg||flushing)return;
   setSync("loading");
   try{
-    const[p,ch,ci,pt]=await Promise.all([getFile("profile.json"),getFile("chat.json"),getRaw("checkins/latest.md").catch(()=>({text:null})),getFile("patterns.json").catch(()=>({data:{}}))]);
+    const[p,ch,ci,pt,nu]=await Promise.all([getFile("profile.json"),getFile("chat.json"),getRaw("checkins/latest.md").catch(()=>({text:null})),getFile("patterns.json").catch(()=>({data:{}})),getFile("inbox/nudge.json").catch(()=>({data:{}}))]);
     needsImport=!p.sha;
     COLS.forEach(c=>col[c]={});
     for(const c of PROFILE_COLS)col[c]=p.data[c]||{};
@@ -456,6 +456,7 @@ async function loadAll(){
     if(!chatBusy)chatTurns=Array.isArray(col.chat.log?.turns)?col.chat.log.turns.slice():[];
     loadedMonths.clear();await Promise.all(monthsBack(3).map(loadMonth));
     checkin=null;if(ci&&ci.text){const m=ci.text.match(/<!--\s*date:\s*(\d{4}-\d\d-\d\d)\s*-->/);checkin={date:m?m[1]:null,text:ci.text.replace(/<!--[\s\S]*?-->/g,"").trim()}}
+    nudge=(nu?.data&&typeof nu.data.text==="string"&&/^\d{4}-\d\d-\d\d$/.test(nu.data.date||""))?nu.data:null;
     reapplyPending();
     await processInbox();
     lastLoad=Date.now();saveCache();setSync(hasPending()?"saving":"saved");if(hasPending())flush();
@@ -644,6 +645,7 @@ function vToday(){
   const dots=[0,1,2,3,4,5,6].map(i=>{const dd=addDays(ws,i),x=sessionState(dd),f=foodState(dd);const sl=x.st==="done"?"Session done":x.st==="today"?"Session today":x.st==="miss"?"Session missed":x.st==="rest"?"Rest day":"Session planned";return`<div class="${x.st==="done"?"done":x.st==="today"?"today":x.st==="miss"?"miss":x.st==="rest"?"rest":""}" title="${esc(DOW[dow(dd)]+" "+short(dd)+": "+sl+(f.label?" · "+f.label:""))}"><i class="s"></i><i class="f ${f.st}"></i>${DOW[dow(dd)][0]}</div>`}).join("");
   return`<div class="view">
   ${importCard()}
+  ${isT&&nudge&&nudge.date===todayStr()?`<div class="note">${esc(nudge.text)}</div>`:""}
   ${checkinCard(true)}
   ${isT&&awayFromHome()&&!isTravel(d)&&!(S().travelAsked||{})[d]?`<div class="note row wrap">Your phone is on ${esc(DEV_TZ.replace(/_/g," ").split("/").pop())} time. Mark today as a travel day? <button class="btn sm" data-act="travelDay" data-d="${d}" data-on="1">Yes</button><button class="btn sm ghost" data-act="travelNo" data-d="${d}">No</button></div>`:""}
   <div class="row wrap">${kitchen}${isTravel(d)?`<span class="pill acc">✈ Travel day</span>`:""}<button type="button" class="btn sm ghost" data-act="travelDay" data-d="${d}" data-on="${isTravel(d)?0:1}" style="margin-left:auto">${isTravel(d)?"Not a travel day":"✈ Travel day"}</button></div>
@@ -1276,7 +1278,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-05b";
+const BUILD="2026-11-05c";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 if(cfg&&loadCache())reapplyPending();
