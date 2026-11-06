@@ -223,6 +223,42 @@ body.kb .composer{bottom:0}
 .flag{font-size:13px;padding:8px 10px;border-radius:10px;border-left:3px solid var(--warn);background:var(--warn-soft)}
 .flag.concern{border-left-color:var(--bad);background:var(--bad-soft)}
 .flag b{margin-right:4px}
+.ig-hero{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px}
+.ig-rings{display:grid;grid-template-columns:repeat(auto-fit,minmax(70px,1fr));gap:6px;flex:1;min-width:250px}
+.ig-ring{display:flex;flex-direction:column;align-items:center;text-align:center}
+.ig-rv{font-family:var(--f-mono);font-size:13px;font-weight:700;fill:var(--fg)}
+.ig-rl{font-size:12px;font-weight:700;margin-top:2px;line-height:1.15}
+.ig-rs{font-size:11px;color:var(--muted)}
+.ig-d{font-size:11px;font-weight:700;margin-left:4px;white-space:nowrap}
+.ig-week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px}
+.ig-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;font-size:10px;color:var(--muted);text-align:center;font-family:var(--f-mono)}
+.ig-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:4px}
+.ig-day{position:relative;background:var(--surface-2);border-radius:8px;padding:4px 3px 7px;min-height:52px;display:flex;flex-direction:column;align-items:center;overflow:hidden;border:1.5px solid transparent}
+.ig-day.blank{background:none}
+.ig-day.good{background:var(--good-soft)} .ig-day.acc{background:var(--accent-soft)} .ig-day.cool{background:var(--cool-soft)}
+.ig-day.fut{opacity:.4} .ig-day.today{border-color:var(--fg)}
+.ig-dn{font-size:10px;color:var(--muted);font-family:var(--f-mono)}
+.ig-dp{font-size:13px;font-weight:700;line-height:1.3;min-height:17px}
+.ig-day.good .ig-dp{color:var(--good)} .ig-day.acc .ig-dp{color:var(--accent)} .ig-day.cool .ig-dp{color:var(--cool)}
+.ig-dots{display:flex;gap:2px;align-items:center;min-height:9px;flex-wrap:wrap;justify-content:center}
+.ig-dots i,.ig-leg i.miss{width:6px;height:6px;border-radius:50%;display:inline-block}
+i.miss{background:none!important;border:1.5px solid var(--bad);box-sizing:border-box}
+.ig-moon{font-size:10px;color:var(--warn);line-height:1}
+.ig-cal{position:absolute;left:0;right:0;bottom:0;height:4px}
+.ig-leg{font-size:11px;gap:10px}
+.ig-leg b{color:var(--warn)}
+.ig-pairs{margin-top:16px;display:flex;flex-direction:column;gap:11px}
+.ig-key{display:flex;gap:14px;font-size:11px;color:var(--muted)}
+.ig-key i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.ig-pl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;gap:8px}
+.ig-pl small{color:var(--muted)}
+.ig-track{position:relative;height:10px;background:var(--surface-2);border-radius:999px;margin-right:40px}
+.ig-prow .ig-track{margin-right:0}
+.ig-prow{display:flex;align-items:center;gap:6px;margin-top:3px}.ig-prow .ig-track{flex:1}.ig-track.thin{height:5px;background:none}
+.ig-bar{height:100%;border-radius:999px}
+.ig-tg{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--fg);opacity:.55;border-radius:1px}
+.ig-pv{font-size:10px;color:var(--muted);min-width:34px;text-align:right}
+.ig-mix{display:flex;height:12px;border-radius:999px;overflow:hidden;gap:2px;margin-top:12px}
 table.wk{width:100%;border-collapse:collapse;font-size:13px}
 table.wk th{text-align:right;font-weight:700;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:6px 4px;border-bottom:1px solid var(--line)}
 table.wk th:first-child{text-align:left}
@@ -828,23 +864,6 @@ function weekFlags(a,b){
   if(a.score!=null&&b.score!=null&&b.score-a.score>=15)add("watch",`Weekly score ${a.score}, down from ${b.score}.`);
   return f;
 }
-function weekCard(){
-  const t=todayStr();const ws=reportWeek||(dow(t)===0?addDays(weekStart(t),-7):weekStart(t)),prev=addDays(ws,-7),next=addDays(ws,7);
-  const a=weekStats(ws),b=weekStats(prev),fl=weekFlags(a,b);
-  const fmt=(v,k)=>v==null?"–":k==="lb"?n1(v):k==="km"?n1(v):k==="pct"?v+"":n0(v);
-  const delta=(x,y,good,k)=>{if(x==null||y==null)return"";const d=x-y;if(Math.abs(d)<(k==="lb"||k==="km"?0.05:0.5))return`<span class="muted">same</span>`;const up=d>0;const ok=good===0?null:(good>0?up:!up);
-    return`<span style="color:${ok==null?"var(--muted)":ok?"var(--good)":"var(--bad)"}">${up?"▲":"▼"} ${k==="lb"||k==="km"?n1(Math.abs(d)):n0(Math.abs(d))}</span>`};
-  const rows=[["Score",a.score,b.score,1,""],["Avg kcal",a.kcal,b.kcal,0,""],["Avg protein (g)",a.protein,b.protein,1,""],
-    ["Calories on target",a.counted?`${a.calOn}/${a.counted}`:null,b.counted?`${b.calOn}/${b.counted}`:null],["Protein days ≥ "+S().proteinMin,a.counted?`${a.proOn}/${a.counted}`:null,b.counted?`${b.proOn}/${b.counted}`:null],
-    ["Kitchen closed",a.counted?`${a.clean}/${a.counted}`:null,b.counted?`${b.clean}/${b.counted}`:null],["Sessions",a.planned?`${a.done}/${a.planned}`:null,b.planned?`${b.done}/${b.planned}`:null],
-    ["Workouts",a.workouts,b.workouts,1,""],["Strength volume (kg)",a.vol,b.vol,1,""],["Run (km)",a.km,b.km,1,"km"],["Avg water (ml)",a.water,b.water,1,""],["Weight (lb)",a.weight,b.weight,0,"lb"]];
-  return`<section class="card"><div class="head"><div><div class="eyebrow">Weekly report</div><h2>Week of ${short(ws)}${ws===weekStart(t)?" (so far)":""}</h2><p class="sub">Compared with week of ${short(prev)}${a.travel?` · ✈ ${a.travel} travel day${a.travel>1?"s":""}`:""}</p></div>
-   <div class="row"><button class="btn sm ghost" data-act="week" data-w="${prev}" aria-label="Previous week">‹</button><button class="btn sm ghost" data-act="week" data-w="${next}" ${next>t?"disabled":""} aria-label="Next week">›</button></div></div>
-   ${fl.length?`<div class="flags">${fl.map(x=>`<div class="flag ${x.level}"><b>${x.level==="concern"?"Concern":"Watch"}</b> ${esc(x.txt)}</div>`).join("")}</div>`:`<p class="sub" style="color:var(--good)">Nothing flagged vs last week.</p>`}
-   <div style="overflow-x:auto;margin-top:10px"><table class="wk"><thead><tr><th></th><th>This week</th><th>Last week</th><th>Change</th></tr></thead><tbody>
-   ${rows.map(r=>`<tr><td>${r[0]}</td><td class="num">${typeof r[1]==="string"?r[1]:fmt(r[1],r[4])}</td><td class="num muted">${typeof r[2]==="string"?r[2]:fmt(r[2],r[4])}</td><td class="num">${r.length>3&&typeof r[1]!=="string"?delta(r[1],r[2],r[3],r[4]):""}</td></tr>`).join("")}
-   </tbody></table></div></section>`;
-}
 function monthStats(m){
   const s=S(),first=m+"-01";const days=[];let d=first;while(d.slice(0,7)===m){if(dayDone(d)||d<todayStr())days.push(d);d=addDays(d,1)}
   const ws=Object.values(col.workouts).filter(w=>(w.date||"").slice(0,7)===m);
@@ -859,21 +878,87 @@ function monthStats(m){
     calOn:core.filter(x=>Math.abs(totals(x).kcal-s.kcal)<=200).length,proOn:core.filter(x=>totals(x).protein>=s.proteinMin).length,clean:core.filter(x=>!mealsOn(x).some(isLate)).length,core:core.length,
     travel:days.filter(isTravel).length,w0:wts[0],w1:wts[wts.length-1],best};
 }
+/* ---------- infographic helpers ---------- */
+function igRing(x,y,label,sub,color){
+  const f=y?Math.max(0,Math.min(1,x/y)):0,R=26,C=2*Math.PI*R;
+  return`<div class="ig-ring"><svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><circle cx="32" cy="32" r="${R}" fill="none" stroke="var(--surface-2)" stroke-width="7"/>${y?`<circle cx="32" cy="32" r="${R}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${(C*f).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 32 32)"/>`:""}<text x="32" y="37" text-anchor="middle" class="ig-rv">${y?x+"/"+y:"–"}</text></svg><div class="ig-rl">${label}</div>${sub?`<div class="ig-rs">${sub}</div>`:""}</div>`;
+}
+function igDelta(x,y,good,dec){
+  if(x==null||y==null)return`<span class="ig-d muted">–</span>`;const d=x-y;
+  if(Math.abs(d)<(dec?0.05:0.5))return`<span class="ig-d muted">same</span>`;
+  const up=d>0,ok=good===0?null:(good>0?up:!up);const v=dec?n1(Math.abs(d)):n0(Math.abs(d));
+  return`<span class="ig-d" style="color:${ok==null?"var(--muted)":ok?"var(--good)":"var(--bad)"}">${up?"▲":"▼"} ${v}</span>`;
+}
+/* rows: [label, now, before, goodDir(1 up good,-1 down good,0 neutral), unit, color, target?, decimals?] */
+function igPairs(rows,nowL,prevL){
+  return`<div class="ig-pairs"><div class="ig-key"><span><i style="background:var(--accent)"></i>${nowL}</span><span><i style="background:var(--faint)"></i>${prevL}</span></div>${rows.map(([l,a,b,g,u,c,tg,dc])=>{
+    const mx=Math.max(a||0,b||0,tg||0)||1;const w=v=>v==null?0:Math.max(1.5,v/mx*100);const f=v=>v==null?"–":dc?n1(v):n0(v);
+    return`<div class="ig-pair"><div class="ig-pl"><span>${l}</span><span class="num"><b>${f(a)}</b>${u?`<small> ${u}</small>`:""} ${igDelta(a,b,g,dc)}</span></div>
+    <div class="ig-track">${tg?`<i class="ig-tg" style="left:${tg/mx*100}%"></i>`:""}<div class="ig-bar" style="width:${w(a)}%;background:${c||"var(--accent)"}"></div></div>
+    <div class="ig-prow"><div class="ig-track thin"><div class="ig-bar" style="width:${w(b)}%;background:var(--faint)"></div></div><span class="ig-pv num">${f(b)}</span></div></div>`}).join("")}</div>`;
+}
+function igDayCell(d,big){
+  const s=S(),t=todayStr(),tt=totals(d),fut=d>t,flex=isFlex(d),late=mealsOn(d).some(isLate),ss=sessionState(d);
+  const pc=fut||!tt.n?"":flex?"cool":tt.protein>=s.proteinMin?"good":"acc";
+  const cal=!tt.n||fut?"":flex?"var(--cool)":Math.abs(tt.kcal-s.kcal)<=200?"var(--good)":tt.kcal>s.kcal?"var(--warn)":"var(--t-mob)";
+  const types=[...new Set(workoutsOn(d).map(w=>w.type))];
+  return`<div class="ig-day ${pc} ${fut?"fut":""} ${d===t?"today":""}" title="${esc(longD(d))}${tt.n?` · ${n0(tt.protein)} g · ${n0(tt.kcal)} kcal`:""}">
+    <div class="ig-dn">${big?DOW[dow(d)].slice(0,3):parse(d).getDate()}</div>
+    <div class="ig-dp num">${tt.n&&!fut?n0(tt.protein):""}</div>
+    <div class="ig-dots">${types.map(x=>`<i style="background:${typeColor(x)}"></i>`).join("")}${ss.st==="miss"?`<i class="miss"></i>`:""}${late&&!flex?`<b class="ig-moon" aria-label="late">☾</b>`:""}</div>
+    <div class="ig-cal" style="background:${cal||"transparent"}"></div></div>`;
+}
+const IG_LEGEND=`<div class="legend ig-leg"><span><i style="background:var(--good)"></i>Protein ≥ floor</span><span><i style="background:var(--accent)"></i>Under</span><span><i style="background:var(--cool)"></i>Flex</span><span><b>☾</b> after close</span><span><i class="miss"></i>Session missed</span><span>Bottom stripe = calories (<i style="background:var(--good)"></i>±200 <i style="background:var(--warn)"></i>over <i style="background:var(--t-mob)"></i>under)</span></div>`;
+
+function weekCard(){
+  const t=todayStr(),s=S();const ws=reportWeek||(dow(t)===0?addDays(weekStart(t),-7):weekStart(t)),prev=addDays(ws,-7),next=addDays(ws,7);
+  const a=weekStats(ws),b=weekStats(prev),fl=weekFlags(a,b);
+  const ago=(x,y)=>y?`last wk ${x}/${y}`:"last wk –";
+  const ring=(l,k,c)=>igRing(a[k],a.counted,l,ago(b[k],b.counted),c);
+  const scoreCol=a.score==null?"var(--muted)":a.score>=80?"var(--good)":a.score>=60?"var(--warn)":"var(--bad)";
+  return`<section class="card ig"><div class="head"><div><div class="eyebrow">Week over week</div><h2>Week of ${short(ws)}${ws===weekStart(t)?" (so far)":""}</h2><p class="sub">vs week of ${short(prev)}${a.travel?` · ✈ ${a.travel} travel day${a.travel>1?"s":""}`:""}</p></div>
+   <div class="row"><button class="btn sm ghost" data-act="week" data-w="${prev}" aria-label="Previous week">‹</button><button class="btn sm ghost" data-act="week" data-w="${next}" ${next>t?"disabled":""} aria-label="Next week">›</button></div></div>
+   <div class="ig-hero"><div><div class="big" style="color:${scoreCol}">${a.score??"–"}</div><div class="ig-rs">score · last wk ${b.score??"–"} ${igDelta(a.score,b.score,1)}</div></div>
+     <div class="ig-rings">${ring("Protein","proOn","var(--good)")}${ring("Calories","calOn","var(--good)")}${ring("Kitchen closed","clean","var(--cool)")}${igRing(a.done,a.planned,"Sessions",b.planned?`last wk ${b.done}/${b.planned}`:"last wk –","var(--t-str)")}</div></div>
+   <div class="ig-week">${[0,1,2,3,4,5,6].map(i=>igDayCell(addDays(ws,i),true)).join("")}</div>
+   ${IG_LEGEND}
+   ${igPairs([["Avg protein",a.protein,b.protein,1,"g","var(--accent)",s.proteinMin],["Avg calories",a.kcal,b.kcal,0,"kcal","var(--accent)",s.kcal],
+     ["Strength volume",a.vol,b.vol,1,"kg","var(--t-str)"],["Run",a.km,b.km,1,"km","var(--t-run)",null,1],["Workouts",a.workouts,b.workouts,1,"","var(--t-cross)"],
+     ["Avg water",a.water,b.water,1,"ml","var(--cool)",s.waterMl]].filter(r=>r[1]!=null||r[2]!=null),"This week","Last week")}
+   ${a.weight!=null||b.weight!=null?`<p class="sub">Weight ${a.weight!=null?n1(a.weight):"–"} lb (last wk ${b.weight!=null?n1(b.weight):"–"}) ${igDelta(a.weight,b.weight,0,1)} · range ${s.weightLo}–${s.weightHi}</p>`:""}
+   ${fl.length?`<div class="flags">${fl.map(x=>`<div class="flag ${x.level}"><b>${x.level==="concern"?"Concern":"Watch"}</b> ${esc(x.txt)}</div>`).join("")}</div>`:`<p class="sub" style="color:var(--good)">Nothing flagged vs last week.</p>`}
+   </section>`;
+}
 function monthCard(){
-  const t=todayStr();const m=reportMonth||t.slice(0,7);const [y,mo]=m.split("-").map(Number);const label=MON[mo-1]+" "+y;
+  const t=todayStr(),s=S();const m=reportMonth||t.slice(0,7);const [y,mo]=m.split("-").map(Number);const label=MON[mo-1]+" "+y;
   const prev=(mo===1?(y-1)+"-12":y+"-"+pad(mo-1)),next=(mo===12?(y+1)+"-01":y+"-"+pad(mo+1));
-  if(!loadedMonths.has(m)&&cfg&&!monthCard.busy?.[m]){(monthCard.busy=monthCard.busy||{})[m]=1;loadMonth(m).then(()=>{reapplyPending();render()}).catch(()=>{})}
+  for(const k of[m,prev])if(!loadedMonths.has(k)&&cfg&&!monthCard.busy?.[k]){(monthCard.busy=monthCard.busy||{})[k]=1;loadMonth(k).then(()=>{reapplyPending();render()}).catch(()=>{})}
   if(reportText[m]===undefined&&cfg){reportText[m]=null;getRaw("reports/"+m+".md").then(f=>{reportText[m]=f.text?f.text.replace(/<!--[\s\S]*?-->/g,"").trim():"";render()}).catch(()=>{reportText[m]=""})}
-  const st=monthStats(m),imp=(H().monthly||{})[m];
+  const st=monthStats(m),pv=monthStats(prev),imp=(H().monthly||{})[m],ip=(H().monthly||{})[prev];
   const tile=(l,v,u)=>`<div class="stat"><div class="l">${l}</div><div class="mid">${v}${u?`<small>${u}</small>`:""}</div></div>`;
-  const W=st.workouts||imp?.workouts||0;
-  return`<section class="card"><div class="head"><div><div class="eyebrow">Monthly report</div><h2>${label}</h2></div><div class="row"><button class="btn sm ghost" data-act="month" data-m="${prev}" aria-label="Previous month">‹</button><button class="btn sm ghost" data-act="month" data-m="${next}" ${next>t.slice(0,7)?"disabled":""} aria-label="Next month">›</button></div></div>
-  <div class="stats" style="margin-top:12px">${tile("Workouts",n0(W))}${tile("Volume",n0((st.vol||imp?.volumeKg||0)/1000),"t")}${tile("Run",n1(st.km||imp?.runKm||0),"km")}</div>
-  ${st.workouts?`<p class="sub">${st.strength} strength · ${st.runs} runs/cardio · ${st.cross} cross · ${st.mob} yoga/mobility${st.best?` · best session ${n0(st.best.volumeKg)} kg (${short(st.best.date)})`:""}</p>`:imp?`<p class="sub">${esc(imp.note||"")}</p>`:""}
-  ${st.logged?`<div class="stats" style="margin-top:12px">${tile("Avg kcal",n0(st.kcal))}${tile("Avg protein",n0(st.protein),"g")}${tile("Days logged",st.logged)}</div>
-  <p class="sub">On target: calories ${st.calOn}/${st.core} · protein ${st.proOn}/${st.core} · kitchen closed ${st.clean}/${st.core}${st.travel?` · ✈ ${st.travel} travel days`:""}</p>`:""}
-  ${st.w0?`<p class="sub">Weight ${n1(st.w0.lb)} → ${n1(st.w1.lb)} lb (${st.w1.lb-st.w0.lb>0?"+":""}${n1(st.w1.lb-st.w0.lb)})</p>`:""}
-  ${reportText[m]?`<details style="margin-top:10px" open><summary class="eyebrow" style="cursor:pointer">Coach's write-up</summary><div class="small" style="white-space:pre-wrap;margin-top:8px;line-height:1.55">${mdLite(reportText[m])}</div></details>`:""}
+  const W=st.workouts||imp?.workouts||0,V=st.vol||imp?.volumeKg||0,K=st.km||imp?.runKm||0;
+  const pW=pv.workouts||ip?.workouts||null,pV=pv.vol||ip?.volumeKg||null,pK=pv.km||ip?.runKm||null;
+  // calendar
+  const first=m+"-01";let cells="";for(let i=0;i<dow(first);i++)cells+=`<div class="ig-day blank"></div>`;
+  let d=first;while(d.slice(0,7)===m){cells+=igDayCell(d,false);d=addDays(d,1)}
+  // workout mix
+  const mix=[["Strength",st.strength,"var(--t-str)"],["Run/cardio",st.runs,"var(--t-run)"],["Cross",st.cross,"var(--t-cross)"],["Yoga",st.mob,"var(--t-mob)"],["Other",st.other,"var(--faint)"]].filter(x=>x[1]);
+  const mixTot=mix.reduce((a,x)=>a+x[1],0);
+  // weekly volume inside month
+  const wks=[];let w=weekStart(first);while(w.slice(0,7)<=m&&w<=t){wks.push(w);w=addDays(w,7)}
+  const wv=wks.map(x=>{const e=addDays(x,6);return Object.values(col.workouts).filter(o=>o.type==="strength"&&o.date>=x&&o.date<=e&&o.date.slice(0,7)===m).reduce((a,o)=>a+(+o.volumeKg||0),0)});
+  const prevLabel=MON[(mo+10)%12];
+  return`<section class="card ig"><div class="head"><div><div class="eyebrow">Full month</div><h2>${label}${m===t.slice(0,7)?" (so far)":""}</h2><p class="sub">${st.logged} day${st.logged===1?"":"s"} of food logged${st.travel?` · ✈ ${st.travel} travel days`:""}</p></div><div class="row"><button class="btn sm ghost" data-act="month" data-m="${prev}" aria-label="Previous month">‹</button><button class="btn sm ghost" data-act="month" data-m="${next}" ${next>t.slice(0,7)?"disabled":""} aria-label="Next month">›</button></div></div>
+  <div class="stats" style="margin-top:12px">${tile("Workouts",n0(W))}${tile("Volume",n1(V/1000),"t")}${tile("Run",n1(K),"km")}</div>
+  ${mixTot?`<div class="ig-mix">${mix.map(x=>`<div style="flex:${x[1]};background:${x[2]}" title="${x[0]} ${x[1]}"></div>`).join("")}</div><div class="legend ig-leg">${mix.map(x=>`<span><i style="background:${x[2]}"></i>${x[0]} ${x[1]}</span>`).join("")}</div>`:imp?`<p class="sub">${esc(imp.note||"")}</p>`:""}
+  <div class="ig-dow">${DOW.map(x=>`<span>${x[0]}</span>`).join("")}</div>
+  <div class="ig-cal-grid">${cells}</div>
+  ${IG_LEGEND}
+  ${st.core?`<div class="ig-rings" style="margin-top:14px">${igRing(st.proOn,st.core,"Protein days",pv.core?`${prevLabel} ${pv.proOn}/${pv.core}`:"","var(--good)")}${igRing(st.calOn,st.core,"Calorie days",pv.core?`${prevLabel} ${pv.calOn}/${pv.core}`:"","var(--good)")}${igRing(st.clean,st.core,"Kitchen closed",pv.core?`${prevLabel} ${pv.clean}/${pv.core}`:"","var(--cool)")}</div>`:""}
+  ${wv.some(v=>v)?`<div class="eyebrow" style="margin-top:16px">Strength volume by week</div>${chartBars({labels:wks.map(short),values:wv.map(v=>v||null),color:"var(--t-str)",h:120,fmt:v=>(v/1000).toFixed(1)+"k"})}`:""}
+  ${igPairs([["Avg protein",st.protein,pv.protein,1,"g","var(--accent)",s.proteinMin],["Avg calories",st.kcal,pv.kcal,0,"kcal","var(--accent)",s.kcal],["Workouts",W||null,pW,1,"","var(--t-cross)"],["Strength volume",V?V/1000:null,pV?pV/1000:null,1,"t","var(--t-str)",null,1],["Run",K||null,pK,1,"km","var(--t-run)",null,1]].filter(r=>r[1]!=null||r[2]!=null),label.split(" ")[0],prevLabel)}
+  ${st.w0?`<p class="sub">Weight ${n1(st.w0.lb)} → ${n1(st.w1.lb)} lb (${st.w1.lb-st.w0.lb>0?"+":""}${n1(st.w1.lb-st.w0.lb)}) · range ${s.weightLo}–${s.weightHi}</p>`:""}
+  ${reportText[m]?`<details style="margin-top:10px"><summary class="eyebrow" style="cursor:pointer">Coach's write-up</summary><div class="small" style="white-space:pre-wrap;margin-top:8px;line-height:1.55">${mdLite(reportText[m])}</div></details>`:""}
   </section>`;
 }
 function vTrends(){
