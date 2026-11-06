@@ -201,8 +201,16 @@ button.item:hover .n{color:var(--accent)}
 .msg.u{align-self:flex-end;background:var(--accent);color:var(--accent-ink);border-bottom-right-radius:4px}
 .msg.a{align-self:flex-start;background:var(--surface);border:1px solid var(--line);border-bottom-left-radius:4px}
 .msg.a.think{color:var(--muted);font-style:italic}
+.estnote{background:#fff4d6!important;color:#3d2900!important;border:1.5px solid #d9a400}.estnote .eyebrow,.estnote .small{color:#3d2900!important}
+@media (prefers-color-scheme:dark){.estnote{background:#3a2c00!important;color:#ffe08a!important}.estnote .eyebrow,.estnote .small{color:#ffe08a!important}}
+.actbtn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border-radius:12px;padding:8px 12px;font:inherit;font-size:calc(var(--chat-fs,16px)*.8);font-weight:700;cursor:pointer;border:1.5px solid transparent}
+.actbtn.ok{background:var(--good-soft);color:var(--good)}
+.actbtn.est{background:#fff4d6;color:#5a3d00;border-color:#d9a400}
+.actbtn .l2{font-weight:600}
+.actbtn .l3{text-decoration:underline;font-weight:800}
+@media (prefers-color-scheme:dark){.actbtn.est{background:#3a2c00;color:#ffe08a;border-color:#a37a00}}
 .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.acts span{font-size:11px;font-weight:700;background:var(--good-soft);color:var(--good);border-radius:999px;padding:3px 8px;white-space:normal}
+.acts>span{font-size:11px;font-weight:700;background:var(--good-soft);color:var(--good);border-radius:999px;padding:3px 8px;white-space:normal}
 .composer{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom,0px));background:var(--bg);padding-block:10px;display:flex;gap:8px;align-items:flex-end}
 .composer textarea{flex:1;min-width:0;resize:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:11px 12px;max-height:140px;min-height:46px}
 /* iOS: 16px inputs stop Safari zooming on focus; keyboard mode hides the tab bar and pins the composer */
@@ -259,7 +267,7 @@ table.wk td:first-child{text-align:left;white-space:normal}
 :root{--chat-fs:18px}
 .chat .msg{font-size:var(--chat-fs);line-height:1.45}
 .chat .quote{font-size:calc(var(--chat-fs)*.85)}
-.chat .acts span{font-size:calc(var(--chat-fs)*.72)}
+.chat .acts>span{font-size:calc(var(--chat-fs)*.72)}
 .chat .replybtn{font-size:calc(var(--chat-fs)*.75)}
 .qp button{font-size:calc(var(--chat-fs)*.85)}
 #chatIn{font-size:max(16px,var(--chat-fs))!important;line-height:1.35}
@@ -696,7 +704,7 @@ function vToday(){
     <p class="sub">Last food of the evening to first food next morning.</p></section>
   </div>`;
 }
-function mItem(m){return`<button class="item" data-act="editMeal" data-id="${esc(m.id)}"><span class="t">${fmtT(m.time)}</span><span class="n">${esc(m.name)}${isLate(m)&&!isFlex(m.date)?` <span class="pill warn">after ${fmtT(S().close)}</span>`:""}<div class="m">${n0(m.protein)}g protein · ${n0(m.carbs)}g carbs · ${n0(m.fat)}g fat</div></span><span class="k">${n0(m.kcal)}<small>kcal</small></span></button>`}
+function mItem(m){return`<button class="item" data-act="editMeal" data-id="${esc(m.id)}"><span class="t">${fmtT(m.time)}</span><span class="n">${esc(m.name)}${m.est?` <span class="pill">est.</span>`:""}${isLate(m)&&!isFlex(m.date)?` <span class="pill warn">after ${fmtT(S().close)}</span>`:""}<div class="m">${n0(m.protein)}g protein · ${n0(m.carbs)}g carbs · ${n0(m.fat)}g fat</div></span><span class="k">${n0(m.kcal)}<small>kcal</small></span></button>`}
 function wItem(w){const bits=[TYPES[w.type]||w.type];if(+w.minutes)bits.push(n0(w.minutes)+" min");if(+w.distanceKm)bits.push(n1(w.distanceKm)+" km");if(+w.volumeKg)bits.push(n0(w.volumeKg)+" kg volume");
   return`<button class="item" data-act="editWorkout" data-id="${esc(w.id)}"><span class="t" style="border-left:3px solid ${typeColor(w.type)};padding-left:6px">${short(w.date)}<br>${fmtT(w.time)}</span><span class="n">${esc(w.name)}<div class="m">${esc(bits.join(" · "))}${w.note?" · "+esc(w.note):""}</div></span><span class="k">${+w.kcal?n0(w.kcal)+"<small>kcal</small>":""}</span></button>`}
 function normName(n){return String(n||"").toLowerCase().replace(/\(.*?\)/g," ").replace(/^(breakfast|lunch|dinner|snack|treat)\s*[:\-]\s*/,"").replace(/[^a-z ]+/g," ").replace(/\b(a|an|the|of|with|and|about|small|large|half|cup|bowl|plate|g|ml)\b/g," ").replace(/\s+/g," ").trim().split(" ").slice(0,5).join(" ")}
@@ -933,6 +941,8 @@ function mealSheet(m){
   openSheet(`<div class="head"><h3>${isNew?"Add meal":"Edit meal"}</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
   <form class="form" id="mealForm">
     <div class="f"><label for="mName">What did you eat?</label><input id="mName" value="${esc(m.name)}" required></div>
+    ${m.est?`<div class="note estnote" style="grid-column:1/-1;margin:0"><div class="eyebrow">Coach's ${m.est.conf==="low"?"rough guess":"estimate"}</div><div class="small" style="margin-top:4px">${m.est.note?esc(m.est.note):"Portions estimated from your message or photo."}</div></div>`:""}
+    ${isNew?"":`<div class="f" style="grid-column:1/-1"><label>Portion was actually</label><div class="row wrap" style="gap:6px">${[0.5,0.75,1.25,1.5,2].map(k=>`<button type="button" class="btn sm line" data-scale="${k}">×${k}</button>`).join("")}</div><span class="hint">Scales kcal and macros. Or type exact numbers below. Saving confirms the entry.</span></div>`}
     <div class="f q"><label for="mKcal">kcal</label><input id="mKcal" inputmode="decimal" value="${esc(m.kcal)}" required></div>
     <div class="f q"><label for="mP">Protein g</label><input id="mP" inputmode="decimal" value="${esc(m.protein)}"></div>
     <div class="f q"><label for="mC">Carbs g</label><input id="mC" inputmode="decimal" value="${esc(m.carbs)}"></div>
@@ -944,6 +954,8 @@ function mealSheet(m){
     <div class="f row" style="flex-direction:row;gap:8px;margin-top:4px"><button class="btn" style="flex:1" type="submit">${isNew?"Log meal":"Save changes"}</button>${isNew?"":`<button type="button" class="btn danger" id="mDel">Delete</button>`}</div>
   </form>`,async el=>{
     el.querySelector("[data-x]").onclick=closeSheet;
+    const base={};for(const f of["mKcal","mP","mC","mF"])base[f]=num(el.querySelector("#"+f).value);
+    el.querySelectorAll("[data-scale]").forEach(bt=>bt.onclick=()=>{const on=!bt.classList.contains("line");const k=on?1:+bt.dataset.scale;for(const f in base)if(base[f]!=null)el.querySelector("#"+f).value=Math.round(base[f]*k);el.querySelectorAll("[data-scale]").forEach(x=>x.classList.add("line"));if(!on)bt.classList.remove("line")});
     if(!isNew)twoStep(el.querySelector("#mDel"),async()=>{closeSheet();await safe(store.del("meals",m.id),"Meal deleted")});
     el.querySelector("#mealForm").onsubmit=async e=>{e.preventDefault();
       const data={name:fv("mName").trim(),kcal:num(fv("mKcal"))||0,protein:num(fv("mP"))||0,carbs:num(fv("mC"))||0,fat:num(fv("mF"))||0,date:fv("mDate")||date,time:fv("mTime")||nowHM()};
@@ -951,7 +963,7 @@ function mealSheet(m){
       const saveUsual=isNew&&el.querySelector("#mSave")?.checked;closeSheet();
       if(isNew){await safe(store.add("meals",{...data,created:Date.now()}),"Logged "+data.name);
         if(saveUsual){const sv=savedList();await safe(store.add("saved",{name:data.name,desc:"",kcal:data.kcal,protein:data.protein,carbs:data.carbs,fat:data.fat,order:(sv.length?Math.max(...sv.map(x=>x.order??0))+1:0)}))}}
-      else await safe(store.set("meals",m.id,{...col.meals[m.id],...data}),"Saved");
+      else{const old=col.meals[m.id];const o={...old,...data};const ch=["kcal","protein","carbs","fat","name"].some(k=>String(o[k])!==String(old[k]));if(o.est){delete o.est;if(ch)o.adjusted=true}await safe(store.set("meals",m.id,o),ch?"Saved":"Confirmed");renderChat()}
     };
   });
 }
@@ -1069,7 +1081,7 @@ function buildContext(){
 TARGETS: ${s.kcal} kcal/day (±200 counts as on target); protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g; carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except one weekend flex night (Saturday or Sunday). Weeks run Sunday to Saturday. This weekend's flex night: ${DOW[dow(flexDayFor(weekendSat(t)))]} ${flexDayFor(weekendSat(t))} (no calorie flag, not scored). A day counts in the weekly score once the kitchen closes.
 ${(s.about||s.profile)?"ABOUT THEM (in their words):\n"+(s.about||s.profile)+"\n":""}${s.coachStyle?"THEIR COACHING STYLE INSTRUCTIONS (follow these): "+s.coachStyle+"\n":""}${notes().length?"LEARNED IN PAST CHATS:\n"+notes().map(n=>"- "+n.text).join("\n")+"\n":""}WEEK-OVER-WEEK FLAGS (this week vs last): ${(()=>{const ws0=weekStart(t);const f=weekFlags(weekStats(ws0),weekStats(addDays(ws0,-7)));return f.length?f.map(x=>x.level.toUpperCase()+": "+x.txt).join(" | "):"none"})()}\nPATTERNS FROM THEIR LOG (last 8 weeks):\n${insights().map(x=>"- "+x.text).join("\n")}\n${coachPatterns().length?"PATTERNS FROM WEEKLY CHECK-INS:\n"+coachPatterns().map(x=>"- "+x.text).join("\n")+"\n":""}
 ${Object.keys(S().travel||{}).length?"TRAVEL DAYS (recent): "+Object.keys(S().travel||{}).filter(x=>x>=addDays(t,-30)).sort().join(", ")+". On travel days, estimate restaurant portions generously (bigger plates, more oil and sauce) and read their numbers in that context.\n":""}TODAY: ${dayDigest(t)}
-TODAY'S MEALS (id | time | name | kcal P/C/F):${today.length?today.map(m=>`\n- ${m.id} | ${m.time} | ${m.name} | ${m.kcal} ${m.protein}/${m.carbs}/${m.fat}`).join(""):" none yet"}
+TODAY'S MEALS (id | time | name | kcal P/C/F):${today.length?today.map(m=>`\n- ${m.id} | ${m.time} | ${m.name} | ${m.kcal} ${m.protein}/${m.carbs}/${m.fat}${m.est?" | your estimate, not yet checked: "+(m.est.note||"portions"):m.adjusted?" | they corrected your estimate":""}`).join(""):" none yet"}${(()=>{const ad=Object.values(col.meals).filter(m=>m.adjusted&&m.date>=addDays(t,-30));return ad.length?`\nTHEIR CORRECTIONS TO YOUR ESTIMATES (last 30 days, learn their real portions from these): ${ad.slice(-8).map(m=>m.name+" → "+m.kcal+" kcal").join("; ")}`:""})()}
 TODAY'S WORKOUTS (id | name): ${workoutsOn(t).map(w=>`${w.id} | ${w.name}`).join("; ")||"none"}
 THIS WEEK'S ROUTINE:
 ${wk}
@@ -1084,7 +1096,8 @@ const okTime=(v,d)=>/^\d\d:\d\d$/.test(v||"")?v:(d&&d!==todayStr()?"12:00":nowHM
 function todayLine(){const t=totals(todayStr());const s=S();return{today_kcal:t.kcal,today_protein:t.protein,kcal_left:s.kcal-t.kcal,protein_to_floor:Math.max(0,s.proteinMin-t.protein)}}
 function clientTools(){return{
   log_meal:async p=>{const d={name:String(p.name||"Meal").slice(0,140),kcal:Math.round(+p.kcal||0),protein:Math.round(+p.protein||0),carbs:Math.round(+p.carbs||0),fat:Math.round(+p.fat||0),date:okDate(p.date),time:okTime(p.time,okDate(p.date)),created:Date.now()};
-    const id=await store.add("meals",d);pendingActions.push(`Logged ${d.name} · ${d.kcal} kcal, ${d.protein} g protein`);return JSON.stringify({id,...d,...todayLine()})},
+    const en=String(p.estimated||"").trim().slice(0,160),cf=["high","medium","low"].includes(p.confidence)?p.confidence:"";if(en||cf)d.est={note:en,conf:cf||"medium"};
+    const id=await store.add("meals",d);pendingActions.push({text:`Logged ${d.name} · ${d.kcal} kcal, ${d.protein} g protein`,meal:id});return JSON.stringify({id,...d,...todayLine()})},
   log_workout:async p=>{const d={type:TYPES[p.type]?p.type:"other",name:String(p.name||"Workout").slice(0,120),minutes:num(p.minutes),kcal:num(p.kcal),distanceKm:num(p.distance_km),volumeKg:num(p.volume_kg),date:okDate(p.date),time:okTime(p.time),note:"",created:Date.now()};
     const id=await store.add("workouts",d);pendingActions.push(`Logged workout: ${d.name}`);return JSON.stringify({id,...d})},
   log_water:async p=>{const ml=Math.round(+p.ml||0);if(!ml)return"Error: ml must be a number";const t=todayStr();const tot=waterOn(t)+ml;await store.set("water",t,{ml:tot});pendingActions.push(`+${ml} ml water`);return JSON.stringify({today_total_ml:tot,target_ml:S().waterMl})},
@@ -1093,7 +1106,7 @@ function clientTools(){return{
   remember_about_me:async p=>{const f=String(p.fact||"").trim().slice(0,240);if(!f)return"Error: fact required";await store.set("settings","memory",{notes:notes().concat([{text:f,at:todayStr()}]).slice(-60)});pendingActions.push("Remembered: "+f);return"saved"},
   get_days:async p=>{const from=okDate(p.from),to=okDate(p.to);await ensureRange(from,to);let d=from,out=[];for(let k=0;k<31&&d<=to;k++){const ms=mealsOn(d),t=totals(d),x=sessionState(d);out.push({date:d,weekday:DOW[dow(d)],planned_session:x.p.title+" ("+x.p.kind+")",session_status:x.label,flex_night:isFlex(d),travel_day:isTravel(d),
       totals:{kcal:t.kcal,protein:t.protein,carbs:t.carbs,fat:t.fat},water_ml:waterOn(d),last_food:ms.length?ms[ms.length-1].time:null,after_close:ms.filter(isLate).map(m=>m.time+" "+m.name),
-      meals:ms.map(m=>({id:m.id,time:m.time,name:m.name,kcal:m.kcal,protein:m.protein,carbs:m.carbs,fat:m.fat})),
+      meals:ms.map(m=>({id:m.id,time:m.time,name:m.name,kcal:m.kcal,protein:m.protein,carbs:m.carbs,fat:m.fat,...(m.est?{estimate_unchecked:m.est.note}:{}),...(m.adjusted?{corrected_by_user:true}:{})})),
       workouts:workoutsOn(d).map(w=>({name:w.name,type:w.type,minutes:w.minutes,km:w.distanceKm,volume_kg:w.volumeKg,kcal:w.kcal})),watch:healthOn(d)});d=addDays(d,1)}return JSON.stringify(out)}
 }}
 function setCoachStatus(text){const el=$("#coachStatus");if(!el)return;el.textContent=text||"";el.hidden=!text}
@@ -1139,7 +1152,7 @@ async function shrinkImage(file){
   try{const bmp=await createImageBitmap(file);const k=Math.min(1,1600/Math.max(bmp.width,bmp.height));const c=document.createElement("canvas");c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
     return await new Promise(r=>c.toBlob(b=>r(b||file),"image/jpeg",0.85))}catch{return file}
 }
-const photoAsk=n=>(n>1?"Here are "+n+" photos. Log each separate meal, drink or workout as its own entry. If several photos show the same thing (a plate and its label, two angles of one meal, two screens of one workout), combine them into one entry. ":"Here's a photo. ")+"If it's food or a drink, estimate what's in it and log it with log_meal. If it's a workout summary screenshot (Apple Watch, Peloton or similar), read it and log it with log_workout using the date and time shown (lb to kg, miles to km). Then confirm with the numbers, one line per entry. If you can't tell what something is, ask.";
+const photoAsk=n=>(n>1?"Here are "+n+" photos. Log each separate meal, drink or workout as its own entry. If several photos show the same thing (a plate and its label, two angles of one meal, two screens of one workout), combine them into one entry. ":"Here's a photo. ")+"If it's food or a drink, estimate what's in it and log it with log_meal, passing estimated (the part you guessed, e.g. 'rice about 1 cup, sauce unknown') and confidence. If it's a workout summary screenshot (Apple Watch, Peloton or similar), read it and log it with log_workout using the date and time shown (lb to kg, miles to km). Then confirm with the numbers, one line per entry. If you can't tell what something is, ask.";
 let convFiles=0, replyTarget=null;
 const REACTS=["👍","👎","❤️","💪","😂"];
 async function photoTime(file){
@@ -1206,11 +1219,16 @@ function renderChat(){
   const turns=chatTurns||[];
   if(!turns.length&&!awaiting){el.innerHTML=`<div class="card"><h2>Ask about your day, or just tell me what you ate</h2><p class="sub">Try “two boiled eggs and GF toast at 8:30”, “drank a bottle of water”, or “did the 45 min upper body”. I'll log it and give you the numbers.</p></div>`;return}
   const base=Math.max(0,turns.length-40);
-  el.innerHTML=turns.slice(-40).map((t,k)=>`<div class="mwrap ${t.role==="user"?"u":"a"}"><div class="msg ${t.role==="user"?"u":"a"}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${t.react?`<span class="rxbadge">${t.react}</span>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(u=>`<img src="${u}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(a=>`<span>✓ ${esc(a)}</span>`).join("")}</div>`:""}</div><div class="mact"><button type="button" class="replybtn" data-act="replyTo" data-i="${base+k}" aria-label="Reply to this message">Reply</button>${t.role!=="user"?REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${base+k}" data-e="${e}" aria-label="React ${e}" aria-pressed="${t.react===e}">${e}</button>`).join(""):""}</div></div>`).join("")
+  el.innerHTML=turns.slice(-40).map((t,k)=>`<div class="mwrap ${t.role==="user"?"u":"a"}"><div class="msg ${t.role==="user"?"u":"a"}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${t.react?`<span class="rxbadge">${t.react}</span>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(u=>`<img src="${u}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}</div><div class="mact"><button type="button" class="replybtn" data-act="replyTo" data-i="${base+k}" aria-label="Reply to this message">Reply</button>${t.role!=="user"?REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${base+k}" data-e="${e}" aria-label="React ${e}" aria-pressed="${t.react===e}">${e}</button>`).join(""):""}</div></div>`).join("")
     +(awaiting?`<div class="msg a think">Thinking…</div>`:"")
     +(turns.length?`<button type="button" class="btn sm ghost" data-act="clearChat" style="align-self:center">Clear conversation</button>`:"");
   const all=el.querySelectorAll(".msg");all.length&&all[all.length-1].scrollIntoView({block:"nearest"});
 }
+function actChip(a){if(typeof a==="string")return`<span>✓ ${esc(a)}</span>`;
+  const m=a.meal&&col.meals[a.meal];if(!m)return`<span>✓ ${esc(a.text)}</span>`;
+  const txt=`Logged ${m.name} · ${n0(m.kcal)} kcal, ${n0(m.protein)} g protein`;
+  if(!m.est)return`<button type="button" class="actbtn ok" data-act="editMeal" data-id="${esc(a.meal)}">✓ ${esc(txt)}${m.adjusted?" · adjusted":""}</button>`;
+  return`<button type="button" class="actbtn est" data-act="editMeal" data-id="${esc(a.meal)}"><span class="l1">✓ ${esc(txt)}</span><span class="l2">${m.est.conf==="low"?"Rough guess":"Estimated"}${m.est.note?": "+esc(m.est.note):""}</span><span class="l3">Tap to adjust ›</span></button>`}
 function md(s){return esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>")}
 function bindComposer(){
   const f=$("#composer"),ta=$("#chatIn");
@@ -1297,7 +1315,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-05d";
+const BUILD="2026-11-05e";
 (async()=>{try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}})();
 if(cfg&&loadCache())reapplyPending();
