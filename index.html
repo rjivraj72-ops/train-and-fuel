@@ -766,7 +766,7 @@ function vToday(){
   </div>`;
 }
 function mItem(m){return`<button class="item" data-act="editMeal" data-id="${esc(m.id)}"><span class="t">${fmtT(m.time)}</span><span class="n">${esc(m.name)}${m.est?` <span class="pill">est.</span>`:""}${isLate(m)&&!isFlex(m.date)?` <span class="pill warn">after ${fmtT(S().close)}</span>`:""}<div class="m">${n0(m.protein)}g protein · ${n0(m.carbs)}g carbs · ${n0(m.fat)}g fat</div></span><span class="k">${n0(m.kcal)}<small>kcal</small></span></button>`}
-function wItem(w){const bits=[TYPES[w.type]||w.type];if(+w.minutes)bits.push(n0(w.minutes)+" min");if(+w.distanceKm)bits.push(n1(w.distanceKm)+" km");if(+w.volumeKg)bits.push(n0(w.volumeKg)+" lb volume");
+function wItem(w){const bits=[TYPES[w.type]||w.type];if(+w.minutes)bits.push(n0(w.minutes)+" min");if(+w.distanceKm)bits.push(n1(w.distanceKm)+" km");if(+w.volumeKg)bits.push(n0(w.volumeKg)+" lb volume");if(+w.avgHr)bits.push("♥ "+n0(w.avgHr)+" bpm");
   return`<button class="item" data-act="editWorkout" data-id="${esc(w.id)}"><span class="t" style="border-left:3px solid ${typeColor(w.type)};padding-left:6px">${short(w.date)}<br>${fmtT(w.time)}</span><span class="n">${esc(w.name)}<div class="m">${esc(bits.join(" · "))}${w.note?" · "+esc(w.note):""}</div></span><span class="k">${+w.kcal?n0(w.kcal)+"<small>kcal</small>":""}</span></button>`}
 function normName(n){return String(n||"").toLowerCase().replace(/\(.*?\)/g," ").replace(/^(breakfast|lunch|dinner|snack|treat)\s*[:\-]\s*/,"").replace(/[^a-z ]+/g," ").replace(/\b(a|an|the|of|with|and|about|small|large|half|cup|bowl|plate|g|ml)\b/g," ").replace(/\s+/g," ").trim().split(" ").slice(0,5).join(" ")}
 function usualCandidates(){
@@ -863,13 +863,14 @@ function weekStats(ws,lim){
   const end=addDays(ws,(lim||7)-1);
   const logged=days.filter(d=>totals(d).n),core=logged.filter(d=>!isFlex(d));
   const avg=(arr,f)=>arr.length?arr.reduce((a,d)=>a+f(d),0)/arr.length:null;
-  const ww=weekWorkouts(ws).filter(w=>w.date<=end);const sc=weekScore(ws,lim);const wd=days.filter(d=>waterOn(d)>0);
+  const ww=weekWorkouts(ws).filter(w=>w.date<=end);const hrW=ww.filter(w=>+w.avgHr>0);const sc=weekScore(ws,lim);const wd=days.filter(d=>waterOn(d)>0);
   const wts=weights().filter(w=>w.date>=ws&&w.date<=end);
   const imp=lim?null:(H().weeklyScores||{})[ws]??(H().weeklyScores||{})[addDays(ws,1)];
   return{ws,days:days.length,logged:logged.length,core:core.length,score:imp?.score??sc.score,
     kcal:avg(logged,d=>totals(d).kcal),protein:avg(logged,d=>totals(d).protein),
     calOn:sc.cal,proOn:sc.pro,clean:sc.clean,counted:sc.counted,done:sc.done,planned:sc.planned,
     workouts:ww.length,vol:lim?(ww.filter(w=>w.type==="strength").reduce((a,w)=>a+(+w.volumeKg||0),0)||null):weekVolume(ws),km:ww.filter(w=>w.type==="run").reduce((a,w)=>a+(+w.distanceKm||0),0),
+    hr:hrW.length?hrW.reduce((a,w)=>a+(+w.avgHr),0)/hrW.length:null,hrN:hrW.length,
     water:avg(wd,waterOn),weight:wts.length?wts[wts.length-1].lb:null,travel:days.filter(isTravel).length,late:core.filter(d=>mealsOn(d).some(isLate)).length};
 }
 function weekFlags(a,b){
@@ -897,12 +898,12 @@ function monthStats(m,lim){
   const logged=days.filter(x=>totals(x).n),core=logged.filter(x=>!isFlex(x));
   const avg=f=>logged.length?Math.round(logged.reduce((a,x)=>a+totals(x)[f],0)/logged.length):null;
   const wts=weights().filter(w=>w.date.slice(0,7)===m);
-  const best=ws.filter(w=>w.type==="strength"&&+w.volumeKg).sort((a,b)=>b.volumeKg-a.volumeKg)[0];
+  const best=ws.filter(w=>w.type==="strength"&&+w.volumeKg).sort((a,b)=>b.volumeKg-a.volumeKg)[0];const hrW=ws.filter(w=>+w.avgHr>0);
   return{days:days.length,workouts:ws.length,strength:by("strength"),runs:by("run")+by("cardio"),mob:by("yoga"),cross:by("cross"),other:by("other"),
     vol:ws.reduce((a,w)=>a+(+w.volumeKg||0),0),km:ws.reduce((a,w)=>a+(+w.distanceKm||0),0),wkcal:ws.reduce((a,w)=>a+(+w.kcal||0),0),
     logged:logged.length,kcal:avg("kcal"),protein:avg("protein"),fat:avg("fat"),
     calOn:core.filter(x=>Math.abs(totals(x).kcal-s.kcal)<=200).length,proOn:core.filter(x=>totals(x).protein>=s.proteinMin).length,clean:core.filter(x=>!mealsOn(x).some(isLate)).length,core:core.length,
-    travel:days.filter(isTravel).length,w0:wts[0],w1:wts[wts.length-1],best};
+    travel:days.filter(isTravel).length,w0:wts[0],w1:wts[wts.length-1],best,hr:hrW.length?hrW.reduce((a,w)=>a+(+w.avgHr),0)/hrW.length:null,hrN:hrW.length};
 }
 /* ---------- infographic helpers ---------- */
 function igRing(x,y,label,sub,color){
@@ -954,7 +955,7 @@ function weekCard(){
    <div class="ig-week">${[0,1,2,3,4,5,6].map(i=>igDayCell(addDays(ws,i),true)).join("")}</div>
    ${IG_LEGEND}
    ${igPairs([["Avg protein",a.protein,b.protein,1,"g","var(--accent)",s.proteinMin],["Avg calories",a.kcal,b.kcal,0,"kcal","var(--accent)",s.kcal],
-     ["Strength volume",a.vol,b.vol,1,"lb","var(--t-str)"],["Run",a.km,b.km,1,"km","var(--t-run)",null,1],["Workouts",a.workouts,b.workouts,1,"","var(--t-cross)"],
+     ["Strength volume",a.vol,b.vol,1,"lb","var(--t-str)"],["Run",a.km,b.km,1,"km","var(--t-run)",null,1],["Workouts",a.workouts,b.workouts,1,"","var(--t-cross)"],["Avg workout HR",a.hr,b.hr,0,"bpm","var(--bad)"],
      ["Avg water",a.water,b.water,1,"ml","var(--cool)",s.waterMl]].filter(r=>r[1]!=null||r[2]!=null),"This week",lim?`Last week, same ${lim} day${lim>1?"s":""}`:"Last week")}
    ${a.weight!=null||b.weight!=null?`<p class="sub">Weight ${a.weight!=null?n1(a.weight):"–"} lb (${pl} ${b.weight!=null?n1(b.weight):"–"}) ${igDelta(a.weight,b.weight,0,1)} · range ${s.weightLo}–${s.weightHi}</p>`:""}
    ${fl.length?`<div class="flags">${fl.map(x=>`<div class="flag ${x.level}"><b>${x.level==="concern"?"Concern":"Watch"}</b> ${esc(x.txt)}</div>`).join("")}</div>`:`<p class="sub" style="color:var(--good)">Nothing flagged vs last week.</p>`}
@@ -1002,7 +1003,7 @@ function monthCard(){
   ${IG_LEGEND}
   ${st.core?`<div class="ig-rings" style="margin-top:14px">${igRing(st.proOn,st.core,"Protein days",pv.core?`${prevLabel} ${pv.proOn}/${pv.core}`:"","var(--good)")}${igRing(st.calOn,st.core,"Calorie days",pv.core?`${prevLabel} ${pv.calOn}/${pv.core}`:"","var(--good)")}${igRing(st.clean,st.core,"Kitchen closed",pv.core?`${prevLabel} ${pv.clean}/${pv.core}`:"","var(--cool)")}</div>`:""}
   ${wv.some(v=>v)?`<div class="eyebrow" style="margin-top:16px">Strength volume by week</div>${chartBars({labels:wks.map(short),values:wv.map(v=>v||null),color:"var(--t-str)",h:120,fmt:v=>(v/1000).toFixed(1)+"k"})}`:""}
-  ${igPairs([["Avg protein",st.protein,pv.protein,1,"g","var(--accent)",s.proteinMin],["Avg calories",st.kcal,pv.kcal,0,"kcal","var(--accent)",s.kcal],["Workouts",W||null,pW,1,"","var(--t-cross)"],["Strength volume",V?V/1000:null,pV?pV/1000:null,1,"k lb","var(--t-str)",null,1],["Run",K||null,pK,1,"km","var(--t-run)",null,1]].filter(r=>r[1]!=null||r[2]!=null),label.split(" ")[0]+(mlim?" 1–"+mlim:""),prevLabel)}
+  ${igPairs([["Avg protein",st.protein,pv.protein,1,"g","var(--accent)",s.proteinMin],["Avg calories",st.kcal,pv.kcal,0,"kcal","var(--accent)",s.kcal],["Workouts",W||null,pW,1,"","var(--t-cross)"],["Avg workout HR",st.hr,pv.hr,0,"bpm","var(--bad)"],["Strength volume",V?V/1000:null,pV?pV/1000:null,1,"k lb","var(--t-str)",null,1],["Run",K||null,pK,1,"km","var(--t-run)",null,1]].filter(r=>r[1]!=null||r[2]!=null),label.split(" ")[0]+(mlim?" 1–"+mlim:""),prevLabel)}
   ${st.w0?`<p class="sub">Weight ${n1(st.w0.lb)} → ${n1(st.w1.lb)} lb (${st.w1.lb-st.w0.lb>0?"+":""}${n1(st.w1.lb-st.w0.lb)}) · range ${s.weightLo}–${s.weightHi}</p>`:""}
   ${reportText[m]?`<details style="margin-top:10px"><summary class="eyebrow" style="cursor:pointer">Coach's write-up</summary><div class="small" style="white-space:pre-wrap;margin-top:8px;line-height:1.55">${mdLite(reportText[m])}</div></details>`:""}
   </section>`;
@@ -1114,7 +1115,7 @@ function savedSheet(m){
 }
 function workoutSheet(w){
   const isNew=!w;const s=S();const p=s.plan[(dow(date)+6)%7];
-  w=w||{type:p.kind==="strength"?"strength":p.kind==="cardio"?"run":p.kind==="cross"?"cross":"yoga",name:p.kind==="rest"?"":p.title,minutes:"",kcal:"",volumeKg:"",distanceKm:"",note:"",date:date,time:date===todayStr()?nowHM():"07:00"};
+  w=w||{type:p.kind==="strength"?"strength":p.kind==="cardio"?"run":p.kind==="cross"?"cross":"yoga",name:p.kind==="rest"?"":p.title,minutes:"",kcal:"",volumeKg:"",distanceKm:"",avgHr:"",note:"",date:date,time:date===todayStr()?nowHM():"07:00"};
   openSheet(`<div class="head"><h3>${isNew?"Log workout":"Edit workout"}</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
   <form class="form" id="wForm">
     <div class="f h"><label for="wType">Type</label><select id="wType">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${w.type===k?"selected":""}>${v}</option>`).join("")}</select></div>
@@ -1123,6 +1124,7 @@ function workoutSheet(w){
     <div class="f q"><label for="wKcal">Active kcal</label><input id="wKcal" inputmode="decimal" value="${esc(w.kcal)}"></div>
     <div class="f q"><label for="wVol">Volume lb</label><input id="wVol" inputmode="decimal" value="${esc(w.volumeKg)}"></div>
     <div class="f q"><label for="wKm">Distance km</label><input id="wKm" inputmode="decimal" value="${esc(w.distanceKm)}"></div>
+    <div class="f q"><label for="wHr">Avg HR bpm</label><input id="wHr" inputmode="numeric" value="${esc(w.avgHr??"")}"></div>
     <div class="f h"><label for="wDate">Date</label><input id="wDate" type="date" value="${esc(w.date)}"></div>
     <div class="f h"><label for="wTime">Time</label><input id="wTime" type="time" value="${esc(w.time)}"></div>
     <div class="f"><label for="wNote">Comment (optional)</label><input id="wNote" value="${esc(w.note||"")}"></div>
@@ -1131,7 +1133,7 @@ function workoutSheet(w){
     el.querySelector("[data-x]").onclick=closeSheet;
     if(!isNew)twoStep(el.querySelector("#wDel"),async()=>{closeSheet();await safe(store.del("workouts",w.id),"Workout deleted")});
     el.querySelector("#wForm").onsubmit=async e=>{e.preventDefault();
-      const data={type:fv("wType"),name:fv("wName").trim(),minutes:num(fv("wMin")),kcal:num(fv("wKcal")),volumeKg:num(fv("wVol")),distanceKm:num(fv("wKm")),date:fv("wDate")||date,time:fv("wTime")||nowHM(),note:fv("wNote").trim()};
+      const data={type:fv("wType"),name:fv("wName").trim(),minutes:num(fv("wMin")),kcal:num(fv("wKcal")),volumeKg:num(fv("wVol")),distanceKm:num(fv("wKm")),avgHr:num(fv("wHr")),date:fv("wDate")||date,time:fv("wTime")||nowHM(),note:fv("wNote").trim()};
       if(!data.name)return;closeSheet();await safe(isNew?store.add("workouts",{...data,created:Date.now()}):store.set("workouts",w.id,{...col.workouts[w.id],...data}),isNew?"Logged "+data.name:"Saved")};
   });
 }
@@ -1224,7 +1226,7 @@ function settingsSheet(){
 
 /* ---------- coach (ElevenLabs agent: voice + text) ---------- */
 let conv=null,convMode=null,convStatus="disconnected",agentSpeaking=false,idleTimer=null,pendingActions=[],awaiting=false,saveChatT=null;
-function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
+function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.avgHr?", avg HR "+w.avgHr+" bpm":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
 function buildContext(){
   const s=S(),t=todayStr(),now=nowHM(),ws=weekStart(t),[cLo,cHi]=carbRange(s);
   const today=mealsOn(t);
@@ -1254,7 +1256,7 @@ function clientTools(){return{
   log_meal:async p=>{const d={name:String(p.name||"Meal").slice(0,140),kcal:Math.round(+p.kcal||0),protein:Math.round(+p.protein||0),carbs:Math.round(+p.carbs||0),fat:Math.round(+p.fat||0),date:okDate(p.date),time:okTime(p.time,okDate(p.date)),created:Date.now()};
     const en=String(p.estimated||"").trim().slice(0,160),cf=["high","medium","low"].includes(p.confidence)?p.confidence:"";if(en||cf)d.est={note:en,conf:cf||"medium"};
     const id=await store.add("meals",d);pendingActions.push({text:`Logged ${d.name} · ${d.kcal} kcal, ${d.protein} g protein`,meal:id});return JSON.stringify({id,...d,...todayLine()})},
-  log_workout:async p=>{const d={type:TYPES[p.type]?p.type:"other",name:String(p.name||"Workout").slice(0,120),minutes:num(p.minutes),kcal:num(p.kcal),distanceKm:num(p.distance_km),volumeKg:num(p.volume_lb??p.volume_kg),date:okDate(p.date),time:okTime(p.time),note:"",created:Date.now()};
+  log_workout:async p=>{const d={type:TYPES[p.type]?p.type:"other",name:String(p.name||"Workout").slice(0,120),minutes:num(p.minutes),kcal:num(p.kcal),distanceKm:num(p.distance_km),volumeKg:num(p.volume_lb??p.volume_kg),avgHr:num(p.avg_hr),date:okDate(p.date),time:okTime(p.time),note:"",created:Date.now()};
     const id=await store.add("workouts",d);pendingActions.push(`Logged workout: ${d.name}`);return JSON.stringify({id,...d})},
   log_water:async p=>{const ml=Math.round(+p.ml||0);if(!ml)return"Error: ml must be a number";const t=todayStr();const tot=waterOn(t)+ml;await store.set("water",t,{...(col.water[t]||{}),ml:tot});pendingActions.push(`+${ml} ml water`);return JSON.stringify({today_total_ml:tot,target_ml:S().waterMl})},
   log_weight:async p=>{const lb=+p.lb;if(!lb)return"Error: lb required";const d=okDate(p.date);await store.set("weights",d,{date:d,lb});pendingActions.push(`Weigh-in ${lb} lb`);return"saved"},
@@ -1263,7 +1265,7 @@ function clientTools(){return{
   get_days:async p=>{const from=okDate(p.from),to=okDate(p.to);await ensureRange(from,to);let d=from,out=[];for(let k=0;k<31&&d<=to;k++){const ms=mealsOn(d),t=totals(d),x=sessionState(d);out.push({date:d,weekday:DOW[dow(d)],planned_session:x.p.title+" ("+x.p.kind+")",session_status:x.label,flex_night:isFlex(d),travel_day:isTravel(d),
       totals:{kcal:t.kcal,protein:t.protein,carbs:t.carbs,fat:t.fat},water_ml:waterOn(d),last_food:ms.length?ms[ms.length-1].time:null,after_close:ms.filter(isLate).map(m=>m.time+" "+m.name),
       meals:ms.map(m=>({id:m.id,time:m.time,name:m.name,kcal:m.kcal,protein:m.protein,carbs:m.carbs,fat:m.fat,...(m.est?{estimate_unchecked:m.est.note}:{}),...(m.adjusted?{corrected_by_user:true}:{})})),
-      workouts:workoutsOn(d).map(w=>({name:w.name,type:w.type,minutes:w.minutes,km:w.distanceKm,volume_lb:w.volumeKg,kcal:w.kcal})),watch:healthOn(d)});d=addDays(d,1)}return JSON.stringify(out)}
+      workouts:workoutsOn(d).map(w=>({name:w.name,type:w.type,minutes:w.minutes,km:w.distanceKm,volume_lb:w.volumeKg,avg_hr:w.avgHr,kcal:w.kcal})),watch:healthOn(d)});d=addDays(d,1)}return JSON.stringify(out)}
 }}
 function setCoachStatus(text){const el=$("#coachStatus");if(!el)return;el.textContent=text||"";el.hidden=!text}
 function updateMic(){const b=$("#micBtn");if(!b)return;const on=convMode==="voice"&&convStatus!=="disconnected";b.classList.toggle("live",on);b.classList.toggle("speaking",on&&agentSpeaking);b.setAttribute("aria-pressed",on);b.setAttribute("aria-label",on?"End voice conversation":"Start voice conversation");
@@ -1308,7 +1310,7 @@ async function shrinkImage(file){
   try{const bmp=await createImageBitmap(file);const k=Math.min(1,1600/Math.max(bmp.width,bmp.height));const c=document.createElement("canvas");c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
     return await new Promise(r=>c.toBlob(b=>r(b||file),"image/jpeg",0.85))}catch{return file}
 }
-const photoAsk=n=>(n>1?"Here are "+n+" photos. Log each separate meal, drink or workout as its own entry. If several photos show the same thing (a plate and its label, two angles of one meal, two screens of one workout), combine them into one entry. ":"Here's a photo. ")+"If it's food or a drink, estimate what's in it and log it with log_meal, passing estimated (the part you guessed, e.g. 'rice about 1 cup, sauce unknown') and confidence. If it's a workout summary screenshot (Apple Watch, Peloton or similar), read it and log it with log_workout using the date and time shown (strength volume in lb exactly as shown, no conversion; miles to km). Then confirm with the numbers, one line per entry. If you can't tell what something is, ask.";
+const photoAsk=n=>(n>1?"Here are "+n+" photos. Log each separate meal, drink or workout as its own entry. If several photos show the same thing (a plate and its label, two angles of one meal, two screens of one workout), combine them into one entry. ":"Here's a photo. ")+"If it's food or a drink, estimate what's in it and log it with log_meal, passing estimated (the part you guessed, e.g. 'rice about 1 cup, sauce unknown') and confidence. If it's a workout summary screenshot (Apple Watch, Peloton or similar), read it and log it with log_workout using the date and time shown (strength volume in lb exactly as shown, no conversion; average heart rate as avg_hr; miles to km). Then confirm with the numbers, one line per entry. If you can't tell what something is, ask.";
 let convFiles=0, replyTarget=null;
 const REACTS=["👍","👎","❤️","💪","😂"];
 async function photoTime(file){
