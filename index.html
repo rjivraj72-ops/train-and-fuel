@@ -228,7 +228,7 @@ body.kb .composer{bottom:0}
 .flag{font-size:13px;padding:8px 10px;border-radius:10px;border-left:3px solid var(--warn);background:var(--warn-soft)}
 .flag.concern{border-left-color:var(--bad);background:var(--bad-soft)}
 .flag b{margin-right:4px}
-.wbtns{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-top:12px}.wbtns .btn{min-height:48px;font-size:17px;font-weight:800;padding:0 6px}
+.wbtns{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:12px}.wbtns .btn{min-height:48px;font-size:17px;font-weight:800;padding:0 6px}
 .weighnote{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;text-align:left;border:0;cursor:pointer;font:inherit;color:inherit}.weighnote .pill{margin-left:auto}
 .wdpick{display:inline-flex;align-items:center;cursor:pointer}.wdpick input{position:absolute;opacity:0;width:1px;height:1px}
 .wdpick span{display:inline-block;min-width:52px;text-align:center;padding:9px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);font-weight:700;font-size:15px;border:1.5px solid var(--line)}
@@ -356,7 +356,7 @@ h3{font-size:20px}
 .btn.sm{min-height:42px;padding:9px 14px;font-size:15px;border-radius:12px}
 .btn.ghost,.btn.line{box-shadow:inset 0 -3px 0 rgba(0,0,0,.08);border:1.5px solid var(--line)}
 .btn.danger{box-shadow:none}
-.wbtns .btn{min-height:56px;font-size:19px}
+.wbtns .btn{min-height:56px;font-size:19px}.wbtns .btn.ghost{min-width:56px;font-size:22px}
 .stat .l{font-size:13px}
 .f label{font-size:14px}
 .tabs a{font-size:13px;padding:10px 0 9px;gap:4px}
@@ -766,7 +766,7 @@ function vToday(){
     <section class="card"><div class="eyebrow">Hydration</div>
       <div class="row" style="margin-top:10px;align-items:flex-end"><div class="tube"><i style="height:${wp}%"></i></div>
       <div style="min-width:0"><div class="mid">${n0(w)}<small>ml</small></div><div class="sub">of ${n0(s.waterMl)} ml · ${w>=s.waterMl?"done":n0(s.waterMl-w)+" to go"}</div>${isT&&w<s.waterMl?(()=>{const p=waterPace();return p==null?"":`<div class="sub"><b style="color:${w>=p?"var(--good)":"var(--warn)"}">${w>=p?"Ahead of pace":n0(p-w)+" ml behind pace"}</b> · ${n0(p)} by now</div>`})():""}</div></div>
-      <div class="wbtns"><button class="btn" data-act="water" data-ml="250">+250</button><button class="btn" data-act="water" data-ml="500">+500</button><button class="btn" data-act="water" data-ml="750">+750</button><button class="btn ghost" data-act="waterUndo" ${waterUndo.length?"":"disabled"} aria-label="Undo last water">↶</button></div>
+      <div class="wbtns"><button class="btn" data-act="water" data-ml="250">+250</button><button class="btn" data-act="water" data-ml="500">+500</button><button class="btn ghost" data-act="waterUndo" ${waterUndo.length?"":"disabled"} aria-label="Undo last water">↶</button></div>
     </section>
     <section class="card balance"><div class="eyebrow">Energy balance</div>
       <div class="mid" style="margin-top:10px">${n0(net)}<small>kcal net</small></div>
@@ -1181,7 +1181,7 @@ function waterHelpSheet(){
   <p class="sub">A Shortcut saves the water straight to your log, so it works from Siri, the Action Button, a widget or a Home Screen icon, even with the app closed. The app folds it in next time it opens.</p>
   <ol class="small" style="padding-left:18px;line-height:1.65">
    <li>Shortcuts app → <b>+</b> → name it <b>Log water</b> (Siri phrase: "Hey Siri, log water").</li>
-   <li><b>Choose from Menu</b> with items <b>250</b>, <b>500</b>, <b>750</b>. In each item add <b>Number</b> with that value, then after the menu <b>Set Variable</b> → <b>ML</b>. (Or skip the menu and use one <b>Number</b> for the bottle you always drink.)</li>
+   <li><b>Choose from Menu</b> with items <b>250</b> and <b>500</b>. In each item add <b>Number</b> with that value, then after the menu <b>Set Variable</b> → <b>ML</b>. (Or skip the menu and use one <b>Number</b> for the bottle you always drink.)</li>
    <li><b>Format Date</b> (Current Date, Custom <code>yyyy-MM-dd</code>) → variable <b>Day</b>. Another <b>Format Date</b> (Custom <code>yyyyMMdd-HHmmss</code>) → variable <b>Stamp</b>.</li>
    <li><b>Text</b>: paste the line below and swap each [ ] for the matching variable.</li>
    <li><b>Base64 Encode</b> the Text (Line Breaks: <b>None</b>).</li>
@@ -1191,7 +1191,7 @@ function waterHelpSheet(){
   <div class="f"><label>Text line</label><input readonly value='{"date":"[Day]","ml":[ML]}' onclick="this.select()"></div>
   <div class="f" style="margin-top:8px"><label>URL</label><input readonly value="${esc(url)}" onclick="this.select()"></div>
   <p class="sub" style="margin-top:14px"><b>Using the app in Safari instead of from the Home Screen?</b> A plain link also works: a Shortcut with <b>Open URLs</b> and one of these.</p>
-  ${[250,500,750].map(ml=>`<div class="f" style="margin-top:6px"><label>${ml} ml</label><input readonly value="${esc(base+"#water="+ml)}" onclick="this.select()"></div>`).join("")}
+  ${[250,500].map(ml=>`<div class="f" style="margin-top:6px"><label>${ml} ml</label><input readonly value="${esc(base+"#water="+ml)}" onclick="this.select()"></div>`).join("")}
   <p class="hint" style="margin-top:10px">Or tell the Coach "had a bottle of water".</p>`,el=>{el.querySelector("[data-x]").onclick=closeSheet});
 }
 function healthSheet(){
