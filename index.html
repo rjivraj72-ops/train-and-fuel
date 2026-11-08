@@ -185,7 +185,10 @@ button.item:hover .n{color:var(--accent)}
 .form>*{min-width:0}
 .f{display:flex;flex-direction:column;gap:4px;grid-column:span 4}
 .f.h{grid-column:span 2}.f.q{grid-column:span 1}
-@media (max-width:400px){.f.q{grid-column:span 2}}
+@media (max-width:560px){.f.q{grid-column:span 2}}
+.f.q>label,.f.h>label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+input[type=time],input[type=date]{-webkit-appearance:none;appearance:none;display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;text-align:left}
+input[type=time]::-webkit-date-and-time-value,input[type=date]::-webkit-date-and-time-value{text-align:left;margin:0}
 .f label{font-size:12px;color:var(--muted);font-weight:700}
 .f input,.f select,.f textarea{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 11px;width:100%;min-width:0}
 .f textarea{resize:vertical;min-height:64px}
@@ -1222,13 +1225,13 @@ function settingsSheet(){
   <div class="f" style="margin-bottom:14px"><label>Appearance</label><div class="seg" role="radiogroup" aria-label="Appearance">${[["auto","Match iPhone"],["light","☀ Light"],["dark","☾ Dark"]].map(([v,l])=>{let cur="auto";try{cur=localStorage.getItem("tf-theme")||"auto"}catch{}return`<button type="button" role="radio" aria-checked="${cur===v}" class="${cur===v?"on":""}" data-theme-set="${v}">${l}</button>`}).join("")}</div></div>
   <form class="form" id="setForm">
     <div class="f h"><label for="sKcal">Daily calories</label><input id="sKcal" inputmode="decimal" value="${s.kcal}"></div>
-    <div class="f h"><label for="sWater">Water target ml</label><input id="sWater" inputmode="decimal" value="${s.waterMl}"></div>
+    <div class="f h"><label for="sWater">Water target (ml)</label><input id="sWater" inputmode="decimal" value="${s.waterMl}"></div>
     <div class="f q"><label for="sPmin">Protein min</label><input id="sPmin" inputmode="decimal" value="${s.proteinMin}"></div>
     <div class="f q"><label for="sPmax">Protein max</label><input id="sPmax" inputmode="decimal" value="${s.proteinMax}"></div>
     <div class="f q"><label for="sFmin">Fat min</label><input id="sFmin" inputmode="decimal" value="${s.fatMin}"></div>
     <div class="f q"><label for="sFmax">Fat max</label><input id="sFmax" inputmode="decimal" value="${s.fatMax}"></div>
-    <div class="f q"><label for="sWlo">Weight low lb</label><input id="sWlo" inputmode="decimal" value="${s.weightLo}"></div>
-    <div class="f q"><label for="sWhi">Weight high lb</label><input id="sWhi" inputmode="decimal" value="${s.weightHi}"></div>
+    <div class="f q"><label for="sWlo">Weight low (lb)</label><input id="sWlo" inputmode="decimal" value="${s.weightLo}"></div>
+    <div class="f q"><label for="sWhi">Weight high (lb)</label><input id="sWhi" inputmode="decimal" value="${s.weightHi}"></div>
     <div class="f q"><label for="sOpen">Kitchen opens</label><input id="sOpen" type="time" value="${s.open}"></div>
     <div class="f q"><label for="sClose">Kitchen closes</label><input id="sClose" type="time" value="${s.close}"></div>
     <div class="f"><label>Weigh-in days</label><div class="row wrap" style="gap:6px">${[1,2,3,4,5,6,0].map(i=>`<label class="wdpick"><input type="checkbox" id="wd${i}" ${(s.weighDays||[]).includes(i)?"checked":""}><span>${DOW[i]}</span></label>`).join("")}</div></div>
@@ -1511,7 +1514,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-08a"; /* bump on every change so phones reload */
+const BUILD="2026-11-08b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
