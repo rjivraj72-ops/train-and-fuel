@@ -370,6 +370,29 @@ h3{font-size:20px}
 .legend{font-size:13px}
 .rpt-open{font-size:18px;padding:16px}
 .datenav button{width:36px;height:36px}
+
+/* ---------- Mac / wide screens: sidebar, roomy middle, Coach always open on the right ---------- */
+#coachPane{display:none}
+body.wide .app{max-width:none;margin:0 420px 0 210px;padding:0 36px 40px}
+body.wide .app>*{max-width:860px;margin-inline:auto}
+body.wide .top{padding-block:18px 14px}
+body.wide .brand{font-size:26px}
+body.wide .tabs{top:0;right:auto;bottom:0;width:210px;border-top:0;border-right:1px solid var(--line);padding:22px 12px}
+body.wide .tabs .in{display:flex;flex-direction:column;gap:4px;max-width:none}
+body.wide .tabs .in::before{content:"Train & Fuel";display:block;font-family:var(--f-display);font-stretch:68%;font-weight:800;font-size:22px;text-transform:uppercase;color:var(--fg);padding:4px 12px 18px}
+body.wide .tabs a{flex-direction:row;justify-content:flex-start;gap:12px;padding:12px 14px;border-radius:12px;font-size:17px;letter-spacing:0;color:var(--fg)}
+body.wide .tabs a:hover{background:var(--line)}
+body.wide .tabs a[aria-current="page"]{background:var(--accent-soft);color:var(--accent)}
+body.wide .tabs a[data-v="coach"]{display:none}
+body.wide .top .brand{visibility:hidden}
+body.wide #coachPane{display:block;position:fixed;top:0;right:0;bottom:0;width:420px;overflow-y:auto;background:var(--bg);border-left:1px solid var(--line);padding:18px 20px 0;z-index:5}
+body.wide #coachPane .composer{bottom:0;padding-bottom:16px}
+body.wide #coachPane.drag{outline:3px dashed var(--accent);outline-offset:-8px}
+body.wide .scrim{align-items:center}
+body.wide .sheet{max-width:640px;border-radius:18px;border-bottom:1px solid var(--line);max-height:86vh;padding:24px 28px}
+body.wide .toast{bottom:28px}
+body.wide .iphint{display:none}
+@media (min-width:1500px){body.wide .app{margin-right:480px}body.wide #coachPane{width:480px}}
 </style>
 </head>
 <body>
@@ -389,6 +412,7 @@ h3{font-size:20px}
   <main id="main"></main>
 </div>
 
+<aside id="coachPane" aria-label="Coach"></aside>
 <nav class="tabs" aria-label="Sections"><div class="in">
   <a href="#today" data-v="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>Today</a>
   <a href="#food" data-v="food"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 21V3c-2.5 1-4 3.5-4 7v3h4"/></svg>Food</a>
@@ -1078,16 +1102,27 @@ function vTrends(){
 }
 /* ---------- render ---------- */
 function refresh(){render()}
+const WIDE_MQ=matchMedia("(min-width:1100px)");
+const isWide=()=>WIDE_MQ.matches&&!!cfg;
+function syncWide(){const w=isWide();const was=document.body.classList.contains("wide");document.body.classList.toggle("wide",w);
+  if(w!==was){const pane=$("#coachPane"),main=$("#main");if(w){main.innerHTML="";if(view==="coach"){view="today";history.replaceState(null,"",location.pathname+location.search+"#today")}}else{pane.innerHTML=""}}}
+WIDE_MQ.addEventListener?.("change",()=>{syncWide();render()});
+function bindDrop(el){if(el._drop)return;el._drop=1;
+  el.addEventListener("dragover",e=>{if([...(e.dataTransfer?.types||[])].includes("Files")){e.preventDefault();el.classList.add("drag")}});
+  el.addEventListener("dragleave",e=>{if(e.target===el)el.classList.remove("drag")});
+  el.addEventListener("drop",e=>{e.preventDefault();el.classList.remove("drag");const fs=[...(e.dataTransfer?.files||[])].filter(f=>/^image\//.test(f.type));if(fs.length)stagePhotos(fs)})}
 function render(){
+  syncWide();
   const main=$("#main");
   $(".tabs").hidden=!cfg;$("#datenav").hidden=!cfg;$("#settingsBtn").hidden=!cfg;
   if(!cfg){if(!$("#setupForm"))main.innerHTML=vSetup();return}
   document.querySelectorAll(".tabs a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===view?"page":"false"));
   const t=todayStr();$("#dateLabel").textContent=date===t?"Today":date===addDays(t,-1)?"Yesterday":longD(date);
   $("#datenav").style.visibility=view==="coach"||view==="trends"?"hidden":"visible";
-  if(view==="coach"){ if(!$("#chatLog")){main.innerHTML=vCoach();bindComposer()} if(!chatBusy)renderChat(); return }
+  if(isWide()){const pane=$("#coachPane");if(!pane.querySelector("#chatLog")){pane.innerHTML=vCoach();bindComposer();bindDrop(pane);renderChat()}}
+  if(view==="coach"&&!isWide()){ if(!$("#chatLog")){main.innerHTML=vCoach();bindComposer()} if(!chatBusy)renderChat(); return }
   const y=window.scrollY;
-  main.innerHTML=view==="food"?vFood():view==="train"?vTrain():view==="trends"?vTrends():vToday();
+  main.innerHTML=view==="coach"?vToday():view==="food"?vFood():view==="train"?vTrain():view==="trends"?vTrends():vToday();
   window.scrollTo(0,y);
 }
 
@@ -1364,7 +1399,7 @@ function renderTray(){const el=$("#photoTray");if(!el)return;
 async function stagePhotos(list){
   const add=[...list];const room=6-staged.length;if(add.length>room)toast(room>0?"Up to 6 photos per message":"That's already 6 photos");
   for(const f of add.slice(0,Math.max(0,room))){f._url=URL.createObjectURL(f);staged.push(f)}
-  if(location.hash!=="#coach"){location.hash="coach";await new Promise(r=>setTimeout(r,80))}
+  if(!isWide()&&location.hash!=="#coach"){location.hash="coach";await new Promise(r=>setTimeout(r,80))}
   renderTray();syncSendMic();const ta=$("#chatIn");if(ta){ta.placeholder="Add context (optional): what it is, when, how much…";ta.focus()}
 }
 async function sendPhotos(list,extra){
@@ -1391,7 +1426,7 @@ function checkinCard(compact){
   return`${weeklyReportBtn()}<details class="card checkin" ${compact?"":"open"}><summary><span class="eyebrow">Weekly check-in${checkin.date?" · "+short(checkin.date):""}</span></summary><div class="small" style="white-space:pre-wrap;margin-top:10px;line-height:1.55">${mdLite(checkin.text)}</div></details>`;
 }
 function vCoach(){
-  return`<div class="view"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2><p class="sub">Mic and camera are in the message bar at the bottom.</p><div class="chatsize" role="group" aria-label="Chat text size"><span>Text size</span>${CHAT_FS.map((v,i)=>`<button type="button" class="btn sm ${chatFs()===v?"":"ghost"}" data-act="chatSize" data-v="${v}" aria-pressed="${chatFs()===v}" aria-label="${["Normal","Large","Extra large"][i]}" style="font-size:${14+i*4}px">A</button>`).join("")}</div><div class="chatsize" role="group" aria-label="Voice audio mode" style="margin-top:6px"><span>Voice audio</span>${[["webrtc","Mode A"],["websocket","Mode B"]].map(([v,l])=>`<button type="button" class="btn sm ${voiceConn()===v?"":"ghost"}" data-act="voiceConn" data-v="${v}" aria-pressed="${voiceConn()===v}">${l}</button>`).join("")}</div><p class="hint" style="margin:4px 0 0">Crackly on the iPhone speaker? Try the other mode.</p></div>
+  return`<div class="view"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2><p class="sub">Mic and camera are in the message bar at the bottom.</p><div class="chatsize" role="group" aria-label="Chat text size"><span>Text size</span>${CHAT_FS.map((v,i)=>`<button type="button" class="btn sm ${chatFs()===v?"":"ghost"}" data-act="chatSize" data-v="${v}" aria-pressed="${chatFs()===v}" aria-label="${["Normal","Large","Extra large"][i]}" style="font-size:${14+i*4}px">A</button>`).join("")}</div><div class="chatsize" role="group" aria-label="Voice audio mode" style="margin-top:6px"><span>Voice audio</span>${[["webrtc","Mode A"],["websocket","Mode B"]].map(([v,l])=>`<button type="button" class="btn sm ${voiceConn()===v?"":"ghost"}" data-act="voiceConn" data-v="${v}" aria-pressed="${voiceConn()===v}">${l}</button>`).join("")}</div><p class="hint iphint" style="margin:4px 0 0">Crackly on the iPhone speaker? Try the other mode.</p></div>
   <div id="checkinSlot"></div>
   <details class="card knows"><summary>What the Coach knows about you</summary><div id="knowsBody"></div></details>
   <div class="chat" id="chatLog"></div>
@@ -1497,7 +1532,7 @@ let quickWater=null;{const m=location.hash.match(/^#water=(\d{2,4})$/);if(m){qui
 async function applyQuickWater(){if(!quickWater||!lastLoad)return;const ml=quickWater;quickWater=null;if(ml<50||ml>3000)return;const t=todayStr();waterUndo.push({d:t,ml});
   if(await safe(store.set("water",t,{...(col.water[t]||{}),ml:waterOn(t)+ml})))toast(`+${ml} ml water · ${n0(waterOn(t))} of ${n0(S().waterMl)} ml today`);render()}
 function route(){{const m=location.hash.match(/^#water=(\d{2,4})$/);if(m){quickWater=+m[1];history.replaceState(null,"",location.pathname+location.search+"#today");applyQuickWater()}}
-  const h=location.hash.slice(1);const nv=VIEWS.includes(h)?h:"today";if(nv!==view){view=nv;$("#main").innerHTML="";window.scrollTo(0,0)}render()}
+  const h=location.hash.slice(1);let nv=VIEWS.includes(h)?h:"today";if(nv==="coach"&&isWide()){nv=view==="coach"?"today":view;history.replaceState(null,"",location.pathname+location.search+"#"+nv);setTimeout(()=>$("#chatIn")?.focus(),50)}if(nv!==view){view=nv;$("#main").innerHTML="";window.scrollTo(0,0)}render()}
 window.addEventListener("hashchange",route);
 let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(date===lastDay)date=t;lastDay=t}if(view==="today"&&!sheetEl)render()},60000);
 
@@ -1514,7 +1549,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-08b"; /* bump on every change so phones reload */
+const BUILD="2026-11-08c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
