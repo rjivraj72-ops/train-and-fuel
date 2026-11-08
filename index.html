@@ -765,8 +765,8 @@ function vToday(){
   </section>
   <div class="grid2 stack">
     <section class="card"><div class="eyebrow">Hydration</div>
-      <div class="row" style="margin-top:10px;align-items:flex-end"><div class="tube"><i style="height:${wp}%"></i></div>
-      <div style="min-width:0"><div class="mid">${n0(w)}<small>ml</small></div><div class="sub">of ${n0(s.waterMl)} ml · ${w>=s.waterMl?"done":n0(s.waterMl-w)+" to go"}</div>${isT&&w<s.waterMl?(()=>{const p=waterPace();return p==null?"":`<div class="sub"><b style="color:${w>=p?"var(--good)":"var(--warn)"}">${w>=p?"Ahead of pace":n0(p-w)+" ml behind pace"}</b> · ${n0(p)} by now</div>`})():""}</div></div>
+      <div class="row" style="margin-top:10px;align-items:flex-end;justify-content:space-between;gap:12px">
+      <div style="min-width:0;flex:1"><div class="mid">${n0(w)}<small>ml</small></div><div class="sub">of ${n0(s.waterMl)} ml · ${w>=s.waterMl?"done":n0(s.waterMl-w)+" to go"}</div>${isT&&w<s.waterMl?(()=>{const p=waterPace();return p==null?"":`<div class="sub"><b style="color:${w>=p?"var(--good)":"var(--warn)"}">${w>=p?"Ahead of pace":n0(p-w)+" ml behind pace"}</b> · ${n0(p)} by now</div>`})():""}</div><div class="tube"><i style="height:${wp}%"></i></div></div>
       <div class="wbtns"><button class="btn" data-act="water" data-ml="250">+250</button><button class="btn" data-act="water" data-ml="500">+500</button></div>${waterUndo.length?`<button type="button" class="wundo" data-act="waterUndo">Undo last +${waterUndo[waterUndo.length-1].ml} ml</button>`:""}
     </section>
     <section class="card balance"><div class="eyebrow">Energy balance</div>
@@ -1509,7 +1509,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-08a"; /* bump on every change so phones reload */
+const BUILD="2026-11-08b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
