@@ -496,6 +496,7 @@ function persistPending(){try{const all={};for(const src of[inflight,pending])fo
 try{const saved=JSON.parse(localStorage.getItem(PEND_KEY)||"null");if(saved)for(const[p,ops]of Object.entries(saved))if(Array.isArray(ops)&&ops.length)(pending[p]=pending[p]||[]).push(...ops)}catch{}
 const CACHE_KEY="tf-cache";
 const CHAT_FS=[18,21,25];
+function voiceConn(){let v="webrtc";try{v=localStorage.getItem("tf-voice-conn")||"webrtc"}catch{}return v==="websocket"?"websocket":"webrtc"}
 function chatFs(){let v=18;try{v=+localStorage.getItem("tf-chat-fs")||18}catch{}return CHAT_FS.includes(v)?v:18}
 document.documentElement.style.setProperty("--chat-fs",chatFs()+"px");
 function saveCache(){try{const snap={at:Date.now(),col:{},checkin,chat:(chatTurns||[]).slice(-30).map(({img,imgs,...r})=>r)};COLS.forEach(c=>{if(c!=="chat")snap.col[c]=col[c]});localStorage.setItem(CACHE_KEY,JSON.stringify(snap))}catch{}}
@@ -1306,7 +1307,7 @@ async function startConv(mode){
   if(conv)await endConv();
   if(!window.ElevenLabsClient)throw new Error("Voice library didn't load");
   convMode=mode;convStatus="connecting";updateMic();
-  const opts={agentId:AGENT_ID,connectionType:mode==="voice"?"webrtc":"websocket",dynamicVariables:{context:buildContext()},clientTools:clientTools(),
+  const opts={agentId:AGENT_ID,connectionType:mode==="voice"?voiceConn():"websocket",dynamicVariables:{context:buildContext()},clientTools:clientTools(),
     onMessage:m=>{const role=m.role||(m.source==="ai"?"agent":"user");if(!m.message)return;if(role==="user"){if(convMode==="voice")addTurn("user",m.message);return}awaiting=false;addTurn("assistant",m.message);touchIdle()},
     onModeChange:({mode:md})=>{agentSpeaking=md==="speaking";updateMic()},
     onStatusChange:({status})=>{convStatus=status;updateMic()},
@@ -1387,7 +1388,7 @@ function checkinCard(compact){
   return`${weeklyReportBtn()}<details class="card checkin" ${compact?"":"open"}><summary><span class="eyebrow">Weekly check-in${checkin.date?" · "+short(checkin.date):""}</span></summary><div class="small" style="white-space:pre-wrap;margin-top:10px;line-height:1.55">${mdLite(checkin.text)}</div></details>`;
 }
 function vCoach(){
-  return`<div class="view"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2><p class="sub">Mic and camera are in the message bar at the bottom.</p><div class="chatsize" role="group" aria-label="Chat text size"><span>Text size</span>${CHAT_FS.map((v,i)=>`<button type="button" class="btn sm ${chatFs()===v?"":"ghost"}" data-act="chatSize" data-v="${v}" aria-pressed="${chatFs()===v}" aria-label="${["Normal","Large","Extra large"][i]}" style="font-size:${14+i*4}px">A</button>`).join("")}</div></div>
+  return`<div class="view"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2><p class="sub">Mic and camera are in the message bar at the bottom.</p><div class="chatsize" role="group" aria-label="Chat text size"><span>Text size</span>${CHAT_FS.map((v,i)=>`<button type="button" class="btn sm ${chatFs()===v?"":"ghost"}" data-act="chatSize" data-v="${v}" aria-pressed="${chatFs()===v}" aria-label="${["Normal","Large","Extra large"][i]}" style="font-size:${14+i*4}px">A</button>`).join("")}</div><div class="chatsize" role="group" aria-label="Voice audio mode" style="margin-top:6px"><span>Voice audio</span>${[["webrtc","Mode A"],["websocket","Mode B"]].map(([v,l])=>`<button type="button" class="btn sm ${voiceConn()===v?"":"ghost"}" data-act="voiceConn" data-v="${v}" aria-pressed="${voiceConn()===v}">${l}</button>`).join("")}</div><p class="hint" style="margin:4px 0 0">Crackly on the iPhone speaker? Try the other mode.</p></div>
   <div id="checkinSlot"></div>
   <details class="card knows"><summary>What the Coach knows about you</summary><div id="knowsBody"></div></details>
   <div class="chat" id="chatLog"></div>
@@ -1479,6 +1480,7 @@ document.addEventListener("click",async e=>{
   else if(a==="healthHelp"){healthSheet()}
   else if(a==="dismissPattern"){const P={...(col.patterns.main||{})};P.dismissed=[...new Set([...(P.dismissed||[]),b.dataset.t])];await safe(store.set("patterns","main",P),"Removed. The check-in won't bring it back.")}
   else if(a==="forgetNote"){const list=notes().slice();list.splice(+b.dataset.i,1);await safe(store.set("settings","memory",{notes:list}),"Removed")}
+  else if(a==="voiceConn"){try{localStorage.setItem("tf-voice-conn",b.dataset.v)}catch{}if(convMode==="voice")await endConv();document.querySelectorAll("[data-act=voiceConn]").forEach(x=>{const on=x.dataset.v===b.dataset.v;x.classList.toggle("ghost",!on);x.setAttribute("aria-pressed",on)});toast(b.dataset.v==="websocket"?"Mode B: tap the mic to try it":"Mode A: tap the mic to try it")}
   else if(a==="chatSize"){const v=+b.dataset.v;try{localStorage.setItem("tf-chat-fs",String(v))}catch{}document.documentElement.style.setProperty("--chat-fs",v+"px");document.querySelectorAll("[data-act=chatSize]").forEach(x=>{const on=+x.dataset.v===v;x.classList.toggle("ghost",!on);x.setAttribute("aria-pressed",String(on))})}
   else if(a==="clearChat"){if(b.dataset.armed){chatTurns=[];await saveChat();renderChat()}else{b.dataset.armed="1";b.textContent="Tap again to clear"}}
 });
@@ -1509,7 +1511,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-08b"; /* bump on every change so phones reload */
+const BUILD="2026-11-08a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
