@@ -393,6 +393,28 @@ body.wide .sheet{max-width:640px;border-radius:18px;border-bottom:1px solid var(
 body.wide .toast{bottom:28px}
 body.wide .iphint{display:none}
 @media (min-width:1500px){body.wide .app{margin-right:480px}body.wide #coachPane{width:480px}}
+
+.overnight .on-stats{display:grid;grid-template-columns:repeat(3,1fr);margin-top:12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.overnight .on-stats>div{padding:12px 10px;min-width:0}
+.overnight .on-stats>div+div{border-left:1px solid var(--line)}
+.overnight .on-stats>div:first-child{padding-left:0}
+.overnight .l{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.overnight .v{font-family:var(--f-display);font-weight:800;font-size:30px;line-height:1.05;margin-top:6px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.overnight .v span{font-size:.92em}
+.overnight .s{font-size:13px;font-weight:700;color:var(--muted);margin-top:4px}
+.overnight .on-line{font-weight:800;font-size:17px;margin-top:14px}
+.overnight .on-chart{display:grid;grid-template-columns:repeat(14,1fr);gap:3px;margin-top:12px;align-items:end}
+.overnight .on-col{display:flex;flex-direction:column;align-items:center;min-width:0}
+.overnight .on-col>b{height:20px;font-size:15px;line-height:20px}
+.overnight b.ok{color:var(--good)} .overnight b.fx{color:var(--cool);font-family:var(--f-display)}
+.overnight .on-bar{height:96px;width:100%;display:flex;align-items:flex-end;border-bottom:2px solid var(--line)}
+.overnight .on-bar i{display:block;width:100%;border-radius:5px 5px 0 0}
+.overnight i.clean{background:var(--good)} .overnight i.late{background:var(--accent)} .overnight i.flex{background:var(--cool)} .overnight i.none{background:transparent}
+.overnight .on-v{font-family:var(--f-mono);font-weight:700;font-size:11px;margin-top:5px;letter-spacing:-.03em;white-space:nowrap}
+.overnight .on-d{font-size:11px;color:var(--muted)}
+.overnight .on-note{font-size:13px;color:var(--muted);margin:10px 0 0;line-height:1.5}
+@media (max-width:520px){.overnight .on-chart{grid-template-columns:repeat(10,1fr)}.overnight .on-col:nth-child(-n+4){display:none}.overnight .v{font-size:23px}.overnight .l{font-size:11px;letter-spacing:.03em}.overnight .on-stats>div{padding:10px 6px}.overnight .s{font-size:12px}}
+@media (min-width:700px){.overnight .on-v{font-size:13px}.overnight .on-d{font-size:13px}.overnight .on-bar{height:130px}.overnight .v{font-size:38px}}
 </style>
 </head>
 <body>
@@ -707,6 +729,27 @@ function streak(){
   return{n:n+(cur?1:0),cur,best:Math.max(base.best||0,n+(cur?1:0))};
 }
 function overnight(d){const prev=mealsOn(addDays(d,-1)),cur=mealsOn(d);if(!prev.length||!cur.length)return null;const last=hm2min(prev[prev.length-1].time),first=hm2min(cur[0].time);if(last==null||first==null)return null;return 1440-last+first}
+function overnightCard(d){
+  const s=S(),hmF=m=>m==null?"—":`${Math.floor(m/60)}h <span>${pad(Math.round(m%60))}m</span>`;
+  const night=e=>{const ev=mealsOn(e),mo=mealsOn(addDays(e,1));const mins=overnight(addDays(e,1));const fl=isFlex(e);const late=ev.some(isLate);
+    return{e,mins,flex:fl,clean:ev.length?!late:null,last:ev.length?ev[ev.length-1].time:null,first:mo.length?mo[0].time:null}};
+  const lastEve=addDays(d,-1);const nights=[];for(let i=13;i>=0;i--)nights.push(night(addDays(lastEve,-i)));
+  const ln=nights[13];const wk=nights.slice(7);const vals=wk.map(n=>n.mins).filter(v=>v!=null);
+  const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:null;
+  const judged=wk.filter(n=>!n.flex&&n.clean!=null),cleanN=judged.filter(n=>n.clean).length;
+  const hs=nights.map(n=>n.mins).filter(v=>v!=null);const mx=Math.max(16*60,...hs),mn=8*60;
+  const bars=nights.map(n=>{const h=n.mins==null?0:Math.max(8,Math.min(100,(n.mins-mn)/(mx-mn)*100));const cls=n.mins==null?"none":n.flex?"flex":n.clean===false?"late":"clean";
+    const mark=n.flex?'<b class="fx">F</b>':n.clean&&n.mins!=null?'<b class="ok">✓</b>':'<b></b>';
+    const tip=`${DOW[dow(n.e)]} ${short(n.e)}: ${n.mins==null?"no data":(n.mins/60).toFixed(1)+" h"}${n.last?" · last food "+fmtT(n.last):""}${n.first?" · first food "+fmtT(n.first):""}${n.flex?" · flex night":n.clean===false?" · ate after close":""}`;
+    return`<div class="on-col" title="${esc(tip)}">${mark}<div class="on-bar"><i class="${cls}" style="height:${h}%"></i></div><div class="on-v">${n.mins==null?"–":(n.mins/60).toFixed(1).replace(/\.0$/,"")}</div><div class="on-d">${+n.e.slice(8)}</div></div>`}).join("");
+  return`<section class="card overnight"><div class="eyebrow">Overnight stretch</div>
+    <div class="on-stats"><div><div class="l">Last night</div><div class="v">${hmF(ln.mins)}</div><div class="s">last food → first food</div></div>
+    <div><div class="l">7-night average</div><div class="v">${hmF(avg)}</div><div class="s">overnight stretch</div></div>
+    <div><div class="l">Clean nights</div><div class="v">${judged.length?`${cleanN} <span>of</span> ${judged.length}`:"—"}</div><div class="s">flex nights not counted</div></div></div>
+    ${ln.last||ln.first?`<div class="on-line">${ln.last?"Last meal "+fmtT(ln.last):""}${ln.last&&ln.first?" · ":""}${ln.first?"First meal "+fmtT(ln.first):""}</div>`:""}
+    <div class="on-chart">${bars}</div>
+    <p class="on-note">Each bar: last food of the evening to first food next morning, in hours. <b class="ok">✓</b> nothing after the ${fmtT(s.close)} close · orange = ate after close · <b class="fx">F</b> flex night (not counted).</p></section>`;
+}
 function prs(){
   const base=H().prs||{};const out={vol:base.vol||null,longRun:base.longRun||null,pace:base.pace||null};
   for(const w of allWorkouts()){
@@ -818,9 +861,7 @@ function vToday(){
     <div class="weekkey"><span>Top bar: training</span><span>Bottom bar: food</span><span><b style="background:var(--good)"></b>all 3 hit</span><span><b style="background:var(--warn)"></b>1–2 hit</span><span><b style="background:var(--bad)"></b>none</span><span><b style="border:2px dashed var(--line);box-sizing:border-box"></b>flex</span></div>
     <p class="sub" style="margin-top:10px"><b style="color:var(--accent)">${st.n}</b> consecutive training weeks (3+ sessions) · best ${st.best}. Flex night this weekend: <span class="row" style="display:inline-flex;gap:4px;vertical-align:middle">${(()=>{const sat=weekendSat(todayStr());return[sat,addDays(sat,1)].map(x=>`<button type="button" class="btn sm ${flexDayFor(sat)===x?"":"ghost"}" data-act="flexWeek" data-ws="${sat}" data-d="${x}">${DOW[dow(x)]}</button>`).join("")})()}</span> (not scored). Each day counts once the kitchen closes at ${fmtT(s.close)}.</p>
   </section>
-  <section class="card"><div class="eyebrow">Overnight stretch</div>
-    <div class="stats" style="margin-top:10px"><div class="stat"><div class="l">Last night</div><div class="mid">${hmF(on)}</div></div><div class="stat"><div class="l">7-day avg</div><div class="mid">${hmF(avgv)}</div></div><div class="stat"><div class="l">Kitchen</div><div class="mid" style="font-size:20px">${fmtT(s.close)}</div></div></div>
-    <p class="sub">Last food of the evening to first food next morning.</p></section>
+  ${overnightCard(d)}
   </div>`;
 }
 function mItem(m){return`<button class="item" data-act="editMeal" data-id="${esc(m.id)}"><span class="t">${fmtT(m.time)}</span><span class="n">${esc(m.name)}${m.est?` <span class="pill">est.</span>`:""}${isLate(m)&&!isFlex(m.date)?` <span class="pill warn">after ${fmtT(S().close)}</span>`:""}<div class="m">${n0(m.protein)}g protein · ${n0(m.carbs)}g carbs · ${n0(m.fat)}g fat</div></span><span class="k">${n0(m.kcal)}<small>kcal</small></span></button>`}
@@ -1549,7 +1590,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-08c"; /* bump on every change so phones reload */
+const BUILD="2026-11-08e"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
