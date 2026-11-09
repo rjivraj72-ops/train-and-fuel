@@ -427,6 +427,7 @@ body.wide .iphint{display:none}
 .kickoff .ko-text p{margin:0 0 10px}
 .kickoff .ko-q{margin:6px 0 0;padding:10px 14px;border-left:4px solid var(--accent);font-size:17px;font-style:italic;font-weight:600;color:var(--fg);background:var(--surface);border-radius:0 10px 10px 0}
 .kickoff .ko-play{flex:1;font-size:17px}
+.chart text.halo{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
 </style>
 </head>
 <body>
@@ -788,7 +789,7 @@ function macroStatus(val,lo,hi,d,kind){
   const o=hm2min(s.open),c=hm2min(s.close),n=hm2min(nowHM());const frac=Math.max(.15,Math.min(1,(n-o)/(c-o)));
   return val<lo*frac*0.8?["Pacing low","bad"]:["On pace","good"];
 }
-function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=n0,hatchLast}){
+function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=n0,hatchLast,everyLabel}){
   const W=340,top=14,bot=22,left=34,iw=W-left-4,ih=h-top-bot;
   const vals=values.map(v=>v==null?0:v);const mx=Math.max(target||0,...vals)||1;
   const step=Math.pow(10,Math.floor(Math.log10(mx)));const nice=Math.ceil(mx/step*1.1)*step;
@@ -796,8 +797,8 @@ function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=
   let g="";for(const f of[0,.5,1]){const v=nice*f;g+=`<line class="grid" x1="${left}" x2="${W-4}" y1="${y(v)}" y2="${y(v)}"/><text x="${left-6}" y="${y(v)+3}" text-anchor="end">${v>=1000?(v/1000).toFixed(v%1000?1:0)+"k":Math.round(v)}</text>`}
   let b="";values.forEach((v,i)=>{const x=left+i*bw+bw*.18,w=bw*.64;const c=colors?colors[i]:color;
     if(v==null){b+=`<text x="${x+w/2}" y="${y(0)-4}" text-anchor="middle">–</text>`}
-    else{const hh=Math.max(1,ih*(v/nice));b+=`<rect x="${x}" y="${y(0)-hh}" width="${w}" height="${hh}" rx="3" fill="${c}" ${hatchLast&&i===values.length-1?'fill-opacity=".45"':""}/><text x="${x+w/2}" y="${y(0)-hh-4}" text-anchor="middle" style="fill:var(--fg)">${fmt(v)}</text>`}
-    const every=Math.ceil(values.length/7);if(i%every===0||i===values.length-1)b+=`<text x="${x+w/2}" y="${h-6}" text-anchor="middle">${esc(labels[i])}</text>`});
+    else{const hh=Math.max(1,ih*(v/nice));b+=`<rect x="${x}" y="${y(0)-hh}" width="${w}" height="${hh}" rx="3" fill="${c}" ${hatchLast&&i===values.length-1?'fill-opacity=".45"':""}/><text x="${x+w/2}" y="${y(0)-hh-4}" text-anchor="middle" class="halo" style="fill:var(--fg);font-weight:600">${fmt(v)}</text>`}
+    const every=everyLabel?1:Math.ceil(values.length/7);if(i%every===0||(!everyLabel&&i===values.length-1&&(values.length-1)%every>=every/2))b+=`<text x="${x+w/2}" y="${h-6}" text-anchor="middle">${esc(labels[i])}</text>`});
   if(target){b+=`<line x1="${left}" x2="${W-4}" y1="${y(target)}" y2="${y(target)}" stroke="var(--fg)" stroke-dasharray="4 4" stroke-width="1.2" opacity=".6"/>`}
   return`<svg class="chart" viewBox="0 0 ${W} ${h}" role="img">${g}${b}</svg>`;
 }
@@ -811,9 +812,9 @@ function chartWeight(pts,lo,hi){
   for(const v of[mn,lo,hi,mx])s+=`<line class="grid" x1="${left}" x2="${left+iw}" y1="${y(v)}" y2="${y(v)}"/><text x="${left-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
   s+=`<text x="${left+iw+4}" y="${(y(hi)+y(lo))/2+3}" style="fill:var(--good)">target</text>`;
   s+=`<path d="${pts.map((p,i)=>(i?"L":"M")+x(t[i]).toFixed(1)+" "+y(+p.lb).toFixed(1)).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
-  pts.forEach((p,i)=>{const last=i===pts.length-1;s+=`<circle cx="${x(t[i])}" cy="${y(+p.lb)}" r="${last?5:3.2}" fill="${last?"var(--accent)":"var(--surface)"}" stroke="var(--accent)" stroke-width="2"/>`;
-    if(last||i===0)s+=`<text x="${x(t[i])}" y="${y(+p.lb)-9}" text-anchor="middle" style="fill:var(--fg);font-weight:600">${n1(p.lb)}</text>`;
-    const every=Math.ceil(pts.length/6);if(i%every===0||last)s+=`<text x="${x(t[i])}" y="${h-6}" text-anchor="middle">${short(p.date)}</text>`});
+  chartWeight._lx=null;pts.forEach((p,i)=>{const last=i===pts.length-1;s+=`<circle cx="${x(t[i])}" cy="${y(+p.lb)}" r="${last?5:3.2}" fill="${last?"var(--accent)":"var(--surface)"}" stroke="var(--accent)" stroke-width="2"/>`;
+    if(last||i===0)s+=`<text x="${x(t[i])+(i===0&&!last?8:last?-8:0)}" y="${y(+p.lb)+(last?18:-9)}" text-anchor="${i===0&&!last?"start":last?"end":"middle"}" class="halo" style="fill:var(--fg);font-weight:700">${n1(p.lb)}</text>`;
+    const xi=x(t[i]);if(last||i===0||(xi-(chartWeight._lx??-99)>=58&&x(t[t.length-1])-xi>=58)){chartWeight._lx=xi;s+=`<text x="${xi}" y="${h-6}" text-anchor="${i===0&&!last?"start":last&&i>0?"end":"middle"}">${short(p.date)}</text>`}});chartWeight._lx=null;
   return`<svg class="chart" viewBox="0 0 ${W} ${h}" role="img" aria-label="Weight trend">${s}</svg>`;
 }
 
@@ -1129,10 +1130,12 @@ function vTrends(){
   const scores=weeks.map(w=>{const live=weekScore(w);const imp=hs[w]??hs[addDays(w,1)];return imp?.score??((live.counted||weekWorkouts(w).length)?live.score:null)});
   const scoreCol=scores.map(v=>v==null?"var(--line)":v>=80?"var(--good)":v>=60?"var(--warn)":"var(--bad)");
   const vols=weeks.map(weekVolume);
-  const days=[];for(let i=13;i>=0;i--)days.push(addDays(t,-i));
+  const ND=matchMedia("(min-width:700px)").matches?14:7;
+  const days=[];for(let i=ND-1;i>=0;i--)days.push(addDays(t,-i));
   const kc=days.map(d=>{const x=totals(d);return x.n?x.kcal:null});
+  const dayLab=d=>d===t?"Today":DOW[dow(d)].slice(0,ND>7?1:3)+(ND>7?parse(d).getDate():"");
   const kcCol=days.map((d,i)=>kc[i]==null?"var(--line)":isFlex(d)?"var(--cool)":Math.abs(kc[i]-s.kcal)<=200?"var(--good)":kc[i]>s.kcal?"var(--warn)":"var(--t-mob)");
-  const logged=kc.filter(v=>v!=null);const avgK=logged.length?logged.reduce((a,b)=>a+b,0)/logged.length:null;
+  const logged=kc.slice(0,-1).filter(v=>v!=null);const avgK=logged.length?logged.reduce((a,b)=>a+b,0)/logged.length:null;
   const pr=days.map(d=>{const x=totals(d);return x.n?x.protein:null});
   const mon=H().monthly||{};const monKeys=Object.keys(mon).sort().reverse();
   return`<div class="view">
@@ -1144,11 +1147,11 @@ function vTrends(){
     ${last&&first&&last!==first?`<p class="sub">${short(last.date)} · ${(last.lb-first.lb>0?"+":"")+n1(last.lb-first.lb)} lb since ${short(first.date)} · ${last.lb<s.weightLo?'<b style="color:var(--warn)">below target range</b>':last.lb>s.weightHi?'<b style="color:var(--warn)">above target range</b>':'<b style="color:var(--good)">in target range</b>'}</p>`:""}</div>
     <button class="btn sm" data-act="addWeight">Weigh in</button></div>
     ${chartWeight(wts,s.weightLo,s.weightHi)}</section>
-  <section class="card"><div class="eyebrow">Last 14 days</div><h2>Calories vs ${n0(s.kcal)} target</h2><p class="sub">${avgK?`Average ${n0(avgK)} kcal over ${logged.length} logged days.`:"No food logged in the last 14 days."}</p>
-    ${chartBars({labels:days.map(d=>DOW[dow(d)][0]+parse(d).getDate()),values:kc,target:s.kcal,colors:kcCol,fmt:v=>(v/1000).toFixed(1)})}
+  <section class="card"><div class="eyebrow">Last ${ND} days</div><h2>Calories vs ${n0(s.kcal)} target</h2><p class="sub">${avgK?`Average ${n0(avgK)} kcal over ${logged.length} finished days. Today (faded) is still in progress.`:"No food logged recently."}</p>
+    ${chartBars({labels:days.map(dayLab),values:kc,target:s.kcal,colors:kcCol,fmt:v=>(v/1000).toFixed(1)+(ND>7?"":"k"),hatchLast:true,everyLabel:true})}
     <div class="legend"><span><i style="background:var(--good)"></i>Within ±200</span><span><i style="background:var(--warn)"></i>Over</span><span><i style="background:var(--t-mob)"></i>Under</span><span><i style="background:var(--cool)"></i>Flex day</span></div></section>
-  <section class="card"><div class="eyebrow">Last 14 days</div><h2>Protein vs ${s.proteinMin} g floor</h2>
-    ${chartBars({labels:days.map(d=>DOW[dow(d)][0]+parse(d).getDate()),values:pr,target:s.proteinMin,colors:pr.map(v=>v==null?"var(--line)":v>=s.proteinMin?"var(--good)":"var(--accent)")})}</section>
+  <section class="card"><div class="eyebrow">Last ${ND} days</div><h2>Protein vs ${s.proteinMin} g floor</h2><p class="sub">Grams per day. Dashed line is the ${s.proteinMin} g floor; today (faded) is still in progress.</p>
+    ${chartBars({labels:days.map(dayLab),values:pr,hatchLast:true,everyLabel:true,target:s.proteinMin,colors:pr.map(v=>v==null?"var(--line)":v>=s.proteinMin?"var(--good)":"var(--accent)")})}</section>
   <section class="card"><div class="eyebrow">Adherence</div><h2>Weekly scores</h2><p class="sub">Calories within ±200, protein at the floor, and planned sessions done. Faded bar is this week, still in progress.</p>
     ${chartBars({labels:weeks.map(short),values:scores,colors:scoreCol,hatchLast:true})}</section>
   <section class="card"><div class="eyebrow">Training</div><h2>Weekly strength volume</h2>
@@ -1628,7 +1631,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-08g"; /* bump on every change so phones reload */
+const BUILD="2026-11-09a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
