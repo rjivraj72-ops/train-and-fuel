@@ -416,6 +416,17 @@ body.wide .iphint{display:none}
 @media (max-width:520px){.overnight .on-chart{grid-template-columns:repeat(10,1fr)}.overnight .on-col:nth-child(-n+4){display:none}.overnight .v{font-size:23px}.overnight .l{font-size:11px;letter-spacing:.03em}.overnight .on-stats>div{padding:10px 6px}.overnight .s{font-size:12px}}
 @media (min-width:700px){.overnight .on-v{font-size:13px}.overnight .on-d{font-size:13px}.overnight .on-bar{height:130px}.overnight .v{font-size:38px}}
 #mUsual:disabled{opacity:1;background:var(--good-soft);color:var(--good);border-color:var(--good);box-shadow:none;cursor:default}
+
+.kickoff{border:2px solid var(--accent);background:linear-gradient(180deg,var(--accent-soft),var(--surface) 70%)}
+.kickoff summary{list-style:none;cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.kickoff summary::-webkit-details-marker{display:none}
+.kickoff .eyebrow{color:var(--accent)}
+.kickoff .ko-mini{font-weight:700;font-size:16px}
+.kickoff[open] .ko-mini{display:none}
+.kickoff .ko-text{font-size:19px;line-height:1.5;font-weight:500;margin-top:8px}
+.kickoff .ko-text p{margin:0 0 10px}
+.kickoff .ko-q{margin:6px 0 0;padding:10px 14px;border-left:4px solid var(--accent);font-size:17px;font-style:italic;font-weight:600;color:var(--fg);background:var(--surface);border-radius:0 10px 10px 0}
+.kickoff .ko-play{flex:1;font-size:17px}
 </style>
 </head>
 <body>
@@ -511,7 +522,8 @@ const DEFAULT_REPO="rjivraj72-ops/train-and-fuel-data";
 const CFG_KEY="tf-github";
 let cfg=null;try{cfg=JSON.parse(localStorage.getItem(CFG_KEY)||"null")}catch{}
 const PROFILE_COLS=["settings","saved","history","weights"];
-let checkin=null, nudge=null, lastLoad=0, syncState="idle", needsImport=false;
+let kickoffRaw=null;
+let checkin=null, kickoff=null, kickoffPlaying=false, kickoffT=null, nudge=null, lastLoad=0, syncState="idle", needsImport=false;
 const loadedMonths=new Set();
 function fileFor(c,id,data){
   if(PROFILE_COLS.includes(c))return"profile.json";
@@ -596,7 +608,7 @@ async function loadAll(){
   if(!cfg||flushing)return;
   setSync("loading");
   try{
-    const[p,ch,ci,pt,nu]=await Promise.all([getFile("profile.json"),getFile("chat.json"),getRaw("checkins/latest.md").catch(()=>({text:null})),getFile("patterns.json").catch(()=>({data:{}})),getFile("inbox/nudge.json").catch(()=>({data:{}}))]);
+    const[p,ch,ci,pt,nu]=await Promise.all([getFile("profile.json"),getFile("chat.json"),getRaw("checkins/latest.md").catch(()=>({text:null})),getFile("patterns.json").catch(()=>({data:{}})),getFile("inbox/nudge.json").catch(()=>({data:{}})),getRaw("kickoff/latest.md").catch(()=>({text:null}))]).then(a=>{kickoffRaw=a[5];return a});
     needsImport=!p.sha;
     COLS.forEach(c=>col[c]={});
     for(const c of PROFILE_COLS)col[c]=p.data[c]||{};
@@ -604,6 +616,7 @@ async function loadAll(){
     col.patterns=pt.data.patterns||{};
     if(!chatBusy)chatTurns=Array.isArray(col.chat.log?.turns)?col.chat.log.turns.slice():[];
     loadedMonths.clear();await Promise.all(monthsBack(3).map(loadMonth));
+    kickoff=parseKickoff(kickoffRaw?.text);
     checkin=null;if(ci&&ci.text){const m=ci.text.match(/<!--\s*date:\s*(\d{4}-\d\d-\d\d)\s*-->/);checkin={date:m?m[1]:null,text:ci.text.replace(/<!--[\s\S]*?-->/g,"").trim()}}
     nudge=(nu?.data&&typeof nu.data.text==="string"&&/^\d{4}-\d\d-\d\d$/.test(nu.data.date||""))?nu.data:null;
     reapplyPending();
@@ -822,6 +835,7 @@ function vToday(){
   return`<div class="view">
   ${importCard()}
   ${isT&&nudge&&nudge.date===todayStr()?`<div class="note">${esc(nudge.text)}</div>`:""}
+  ${isT?kickoffCard():""}
   ${checkinCard(true)}
   ${isT&&awayFromHome()&&!isTravel(d)&&!(S().travelAsked||{})[d]?`<div class="note row wrap">Your phone is on ${esc(DEV_TZ.replace(/_/g," ").split("/").pop())} time. Mark today as a travel day? <button class="btn sm" data-act="travelDay" data-d="${d}" data-on="1">Yes</button><button class="btn sm ghost" data-act="travelNo" data-d="${d}">No</button></div>`:""}
   ${isT&&weighToday()?`<button class="note weighnote" data-act="addWeight"><b>⚖ Weigh-in day</b> · ${(S().weighDays||[]).map(i=>DOW[i]).join(" & ")} · last ${(()=>{const l=weights().slice(-1)[0];return l?n1(l.lb)+" lb, "+short(l.date):"none yet"})()} <span class="pill acc">Weigh in</span></button>`:""}
@@ -1361,7 +1375,7 @@ WEEKLY SCORE so far: ${sc.score??"n/a"} (calories on target ${sc.cal}/${sc.count
 LAST 13 DAYS:
 ${recent.join("\n")}
 WEIGH-INS: ${wts||"none"}
-${Object.keys(mon).length?"MONTHLY REPORTS: "+Object.entries(mon).map(([k,m])=>`${k}: ${m.workouts} workouts, ${m.volumeKg} lb strength volume, ${m.runKm} km run; ${m.note||""}`).join(" | ")+"\n":""}${checkin?.text?"LATEST WEEKLY CHECK-IN ("+(checkin.date||"recent")+"):\n"+checkin.text.slice(0,1500)+"\n":""}${chat?"RECENT CHAT:\n"+chat:""}`;
+${Object.keys(mon).length?"MONTHLY REPORTS: "+Object.entries(mon).map(([k,m])=>`${k}: ${m.workouts} workouts, ${m.volumeKg} lb strength volume, ${m.runKm} km run; ${m.note||""}`).join(" | ")+"\n":""}${kickoff?.text&&addDays(kickoff.date,7)>todayStr()?"THIS WEEK'S KICKOFF MESSAGE (you wrote it Sunday; reference its focus when relevant): "+kickoff.text.replace(/\s+/g," ")+(kickoff.quote?" Quote: "+kickoff.quote:"")+"\n":""}${checkin?.text?"LATEST WEEKLY CHECK-IN ("+(checkin.date||"recent")+"):\n"+checkin.text.slice(0,1500)+"\n":""}${chat?"RECENT CHAT:\n"+chat:""}`;
 }
 const okDate=v=>/^\d{4}-\d\d-\d\d$/.test(v||"")?v:todayStr();
 const okTime=(v,d)=>/^\d\d:\d\d$/.test(v||"")?v:(d&&d!==todayStr()?"12:00":nowHM());
@@ -1385,18 +1399,19 @@ function setCoachStatus(text){const el=$("#coachStatus");if(!el)return;el.textCo
 function updateMic(){const b=$("#micBtn");if(!b)return;const on=convMode==="voice"&&convStatus!=="disconnected";b.classList.toggle("live",on);b.classList.toggle("speaking",on&&agentSpeaking);b.setAttribute("aria-pressed",on);b.setAttribute("aria-label",on?"End voice conversation":"Start voice conversation");
   setCoachStatus(convStatus==="connecting"&&convMode==="voice"?"Connecting…":on?(agentSpeaking?"Coach is talking. Just speak to interrupt.":"Listening… tap the green mic to finish."):"");syncSendMic()}
 function syncSendMic(){const ta=$("#chatIn"),sb=$("#chatSend"),mb=$("#micBtn");if(!ta||!sb||!mb)return;const typed=!!ta.value.trim()||staged.length>0;const live=convMode==="voice";sb.hidden=!typed;mb.hidden=typed&&!live}
-async function startConv(mode){
+async function startConv(mode,extraOv){
   if(conv&&convMode===mode&&convStatus==="connected")return conv;
   if(conv)await endConv();
   if(!window.ElevenLabsClient)throw new Error("Voice library didn't load");
   convMode=mode;convStatus="connecting";updateMic();
   const opts={agentId:AGENT_ID,connectionType:mode==="voice"?voiceConn():"websocket",dynamicVariables:{context:buildContext()},clientTools:clientTools(),
-    onMessage:m=>{const role=m.role||(m.source==="ai"?"agent":"user");if(!m.message)return;if(role==="user"){if(convMode==="voice")addTurn("user",m.message);return}awaiting=false;addTurn("assistant",m.message);touchIdle()},
-    onModeChange:({mode:md})=>{agentSpeaking=md==="speaking";updateMic()},
+    onMessage:m=>{const role=m.role||(m.source==="ai"?"agent":"user");if(!m.message)return;if(role==="user"){if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT)}if(convMode==="voice")addTurn("user",m.message);return}awaiting=false;addTurn("assistant",m.message);touchIdle()},
+    onModeChange:({mode:md})=>{const was=agentSpeaking;agentSpeaking=md==="speaking";updateMic();if(kickoffPlaying&&was&&!agentSpeaking){clearTimeout(kickoffT);kickoffT=setTimeout(()=>{if(kickoffPlaying){kickoffPlaying=false;endConv().then(render)}},7000)}},
     onStatusChange:({status})=>{convStatus=status;updateMic()},
-    onDisconnect:()=>{conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;awaiting=false;clearTimeout(idleTimer);updateMic();renderChat()},
+    onDisconnect:()=>{if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT);setTimeout(render,0)}conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;awaiting=false;clearTimeout(idleTimer);updateMic();renderChat()},
     onError:msg=>{console.warn("coach error",msg);if(convMode==="voice")toast("Voice error: "+String(msg).slice(0,80))}};
   if(mode==="text"){opts.textOnly=true;opts.overrides={conversation:{textOnly:true},agent:{firstMessage:""}}}
+  if(extraOv)opts.overrides={...(opts.overrides||{}),...extraOv};
   conv=await ElevenLabsClient.Conversation.startSession(opts);convFiles=0;if(mode==="voice"){try{conv.setVolume({volume:0.8})}catch{}}convStatus="connected";updateMic();touchIdle();return conv;
 }
 async function endConv(){const c=conv;conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;clearTimeout(idleTimer);try{await c?.endSession()}catch{}updateMic()}
@@ -1465,6 +1480,23 @@ async function sendPhotos(list,extra){
 }
 document.addEventListener("change",e=>{if(e.target.id==="photoIn"&&e.target.files?.length)stagePhotos(e.target.files)});
 function mdLite(s){return esc(s).replace(/^#{1,3} (.+)$/gm,"<b>$1</b>").replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^[-*] (.+)$/gm,"• $1")}
+function parseKickoff(t){if(!t)return null;const m=t.match(/<!--\s*date:\s*(\d{4}-\d\d-\d\d)\s*-->/);let body=t.replace(/<!--[\s\S]*?-->/g,"").trim();
+  let quote=null;const qm=body.match(/^>\s*(.+)$/m);if(qm){quote=qm[1].trim();body=body.replace(/^>.*$/m,"").trim()}
+  body=body.replace(/^#+\s.*$/gm,"").trim();return body?{date:m?m[1]:null,text:body,quote}:null}
+function kickoffHeard(){try{return localStorage.getItem("tf-kickoff-heard")===kickoff?.date}catch{return false}}
+function kickoffCard(){if(!kickoff||!kickoff.date||addDays(kickoff.date,7)<=todayStr()||kickoff.date>todayStr())return"";
+  const heard=kickoffHeard();const q=kickoff.quote?`<blockquote class="ko-q">${esc(kickoff.quote)}</blockquote>`:"";
+  const btn=`<button type="button" class="btn ko-play" data-act="kickoffPlay">${kickoffPlaying?"■ Stop":"▶ "+(heard?"Play again":"Play with Aaron")}</button>`;
+  return`<details class="card kickoff" ${heard?"":"open"}><summary><span class="eyebrow">Week kickoff · ${short(kickoff.date)}</span>${heard?`<span class="ko-mini">${esc(kickoff.text.split(/(?<=[.!?])\s/)[0])}</span>`:""}</summary>
+  <div class="ko-text">${esc(kickoff.text).replace(/\n{2,}/g,"</p><p>").replace(/^/,"<p>")+"</p>"}</div>${q}<div class="row" style="margin-top:12px;gap:8px">${btn}${heard?"":`<button type="button" class="btn ghost" data-act="kickoffDone">Got it</button>`}</div></details>`}
+function kickoffSpoken(){if(!kickoff)return"";let q="";if(kickoff.quote){const mm=kickoff.quote.match(/^[“"](.+?)[”"]\s*[—–-]\s*(.+)$/);q=mm?` As ${mm[2].split(",")[0].trim()} put it: ${mm[1]}`:` ${kickoff.quote}`}
+  return(kickoff.text.replace(/\s+/g," ")+q).slice(0,1400)}
+async function playKickoff(){
+  if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT);await endConv();render();return}
+  try{if(conv)await endConv();kickoffPlaying=true;render();toast("Aaron's getting ready…");
+    await startConv("voice",{agent:{firstMessage:kickoffSpoken()}});
+    try{localStorage.setItem("tf-kickoff-heard",kickoff.date)}catch{}
+  }catch(e){kickoffPlaying=false;render();toast(/permission|NotAllowed/i.test(String(e?.message||e))?"Allow microphone access so Aaron can play it (it uses the voice Coach).":"Couldn't start the voice. Check your connection.")}}
 function checkinCard(compact){
   if(!checkin?.text)return"";
   if(compact){const d=checkin.date;if(!d||addDays(d,7)<todayStr())return""}
@@ -1563,6 +1595,8 @@ document.addEventListener("click",async e=>{
   else if(a==="healthHelp"){healthSheet()}
   else if(a==="dismissPattern"){const P={...(col.patterns.main||{})};P.dismissed=[...new Set([...(P.dismissed||[]),b.dataset.t])];await safe(store.set("patterns","main",P),"Removed. The check-in won't bring it back.")}
   else if(a==="forgetNote"){const list=notes().slice();list.splice(+b.dataset.i,1);await safe(store.set("settings","memory",{notes:list}),"Removed")}
+  else if(a==="kickoffPlay"){playKickoff()}
+  else if(a==="kickoffDone"){try{localStorage.setItem("tf-kickoff-heard",kickoff?.date||"")}catch{}render()}
   else if(a==="voiceConn"){try{localStorage.setItem("tf-voice-conn",b.dataset.v)}catch{}if(convMode==="voice")await endConv();document.querySelectorAll("[data-act=voiceConn]").forEach(x=>{const on=x.dataset.v===b.dataset.v;x.classList.toggle("ghost",!on);x.setAttribute("aria-pressed",on)});toast(b.dataset.v==="websocket"?"Mode B: tap the mic to try it":"Mode A: tap the mic to try it")}
   else if(a==="chatSize"){const v=+b.dataset.v;try{localStorage.setItem("tf-chat-fs",String(v))}catch{}document.documentElement.style.setProperty("--chat-fs",v+"px");document.querySelectorAll("[data-act=chatSize]").forEach(x=>{const on=+x.dataset.v===v;x.classList.toggle("ghost",!on);x.setAttribute("aria-pressed",String(on))})}
   else if(a==="clearChat"){if(b.dataset.armed){chatTurns=[];await saveChat();renderChat()}else{b.dataset.armed="1";b.textContent="Tap again to clear"}}
@@ -1594,7 +1628,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-08f"; /* bump on every change so phones reload */
+const BUILD="2026-11-08g"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
