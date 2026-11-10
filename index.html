@@ -428,6 +428,50 @@ body.wide .iphint{display:none}
 .kickoff .ko-q{margin:6px 0 0;padding:10px 14px;border-left:4px solid var(--accent);font-size:17px;font-style:italic;font-weight:600;color:var(--fg);background:var(--surface);border-radius:0 10px 10px 0}
 .kickoff .ko-play{flex:1;font-size:17px}
 .chart text.halo{paint-order:stroke;stroke:var(--surface);stroke-width:4px;stroke-linejoin:round}
+
+.coachhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.chatset{position:relative}
+.chatset>summary{list-style:none;cursor:pointer;font-weight:700;font-size:15px;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);white-space:nowrap}
+.chatset>summary::-webkit-details-marker{display:none}
+.chatset[open]>summary{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.chatset-body{position:absolute;right:0;top:calc(100% + 8px);z-index:8;width:min(340px,86vw);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.chatset-body .chatsize{margin-top:8px}
+.daysep{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;font-weight:700;margin:6px 0 -2px}
+.daysep::before,.daysep::after{content:"";flex:1;height:1px;background:var(--line)}
+.chat .msg{white-space:normal}
+.chat .msg .ml{min-height:1em}
+.chat .msg .gap{height:.55em}
+.chat .msg .mh{font-weight:800;margin-top:2px}
+.chat .msg ul,.chat .msg ol{margin:2px 0;padding-left:1.25em}
+.chat .msg li{margin:2px 0}
+.chat .msg li::marker{color:var(--accent)}
+.msg.a[data-tap]{cursor:pointer}
+.mwrap .tapbar{display:none;position:absolute;top:calc(100% + 2px);z-index:6;align-items:center;gap:2px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.22);max-width:calc(100vw - 32px);overflow-x:auto}
+.mwrap.a .tapbar{left:0}.mwrap.u .tapbar{right:0}
+.mwrap.open,.mwrap:hover{z-index:3}
+.mwrap.open .msg{box-shadow:inset 0 0 0 2px var(--accent)}
+.mwrap.open .tapbar{position:fixed;left:16px;right:16px;top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));justify-content:space-around;z-index:9;max-width:none}
+body.kb .mwrap.open .tapbar{bottom:90px}
+body.wide .mwrap.open .tapbar{position:absolute;left:0;right:auto;top:calc(100% + 2px);bottom:auto;justify-content:flex-start}
+body.wide .mwrap.u.open .tapbar{left:auto;right:0}
+.mwrap.open .tapbar{display:flex}
+@media (hover:hover){.mwrap:hover .tapbar{display:flex}}
+.tapbar .rx{display:flex;flex-direction:column;align-items:center;gap:1px;background:none;border:1px solid transparent;border-radius:12px;padding:5px 2px;min-width:48px;flex:1 1 0;opacity:1;filter:none;cursor:pointer;color:var(--fg)}
+.tapbar .rx .e{font-size:22px;line-height:1.1}
+.tapbar .rx .lbl{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap}
+.tapbar .rx.on{background:var(--accent-soft);border-color:var(--accent)}
+.tapbar .rx.on .lbl{color:var(--accent)}
+.tapbar .rx.rp .e{font-weight:800;color:var(--accent)}
+.tapbar .tbtime{font-size:12px;color:var(--muted);padding:0 8px;white-space:nowrap}
+.mwrap.reacted{margin-bottom:8px}
+.rxbadge{right:-6px;bottom:-14px;font-size:16px;padding:2px 6px;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+.msg.think .dots{display:inline-flex;gap:5px;padding:4px 2px}
+.msg.think .dots i{width:8px;height:8px;border-radius:50%;background:var(--muted);animation:tfdot 1.2s infinite ease-in-out}
+.msg.think .dots i:nth-child(2){animation-delay:.15s}.msg.think .dots i:nth-child(3){animation-delay:.3s}
+@keyframes tfdot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+@media (prefers-reduced-motion:reduce){.msg.think .dots i{animation:none;opacity:.6}}
+body.wide #coachPane .chatset-body{width:340px}
+@media (max-width:700px){.tapbar .tbtime{display:none}}
 </style>
 </head>
 <body>
@@ -1378,7 +1422,7 @@ WEEKLY SCORE so far: ${sc.score??"n/a"} (calories on target ${sc.cal}/${sc.count
 LAST 13 DAYS:
 ${recent.join("\n")}
 WEIGH-INS: ${wts||"none"}
-${Object.keys(mon).length?"MONTHLY REPORTS: "+Object.entries(mon).map(([k,m])=>`${k}: ${m.workouts} workouts, ${m.volumeKg} lb strength volume, ${m.runKm} km run; ${m.note||""}`).join(" | ")+"\n":""}${kickoff?.text&&addDays(kickoff.date,7)>todayStr()?"THIS WEEK'S KICKOFF MESSAGE (you wrote it Sunday; reference its focus when relevant): "+kickoff.text.replace(/\s+/g," ")+(kickoff.quote?" Quote: "+kickoff.quote:"")+"\n":""}${checkin?.text?"LATEST WEEKLY CHECK-IN ("+(checkin.date||"recent")+"):\n"+checkin.text.slice(0,1500)+"\n":""}${chat?"RECENT CHAT:\n"+chat:""}`;
+${Object.keys(mon).length?"MONTHLY REPORTS: "+Object.entries(mon).map(([k,m])=>`${k}: ${m.workouts} workouts, ${m.volumeKg} lb strength volume, ${m.runKm} km run; ${m.note||""}`).join(" | ")+"\n":""}${(()=>{const fb=feedbackItems().slice(-12);return fb.length?"HOW RAHIM REACTED TO YOUR RECENT REPLIES (learn from these: do more of what got 👍 helpful, ❤️ hit home, 💪 fired me up, 😂 made me laugh; do less of what got 👎 missed the mark; never mention this list):\n"+fb.map(x=>`- ${x.e} ${REACT_MEAN[x.e]||""}: "${x.text}"`).join("\n")+"\n":""})()}${kickoff?.text&&addDays(kickoff.date,7)>todayStr()?"THIS WEEK'S KICKOFF MESSAGE (you wrote it Sunday; reference its focus when relevant): "+kickoff.text.replace(/\s+/g," ")+(kickoff.quote?" Quote: "+kickoff.quote:"")+"\n":""}${checkin?.text?"LATEST WEEKLY CHECK-IN ("+(checkin.date||"recent")+"):\n"+checkin.text.slice(0,1500)+"\n":""}${chat?"RECENT CHAT:\n"+chat:""}`;
 }
 const okDate=v=>/^\d{4}-\d\d-\d\d$/.test(v||"")?v:todayStr();
 const okTime=(v,d)=>/^\d\d:\d\d$/.test(v||"")?v:(d&&d!==todayStr()?"12:00":nowHM());
@@ -1428,7 +1472,7 @@ function setReply(i){const t=(chatTurns||[])[i];if(!t){replyTarget=null}else rep
   rb.hidden=false;rb.innerHTML=`<div style="min-width:0"><div class="eyebrow">Replying to ${replyTarget.role==="user"?"yourself":"Coach"}</div><div class="small muted rq">${esc(replyTarget.text)}</div></div><button type="button" class="iconbtn" data-act="cancelReply" aria-label="Cancel reply">✕</button>`;
   const ta=$("#chatIn");ta&&ta.focus()}
 async function sendText(text){
-  const q=replyTarget;setReply(-1);
+  const q=replyTarget;setReply(-1);{const ta=$("#chatIn");if(ta)ta.placeholder="Message the Coach"}
   addTurn("user",text);if(q)chatTurns[chatTurns.length-1].quote=q.text;awaiting=true;renderChat();
   const wire=q?`(Replying to ${q.role==="user"?"my":"your"} earlier message: "${q.text}")\n\n${text}`:text;
   try{const c=await startConv(convMode==="voice"?"voice":"text");c.sendUserMessage(wire);touchIdle()}
@@ -1444,7 +1488,11 @@ async function shrinkImage(file){
 }
 const photoAsk=n=>(n>1?"Here are "+n+" photos. Log each separate meal, drink or workout as its own entry. If several photos show the same thing (a plate and its label, two angles of one meal, two screens of one workout), combine them into one entry. ":"Here's a photo. ")+"If it's food or a drink, estimate what's in it and log it with log_meal, passing estimated (the part you guessed, e.g. 'rice about 1 cup, sauce unknown') and confidence. If it's a workout summary screenshot (Apple Watch, Peloton or similar), read it and log it with log_workout using the date and time shown (strength volume in lb exactly as shown, no conversion; average heart rate as avg_hr; miles to km). Then confirm with the numbers, one line per entry. If you can't tell what something is, ask.";
 let convFiles=0, replyTarget=null;
-const REACTS=["👍","👎","❤️","💪","😂"];
+const REACTS=["👍","❤️","💪","😂","👎"];
+const REACT_SHORT={"👍":"Helpful","❤️":"Hit home","💪":"Fired up","😂":"Funny","👎":"Missed"};
+const REACT_MEAN={"👍":"Helpful","❤️":"Hit home","💪":"Fired me up","😂":"Made me laugh","👎":"Missed the mark"};
+function feedbackItems(){if(Array.isArray(col.chat?.feedback?.items))return col.chat.feedback.items;return(chatTurns||[]).filter(t=>t.react&&t.role!=="user").map(t=>({at:t.at,e:t.react,text:snippet(t.content)}))}
+function recordFeedback(t,e){const snip=snippet(t.content);let items=feedbackItems().filter(x=>x.at!==t.at);if(e)items.push({at:t.at,e,text:snip,on:todayStr()});items=items.slice(-40);store.set("chat","feedback",{items})}
 async function photoTime(file){
   try{const buf=new DataView(await file.slice(0,131072).arrayBuffer());if(buf.getUint16(0)!==0xFFD8)return null;
     let o=2;while(o<buf.byteLength-4){const mk=buf.getUint16(o),len=buf.getUint16(o+2);if(mk===0xFFE1){
@@ -1506,7 +1554,12 @@ function checkinCard(compact){
   return`${weeklyReportBtn()}<details class="card checkin" ${compact?"":"open"}><summary><span class="eyebrow">Weekly check-in${checkin.date?" · "+short(checkin.date):""}</span></summary><div class="small" style="white-space:pre-wrap;margin-top:10px;line-height:1.55">${mdLite(checkin.text)}</div></details>`;
 }
 function vCoach(){
-  return`<div class="view"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2><p class="sub">Mic and camera are in the message bar at the bottom.</p><div class="chatsize" role="group" aria-label="Chat text size"><span>Text size</span>${CHAT_FS.map((v,i)=>`<button type="button" class="btn sm ${chatFs()===v?"":"ghost"}" data-act="chatSize" data-v="${v}" aria-pressed="${chatFs()===v}" aria-label="${["Normal","Large","Extra large"][i]}" style="font-size:${14+i*4}px">A</button>`).join("")}</div><div class="chatsize" role="group" aria-label="Voice audio mode" style="margin-top:6px"><span>Voice audio</span>${[["webrtc","Mode A"],["websocket","Mode B"]].map(([v,l])=>`<button type="button" class="btn sm ${voiceConn()===v?"":"ghost"}" data-act="voiceConn" data-v="${v}" aria-pressed="${voiceConn()===v}">${l}</button>`).join("")}</div><p class="hint iphint" style="margin:4px 0 0">Crackly on the iPhone speaker? Try the other mode.</p></div>
+  return`<div class="view"><div class="coachhead"><div><div class="eyebrow">Coach</div><h2>Talk or type</h2></div>
+  <details class="chatset"><summary>Chat settings</summary><div class="chatset-body">
+  <div class="chatsize" role="group" aria-label="Chat text size"><span>Text size</span>${CHAT_FS.map((v,i)=>`<button type="button" class="btn sm ${chatFs()===v?"":"ghost"}" data-act="chatSize" data-v="${v}" aria-pressed="${chatFs()===v}" aria-label="${["Normal","Large","Extra large"][i]}" style="font-size:${14+i*4}px">A</button>`).join("")}</div>
+  <div class="chatsize" role="group" aria-label="Voice audio mode"><span>Voice audio</span>${[["webrtc","Mode A"],["websocket","Mode B"]].map(([v,l])=>`<button type="button" class="btn sm ${voiceConn()===v?"":"ghost"}" data-act="voiceConn" data-v="${v}" aria-pressed="${voiceConn()===v}">${l}</button>`).join("")}</div><p class="hint iphint" style="margin:2px 0 0">Crackly on the iPhone speaker? Try the other mode.</p>
+  <div class="eyebrow" style="margin-top:12px">Reactions teach the Coach</div><p class="small" style="margin:4px 0 0">Tap any Coach message to react: ${REACTS.map(e=>e+" "+REACT_MEAN[e]).join(" · ")}. It does more of what lands and less of what misses.</p>
+  <button type="button" class="btn sm ghost" data-act="clearChat" style="margin-top:12px">Clear conversation</button></div></details></div>
   <div id="checkinSlot"></div>
   <details class="card knows"><summary>What the Coach knows about you</summary><div id="knowsBody"></div></details>
   <div class="chat" id="chatLog"></div>
@@ -1525,10 +1578,15 @@ function renderChat(){
   const qp=$("#qp");if(qp)qp.innerHTML=(S().quickPrompts||[]).map(x=>`<button type="button" data-sugg="${esc(x)}">${esc(x)}</button>`).join("");
   const turns=chatTurns||[];
   if(!turns.length&&!awaiting){el.innerHTML=`<div class="card"><h2>Ask about your day, or just tell me what you ate</h2><p class="sub">Try “two boiled eggs and GF toast at 8:30”, “drank a bottle of water”, or “did the 45 min upper body”. I'll log it and give you the numbers.</p></div>`;return}
-  const base=Math.max(0,turns.length-40);
-  el.innerHTML=turns.slice(-40).map((t,k)=>`<div class="mwrap ${t.role==="user"?"u":"a"}"><div class="msg ${t.role==="user"?"u":"a"}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${t.react?`<span class="rxbadge">${t.react}</span>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(u=>`<img src="${u}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}</div><div class="mact"><button type="button" class="replybtn" data-act="replyTo" data-i="${base+k}" aria-label="Reply to this message">Reply</button>${t.role!=="user"?REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${base+k}" data-e="${e}" aria-label="React ${e}" aria-pressed="${t.react===e}">${e}</button>`).join(""):""}</div></div>`).join("")
-    +(awaiting?`<div class="msg a think">Thinking…</div>`:"")
-    +(turns.length?`<button type="button" class="btn sm ghost" data-act="clearChat" style="align-self:center">Clear conversation</button>`:"");
+  const base=Math.max(0,turns.length-40);let lastDay="";
+  const dayName=d=>{const t=todayStr();return d===t?"Today":d===addDays(t,-1)?"Yesterday":longD(d)};
+  el.innerHTML=turns.slice(-40).map((t,k)=>{const i=base+k,u=t.role==="user";let sep="";
+    if(t.at){const d=homeParts(t.at).date;if(d!==lastDay){lastDay=d;sep=`<div class="daysep"><span>${esc(dayName(d))}</span></div>`}}
+    const tm=t.at?fmtT(homeParts(t.at).time):"";
+    const bar=`<div class="tapbar" role="toolbar" aria-label="React or reply">${u?"":REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}" aria-label="${REACT_MEAN[e]}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join("")}<button type="button" class="rx rp" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="e">↩</span><span class="lbl">Reply</span></button>${tm?`<span class="tbtime">${tm}</span>`:""}</div>`;
+    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}">${bar}<div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div></div>`}).join("")
+    +(awaiting?`<div class="msg a think" aria-label="Coach is typing"><span class="dots"><i></i><i></i><i></i></span></div>`:"")
+    +(turns.length&&!S().reactHintSeen&&!turns.some(x=>x.react)?`<p class="hint" style="align-self:center;text-align:center;margin:4px 0 0">Tip: tap a Coach message to react ${REACTS.slice(0,3).join(" ")} or reply.</p>`:"");
   const all=el.querySelectorAll(".msg");all.length&&all[all.length-1].scrollIntoView({block:"nearest"});
 }
 function actChip(a){if(typeof a==="string")return`<span>✓ ${esc(a)}</span>`;
@@ -1536,7 +1594,17 @@ function actChip(a){if(typeof a==="string")return`<span>✓ ${esc(a)}</span>`;
   const txt=`Logged ${m.name} · ${n0(m.kcal)} kcal, ${n0(m.protein)} g protein`;
   if(!m.est)return`<button type="button" class="actbtn ok" data-act="editMeal" data-id="${esc(a.meal)}">✓ ${esc(txt)}${m.adjusted?" · adjusted":""}</button>`;
   return`<button type="button" class="actbtn est" data-act="editMeal" data-id="${esc(a.meal)}"><span class="l1">✓ ${esc(txt)}</span><span class="l2">${m.est.conf==="low"?"Rough guess":"Estimated"}${m.est.note?": "+esc(m.est.note):""}</span><span class="l3">Tap to adjust ›</span></button>`}
-function md(s){return esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>")}
+function md(src){
+  const inl=x=>esc(x).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s).,!?]|$)/g,"$1<i>$2</i>");
+  const lines=String(src||"").replace(/\r/g,"").split("\n");let out="",list=null;
+  const close=()=>{if(list){out+=`</${list}>`;list=null}};
+  for(const raw of lines){const l=raw.trimEnd();let m;
+    if(!l.trim()){close();out+='<div class="gap"></div>';continue}
+    if((m=l.match(/^\s*[-•*]\s+(.*)$/))){if(list!=="ul"){close();out+="<ul>";list="ul"}out+=`<li>${inl(m[1])}</li>`;continue}
+    if((m=l.match(/^\s*(\d+)[.)]\s+(.*)$/))){if(list!=="ol"){close();out+="<ol>";list="ol"}out+=`<li>${inl(m[2])}</li>`;continue}
+    close();if((m=l.match(/^#{1,4}\s+(.*)$/))){out+=`<div class="mh">${inl(m[1])}</div>`;continue}
+    out+=`<div class="ml">${inl(l)}</div>`}
+  close();return out.replace(/^(<div class="gap"><\/div>)+|(<div class="gap"><\/div>)+$/g,"").replace(/(<div class="gap"><\/div>){2,}/g,'<div class="gap"></div>')}
 function bindComposer(){
   const f=$("#composer"),ta=$("#chatIn");
   ta.addEventListener("input",()=>{ta.style.height="auto";ta.style.height=Math.min(140,ta.scrollHeight)+"px";syncSendMic()});
@@ -1553,7 +1621,9 @@ function bindComposer(){
     sw.dx=Math.max(-90,Math.min(90,dx));const p=Math.min(1,Math.abs(sw.dx)/60);
     sw.w.style.transform=`translateX(${sw.dx}px)`;sw.w.style.setProperty("--sw",p);sw.w.classList.toggle("swr",sw.dx>0);sw.w.classList.toggle("swl",sw.dx<0)},{passive:false});
   const endSwipe=()=>{if(!sw)return;const {w,dx,lock}=sw;sw=null;w.style.transition="";w.style.transform="";w.style.setProperty("--sw",0);
-    if(lock==="h"&&Math.abs(dx)>=60){const b=w.querySelector("[data-act=replyTo]");if(b)setReply(+b.dataset.i)}};
+    if(lock==="h"&&Math.abs(dx)>=60){setReply(+w.dataset.i)}};
+  log.addEventListener("click",e=>{if(e.target.closest("button,a,img,.actbtn"))return;const m=e.target.closest("[data-tap]");if(!m)return;const w=m.closest(".mwrap");const was=w.classList.contains("open");log.querySelectorAll(".mwrap.open").forEach(x=>x.classList.remove("open"));if(!was)w.classList.add("open")});
+  document.addEventListener("click",e=>{if(!e.target.closest("#chatLog"))document.querySelectorAll(".mwrap.open").forEach(x=>x.classList.remove("open"))});
   log.addEventListener("touchend",endSwipe);log.addEventListener("touchcancel",endSwipe);
 }
 
@@ -1579,7 +1649,9 @@ document.addEventListener("click",async e=>{
   else if(a==="skipImport"){needsImport=false;render()}
   else if(a==="photo"){closeSheet();const pi=$("#photoIn");pi.value="";pi.click()}
   else if(a==="replyTo"){setReply(+b.dataset.i)}
-  else if(a==="react"){const t=chatTurns&&chatTurns[+b.dataset.i];if(t){t.react=t.react===b.dataset.e?undefined:b.dataset.e;if(!t.react)delete t.react;saveChatSoon();renderChat()}}
+  else if(a==="react"){const i=+b.dataset.i,t=chatTurns&&chatTurns[i];if(t){const e=t.react===b.dataset.e?null:b.dataset.e;if(e)t.react=e;else delete t.react;saveChatSoon();recordFeedback(t,e);renderChat();
+    if(e){toast(e+" "+REACT_MEAN[e]+": the Coach will learn from this");try{if(conv&&convStatus==="connected")conv.sendContextualUpdate?.(`Rahim reacted ${e} (${REACT_MEAN[e]}) to your message: "${snippet(t.content)}". Note it silently; don't reply to the reaction.`)}catch{}
+      if(e==="👎"){setReply(i);const ta=$("#chatIn");if(ta)ta.placeholder="What missed the mark? (optional)"}}}}
   else if(a==="cancelReply"){setReply(-1)}
   else if(a==="unstage"){staged.splice(+b.dataset.i,1);renderTray();syncSendMic();if(!staged.length){const ta=$("#chatIn");if(ta)ta.placeholder="Message the Coach"}}
   else if(a==="unstageAll"){staged=[];renderTray();syncSendMic();const ta=$("#chatIn");if(ta)ta.placeholder="Message the Coach"}
@@ -1631,7 +1703,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-09a"; /* bump on every change so phones reload */
+const BUILD="2026-11-09c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
