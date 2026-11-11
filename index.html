@@ -525,6 +525,16 @@ body.wide #coachPane .chatset-body{width:340px}
 .rxbar .rx.rxx .e{font-size:18px;color:var(--muted);line-height:1.45}
 body.wide .rxbar{justify-content:flex-start}
 body.wide .rxbar .rx{flex:none;min-width:58px}
+
+.rxrow{display:none;flex-wrap:wrap;gap:6px;margin:4px 0 2px}
+.mwrap.rxopen .rxrow{display:flex}
+.rxrow .rxi{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:62px;padding:8px 6px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--fg);font:inherit;cursor:pointer;-webkit-tap-highlight-color:rgba(0,0,0,.08);touch-action:manipulation}
+.rxrow .rxi .e{font-size:26px;line-height:1.1;pointer-events:none}
+.rxrow .rxi .lbl{font-size:12px;font-weight:700;color:var(--muted);pointer-events:none}
+.rxrow .rxi.on{border-color:var(--accent);background:var(--accent-soft)}.rxrow .rxi.on .lbl{color:var(--accent)}
+.mwrap.rxopen .mfoot .mf[data-act=openReact]{border-color:var(--accent);color:var(--accent)}
+.mfoot .mf{touch-action:manipulation}
+.mfoot .mf>*{pointer-events:none}
 </style>
 </head>
 <body>
@@ -1585,7 +1595,7 @@ function setReply(i){const t=(chatTurns||[])[i];if(!t){replyTarget=null}else rep
   rb.hidden=false;rb.innerHTML=`<div style="min-width:0"><div class="eyebrow">Replying to ${replyTarget.role==="user"?"yourself":"Coach"}</div><div class="small muted rq">${esc(replyTarget.text)}</div></div><button type="button" class="iconbtn" data-act="cancelReply" aria-label="Cancel reply">✕</button>`;
   const ta=$("#chatIn");ta&&ta.focus()}
 async function sendText(text){
-  const q=replyTarget;setReply(-1);{const ta=$("#chatIn");if(ta)ta.placeholder="Message the Coach"}
+  const q=replyTarget;setReply(-1);{const ta=$("#chatIn");if(ta)ta.placeholder="Message your Coach"}
   addTurn("user",text);if(q)chatTurns[chatTurns.length-1].quote=q.text;awaiting=true;renderChat();
   const wire=q?`(Replying to ${q.role==="user"?"my":"your"} earlier message: "${q.text}")\n\n${text}`:text;
   try{const c=await startConv(convMode==="voice"?"voice":"text");c.sendUserMessage(wire);touchIdle()}
@@ -1604,18 +1614,8 @@ let convFiles=0, replyTarget=null;
 const REACTS=["👍","❤️","💪","😂","👎"];
 const REACT_SHORT={"👍":"Helpful","❤️":"Hit home","💪":"Fired up","😂":"Funny","👎":"Missed"};
 const REACT_MEAN={"👍":"Helpful","❤️":"Hit home","💪":"Fired me up","😂":"Made me laugh","👎":"Missed the mark"};
-function closeReactBar(){document.getElementById("rxbar")?.remove();document.querySelectorAll(".mwrap.open").forEach(x=>x.classList.remove("open"))}
-function openReactBar(i,anchor){const was=document.querySelector(`.mwrap.open[data-i="${i}"]`);closeReactBar();if(was)return;const t=(chatTurns||[])[i];if(!t)return;
-  const u=t.role==="user";const w=document.querySelector(`.mwrap[data-i="${i}"]`);w&&w.classList.add("open");
-  const bar=document.createElement("div");bar.id="rxbar";bar.className="rxbar";bar.setAttribute("role","toolbar");bar.setAttribute("aria-label","React or reply");
-  bar.innerHTML=(u?"":REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}" aria-label="${REACT_MEAN[e]}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join(""))+`<button type="button" class="rx rp" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="e">↩</span><span class="lbl">Reply</span></button><button type="button" class="rx rxx" data-act="closeReact" aria-label="Close"><span class="e">✕</span><span class="lbl">Close</span></button>`;
-  document.body.appendChild(bar);
-  const place=()=>{if(!bar.isConnected)return;const comp=document.querySelector("#composer");
-    if(isWide()&&anchor){const r=anchor.getBoundingClientRect();const bw=bar.offsetWidth,bh=bar.offsetHeight;let left=Math.min(Math.max(8,r.left),innerWidth-bw-8);let top=r.bottom+6;if(top+bh>innerHeight-8)top=Math.max(8,r.top-bh-6);bar.style.left=left+"px";bar.style.top=top+"px";bar.style.right="auto";bar.style.bottom="auto"}
-    else{const ct=comp?comp.querySelector(".cbox")?.getBoundingClientRect().top??comp.getBoundingClientRect().top:innerHeight-180;bar.style.left="12px";bar.style.right="12px";bar.style.top="auto";bar.style.bottom=Math.max(8,innerHeight-ct+8)+"px"}};
-  place();requestAnimationFrame(place)}
-document.addEventListener("click",e=>{const bar=document.getElementById("rxbar");if(!bar)return;if(e.target.closest("#rxbar,[data-tap],[data-act=openReact]"))return;closeReactBar()});
-window.addEventListener("resize",()=>{document.getElementById("rxbar")&&closeReactBar()});
+function closeReactBar(){document.querySelectorAll(".mwrap.rxopen,.mwrap.open").forEach(x=>x.classList.remove("rxopen","open"))}
+function openReactBar(i){const w=document.querySelector(`.mwrap[data-i="${i}"]`);if(!w||w.classList.contains("u"))return;const was=w.classList.contains("rxopen");closeReactBar();if(!was){w.classList.add("rxopen");const row=w.querySelector(".rxrow");row&&row.scrollIntoView({block:"nearest",behavior:"smooth"})}}
 function feedbackItems(){if(Array.isArray(col.chat?.feedback?.items))return col.chat.feedback.items;return(chatTurns||[]).filter(t=>t.react&&t.role!=="user").map(t=>({at:t.at,e:t.react,text:snippet(t.content)}))}
 function recordFeedback(t,e){const snip=snippet(t.content);let items=feedbackItems().filter(x=>x.at!==t.at);if(e)items.push({at:t.at,e,text:snip,on:todayStr()});items=items.slice(-40);store.set("chat","feedback",{items})}
 async function photoTime(file){
@@ -1640,7 +1640,7 @@ async function stagePhotos(list){
 }
 async function sendPhotos(list,extra){
   const files=[...list].slice(0,6);if(!files.length)return;
-  const ta0=$("#chatIn");if(ta0)ta0.placeholder="Message the Coach";
+  const ta0=$("#chatIn");if(ta0)ta0.placeholder="Message your Coach";
   const q=replyTarget;setReply(-1);
   chatTurns=chatTurns||[];addTurn("user",(files.length>1?"["+files.length+" photos]":"[Photo]")+(extra?" "+extra:""));
   if(q)chatTurns[chatTurns.length-1].quote=q.text;
@@ -1684,7 +1684,7 @@ function vCoach(){
   <div class="chatsize" role="group" aria-label="Chat text size"><span>Text size</span>${CHAT_FS.map((v,i)=>`<button type="button" class="btn sm ${chatFs()===v?"":"ghost"}" data-act="chatSize" data-v="${v}" aria-pressed="${chatFs()===v}" aria-label="${["Normal","Large","Extra large"][i]}" style="font-size:${14+i*4}px">A</button>`).join("")}</div>
   <div class="chatsize" role="group" aria-label="Voice audio mode"><span>Voice audio</span>${[["webrtc","Mode A"],["websocket","Mode B"]].map(([v,l])=>`<button type="button" class="btn sm ${voiceConn()===v?"":"ghost"}" data-act="voiceConn" data-v="${v}" aria-pressed="${voiceConn()===v}">${l}</button>`).join("")}</div><p class="hint iphint" style="margin:2px 0 0">Crackly on the iPhone speaker? Try the other mode.</p>
   <div class="eyebrow" style="margin-top:12px">Reactions teach the Coach</div><p class="small" style="margin:4px 0 0">Tap any Coach message to react: ${REACTS.map(e=>e+" "+REACT_MEAN[e]).join(" · ")}. It does more of what lands and less of what misses.</p>
-  <button type="button" class="btn sm ghost" data-act="clearChat" style="margin-top:12px">Clear conversation</button></div></details></div>
+  <button type="button" class="btn sm ghost" data-act="clearChat" style="margin-top:12px">Clear conversation</button><p class="hint" style="margin:10px 0 0">App version ${typeof BUILD!=="undefined"?BUILD:""}</p></div></details></div>
   <div id="checkinSlot"></div>
   <details class="card knows"><summary>What the Coach knows about you</summary><div id="knowsBody"></div></details>
   <div class="chat" id="chatLog"></div>
@@ -1713,7 +1713,7 @@ function renderChat(){
     if(t.at){const d=homeParts(t.at).date;if(d!==lastDay){lastDay=d;sep=`<div class="daysep"><span>${esc(dayName(d))}</span></div>`}}
     const tm=t.at?fmtT(homeParts(t.at).time):"";
     const bar=`<div class="tapbar" role="toolbar" aria-label="React or reply">${u?"":REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}" aria-label="${REACT_MEAN[e]}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join("")}<button type="button" class="rx rp" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="e">↩</span><span class="lbl">Reply</span></button>${tm?`<span class="tbtime">${tm}</span>`:""}</div>`;
-    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}"><div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div>${u?"":`<div class="mfoot"><button type="button" class="mf" data-act="openReact" data-i="${i}" aria-label="React to this message">${t.react?`<span class="mfe">${t.react}</span> ${esc(REACT_SHORT[t.react]||"")}`:`<span class="mfe">☺︎</span> React`}</button><button type="button" class="mf" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="mfe">↩</span> Reply</button></div>`}</div>`}).join("")
+    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}"><div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div>${u?"":`<div class="mfoot"><button type="button" class="mf" data-act="openReact" data-i="${i}" aria-label="React to this message">${t.react?`<span class="mfe">${t.react}</span> ${esc(REACT_SHORT[t.react]||"")}`:`<span class="mfe">☺︎</span> React`}</button><button type="button" class="mf" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="mfe">↩︎</span> Reply</button></div><div class="rxrow" role="group" aria-label="React">${REACTS.map(e=>`<button type="button" class="rxi${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join("")}</div>`}</div>`}).join("")
     +(awaiting?`<div class="msg a think" aria-label="Coach is typing"><span class="dots"><i></i><i></i><i></i></span></div>`:"")
     +(turns.length&&!S().reactHintSeen&&!turns.some(x=>x.react)?`<p class="hint" style="align-self:center;text-align:center;margin:4px 0 0">Tip: tap a Coach message to react ${REACTS.slice(0,3).join(" ")} or reply.</p>`:"");
   const all=el.querySelectorAll(".msg");all.length&&all[all.length-1].scrollIntoView({block:"nearest"});
@@ -1783,8 +1783,8 @@ document.addEventListener("click",async e=>{
     if(e){toast(e+" "+REACT_MEAN[e]+": the Coach will learn from this");try{if(conv&&convStatus==="connected")conv.sendContextualUpdate?.(`Rahim reacted ${e} (${REACT_MEAN[e]}) to your message: "${snippet(t.content)}". Note it silently; don't reply to the reaction.`)}catch{}
       if(e==="👎"){setReply(i);const ta=$("#chatIn");if(ta)ta.placeholder="What missed the mark? (optional)"}}}}
   else if(a==="cancelReply"){setReply(-1)}
-  else if(a==="unstage"){staged.splice(+b.dataset.i,1);renderTray();syncSendMic();if(!staged.length){const ta=$("#chatIn");if(ta)ta.placeholder="Message the Coach"}}
-  else if(a==="unstageAll"){staged=[];renderTray();syncSendMic();const ta=$("#chatIn");if(ta)ta.placeholder="Message the Coach"}
+  else if(a==="unstage"){staged.splice(+b.dataset.i,1);renderTray();syncSendMic();if(!staged.length){const ta=$("#chatIn");if(ta)ta.placeholder="Message your Coach"}}
+  else if(a==="unstageAll"){staged=[];renderTray();syncSendMic();const ta=$("#chatIn");if(ta)ta.placeholder="Message your Coach"}
   else if(a==="flexWeek"){const st=S();const fn={...(st.flexNights||{})};fn[b.dataset.ws]=b.dataset.d;await safe(store.set("settings","main",{...(col.settings.main||{}),flexNights:fn}),DOW[dow(b.dataset.d)]+" is this weekend's flex night")}
   else if(a==="retrySync"){setSync("saving");flush()}
   else if(a==="retryLoad"){loadAll()}
@@ -1834,7 +1834,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-11f"; /* bump on every change so phones reload */
+const BUILD="2026-11-11g"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
