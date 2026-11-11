@@ -472,6 +472,41 @@ body.wide .mwrap.u.open .tapbar{left:auto;right:0}
 @media (prefers-reduced-motion:reduce){.msg.think .dots i{animation:none;opacity:.6}}
 body.wide #coachPane .chatset-body{width:340px}
 @media (max-width:700px){.tapbar .tbtime{display:none}}
+
+/* Claude-style composer */
+.composer{display:block;padding:8px 0 10px;background:linear-gradient(to bottom,transparent,var(--bg) 18px)}
+.composer .cbox{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:10px 10px 8px 14px;box-shadow:0 4px 18px rgba(0,0,0,.08);transition:border-color .15s,box-shadow .15s}
+.composer .cbox:focus-within{border-color:var(--accent);box-shadow:0 4px 22px rgba(0,0,0,.12)}
+.composer textarea{display:block;width:100%;border:0!important;background:transparent!important;border-radius:0;padding:6px 2px 4px!important;min-height:30px;max-height:200px;resize:none;outline:none;box-shadow:none!important;line-height:1.4}
+.composer .ctools{display:flex;align-items:center;gap:8px;margin-top:4px}
+.composer .ctools .sp{flex:1}
+.composer .cplus{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--fg);display:grid;place-items:center;flex:none;cursor:pointer}
+.composer .cplus:hover{border-color:var(--accent);color:var(--accent)}
+.composer .ctip{font-size:13px;color:var(--muted)}
+.composer .micbtn{width:40px;height:40px}
+.composer .sendbtn{width:40px;height:40px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none;cursor:pointer;animation:tfpop .15s ease-out}
+@keyframes tfpop{from{transform:scale(.7);opacity:0}to{transform:none;opacity:1}}
+.composer .phototray{margin:0 0 8px}
+.composer .cstatus{margin-bottom:4px}
+@media (max-width:380px){.composer .ctip{display:none}}
+.chat .msg.u{max-width:82%}
+.chat .msg.a{max-width:100%;background:transparent;border:0;padding:4px 2px}
+.chat .mwrap.a{align-items:stretch}
+.chat .msg.a.think{padding:8px 2px}
+/* challenge + records */
+.chal .head{align-items:center}
+.chal-n{font-family:var(--f-display);font-weight:800;font-size:30px;color:var(--accent)}
+.chal-days{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.chal-days .cd{flex:1 1 90px;border:1px solid var(--line);border-radius:12px;padding:8px 10px;text-align:center}
+.chal-days .dw{font-weight:800;font-size:14px}
+.chal-days .ic{font-size:22px;font-weight:800;line-height:1.3}
+.chal-days .vv{font-size:13px;color:var(--muted);font-weight:600}
+.chal-days .done{border-color:var(--good);background:var(--good-soft)}.chal-days .done .ic{color:var(--good)}
+.chal-days .miss .ic{color:var(--bad)}
+.chal-days .now{border-color:var(--accent);background:var(--accent-soft)}.chal-days .now .ic{color:var(--accent)}
+.recs{border:2px solid var(--good)}
+.recs .rec{display:flex;gap:10px;align-items:flex-start;font-size:17px;font-weight:600;margin-top:8px}
+.recs .ri{font-size:22px;line-height:1}
 </style>
 </head>
 <body>
@@ -819,6 +854,52 @@ function prs(){
     }}
   return out;
 }
+function records(){
+  const t=todayStr(),s=S(),pr=prs();const out={vol:pr.vol,longRun:pr.longRun};
+  const days=new Set(Object.values(col.meals).map(m=>m.date));const ds=[...days].sort();
+  let curC=0,bestC=0,bestCEnd=null,curP=0,bestP=0,bestPEnd=null;
+  if(ds.length){let d=ds[0];for(let k=0;k<400&&d<t;k++){const ms=mealsOn(d);
+      if(ms.length){if(!isFlex(d)){if(ms.some(isLate))curC=0;else{curC++;if(curC>bestC){bestC=curC;bestCEnd=d}}}
+        const tt=totals(d);if(tt.protein>=s.proteinMin){curP++;if(curP>bestP){bestP=curP;bestPEnd=d}}else curP=0}
+      else{curC=0;curP=0}
+      d=addDays(d,1)}}
+  out.clean={cur:curC,best:bestC,end:bestCEnd};out.protein={cur:curP,best:bestP,end:bestPEnd};
+  const recent=d=>d&&d>=addDays(t,-2);const fresh=[];
+  if(out.vol&&recent(out.vol.date))fresh.push({key:"vol:"+out.vol.date,icon:"🏋️",text:`Biggest strength session ever: ${n0(out.vol.value)} lb (${esc(out.vol.name)}, ${short(out.vol.date)})`});
+  if(out.longRun&&recent(out.longRun.date))fresh.push({key:"run:"+out.longRun.date,icon:"🏃",text:`Longest run logged: ${n1(out.longRun.value)} km (${short(out.longRun.date)})`});
+  if(curC>=3&&curC===bestC&&recent(bestCEnd))fresh.push({key:"clean:"+curC,icon:"🌙",text:`${curC} clean nights in a row, your longest run in the log`});
+  if(curP>=4&&curP===bestP&&recent(bestPEnd))fresh.push({key:"pro:"+curP,icon:"💪",text:`${curP} days in a row at ${s.proteinMin} g+ protein, a new best`});
+  out.fresh=fresh;return out}
+function recordsCard(){let rc;try{rc=records()}catch{return""}let seen={};try{seen=JSON.parse(localStorage.getItem("tf-rec-seen")||"{}")}catch{}
+  const f=rc.fresh.filter(x=>!seen[x.key]);if(!f.length)return"";
+  return`<section class="card recs"><div class="eyebrow">🏆 New record${f.length>1?"s":""}</div>${f.map(x=>`<div class="rec"><span class="ri">${x.icon}</span><span>${x.text}</span></div>`).join("")}<button type="button" class="btn sm ghost" data-act="recSeen" data-k="${esc(f.map(x=>x.key).join("|"))}" style="margin-top:8px">Nice 🙌</button></section>`}
+function recordsLine(){let rc;try{rc=records()}catch{return""}const s=S();
+  return`RECORDS: biggest strength session ${rc.vol?n0(rc.vol.value)+" lb ("+rc.vol.name+", "+rc.vol.date+")":"none yet"}; longest run ${rc.longRun?n1(rc.longRun.value)+" km ("+rc.longRun.date+")":"none yet"}; clean-night streak now ${rc.clean.cur} (best ${rc.clean.best}); ${s.proteinMin} g+ protein streak now ${rc.protein.cur} (best ${rc.protein.best}).${rc.fresh.length?" NEW IN THE LAST 2 DAYS (celebrate each once, in one specific line, unless you already did in the recent chat): "+rc.fresh.map(x=>x.text.replace(/<[^>]+>/g,"")).join("; ")+".":""}\n`}
+function challengeStatus(){const ch=kickoff?.challenge;if(!ch||!Array.isArray(ch.days)||!ch.days.length)return null;const t=todayStr(),s=S();
+  if(!kickoff.date||addDays(kickoff.date,7)<=t||kickoff.date>t)return null;
+  const min=+ch.min||0;
+  const val=d=>{const tt=totals(d);switch(ch.metric){case"protein":return{v:tt.protein,ok:tt.protein>=(min||s.proteinMin),u:"g"};
+    case"kcal":return{v:tt.kcal,ok:tt.n&&Math.abs(tt.kcal-s.kcal)<=200,u:"kcal"};
+    case"kitchen":{const ms=mealsOn(d);return{v:ms.length?fmtT(ms[ms.length-1].time):"—",ok:ms.length>0&&!ms.some(isLate),u:""}}
+    case"session":{const x=sessionState(d);return{v:x.label,ok:x.st==="done",u:""}}
+    case"water":{const w=waterOn(d);return{v:w,ok:w>=(min||s.waterMl),u:"ml"}}
+    default:return{v:"",ok:false,u:""}}};
+  const items=ch.days.slice(0,7).map(d=>{const x=val(d);const st=d>t?"up":d===t?(x.ok?"done":dayDone(d)?"miss":"now"):(x.ok?"done":"miss");return{d,st,...x}});
+  return{label:ch.label||"This week's challenge",metric:ch.metric,min,items,done:items.filter(x=>x.st==="done").length}}
+function challengeCard(){const c=challengeStatus();if(!c)return"";
+  const fmtV=x=>typeof x.v==="number"?n0(x.v)+(x.u?" "+x.u:""):esc(String(x.v||""));
+  return`<section class="card chal"><div class="head"><div><div class="eyebrow">This week's challenge</div><h2>${esc(c.label)}</h2></div><div class="chal-n">${c.done}/${c.items.length}</div></div>
+  <div class="chal-days">${c.items.map(x=>`<div class="cd ${x.st}"><div class="dw">${DOW[dow(x.d)]}</div><div class="ic">${x.st==="done"?"✓":x.st==="miss"?"✗":x.st==="now"?"●":"○"}</div><div class="vv">${x.st==="up"?"to come":x.st==="now"?fmtV(x)+" so far":fmtV(x)}</div></div>`).join("")}</div></section>`}
+function challengeLine(){const c=challengeStatus();if(!c)return"";return`THIS WEEK'S CHALLENGE (from the Sunday kickoff): ${c.label}. Progress: ${c.items.map(x=>`${DOW[dow(x.d)]} ${x.d} ${x.st==="done"?"DONE":x.st==="miss"?"missed":x.st==="now"?"TODAY, "+(typeof x.v==="number"?n0(x.v)+" "+x.u:x.v)+" so far":"upcoming"}`).join("; ")}. On a challenge day, mention progress when it's useful (e.g. how much is left and the time to close); celebrate when it's done.\n`}
+function mealIdeasLine(){const s=S(),t=todayStr(),tt=totals(t);
+  const sv=savedList().slice(0,15).map(m=>`${m.name}: ${n0(m.kcal)} kcal ${n0(m.protein)}/${n0(m.carbs)}/${n0(m.fat)}`).join("; ");
+  const fq={};for(const m of Object.values(col.meals)){if(!m.date||m.date<addDays(t,-30))continue;const k=normName(m.name);if(!k)continue;(fq[k]=fq[k]||{n:0,name:m.name,k:0,p:0,c:0,f:0});const q=fq[k];q.n++;q.k+=+m.kcal||0;q.p+=+m.protein||0;q.c+=+m.carbs||0;q.f+=+m.fat||0;q.name=m.name}
+  const top=Object.values(fq).filter(q=>q.n>=2).sort((a,b)=>b.n-a.n).slice(0,10).map(q=>`${q.name} (${q.n}x): ~${n0(q.k/q.n)} kcal ${n0(q.p/q.n)}/${n0(q.c/q.n)}/${n0(q.f/q.n)}`).join("; ");
+  const minsToClose=hm2min(s.close)-hm2min(nowHM());
+  return`REMAINING TODAY: ${n0(s.kcal-tt.kcal)} kcal to target, ${n0(Math.max(0,s.proteinMin-tt.protein))} g protein to the ${s.proteinMin} g floor (${n0(Math.max(0,s.proteinMax-tt.protein))} g to the top), fat ${n0(tt.fat)}/${s.fatMin}-${s.fatMax} g; ${minsToClose>0?Math.floor(minsToClose/60)+"h "+pad(minsToClose%60)+"m until the kitchen closes":"kitchen closed"}${isFlex(t)?" (flex night)":""}.
+SAVED MEALS (their one-tap usuals, kcal P/C/F): ${sv||"none"}
+OFTEN EATEN (last 30 days, avg kcal P/C/F): ${top||"not enough data"}
+`}
 const paceFmt=p=>Math.floor(p)+":"+pad(Math.round((p-Math.floor(p))*60))+" /km";
 
 /* ---------- small components ---------- */
@@ -881,6 +962,8 @@ function vToday(){
   ${importCard()}
   ${isT&&nudge&&nudge.date===todayStr()?`<div class="note">${esc(nudge.text)}</div>`:""}
   ${isT?kickoffCard():""}
+  ${isT?challengeCard():""}
+  ${isT?recordsCard():""}
   ${checkinCard(true)}
   ${isT&&awayFromHome()&&!isTravel(d)&&!(S().travelAsked||{})[d]?`<div class="note row wrap">Your phone is on ${esc(DEV_TZ.replace(/_/g," ").split("/").pop())} time. Mark today as a travel day? <button class="btn sm" data-act="travelDay" data-d="${d}" data-on="1">Yes</button><button class="btn sm ghost" data-act="travelNo" data-d="${d}">No</button></div>`:""}
   ${isT&&weighToday()?`<button class="note weighnote" data-act="addWeight"><b>⚖ Weigh-in day</b> · ${(S().weighDays||[]).map(i=>DOW[i]).join(" & ")} · last ${(()=>{const l=weights().slice(-1)[0];return l?n1(l.lb)+" lb, "+short(l.date):"none yet"})()} <span class="pill acc">Weigh in</span></button>`:""}
@@ -1422,7 +1505,7 @@ WEEKLY SCORE so far: ${sc.score??"n/a"} (calories on target ${sc.cal}/${sc.count
 LAST 13 DAYS:
 ${recent.join("\n")}
 WEIGH-INS: ${wts||"none"}
-${Object.keys(mon).length?"MONTHLY REPORTS: "+Object.entries(mon).map(([k,m])=>`${k}: ${m.workouts} workouts, ${m.volumeKg} lb strength volume, ${m.runKm} km run; ${m.note||""}`).join(" | ")+"\n":""}${(()=>{const fb=feedbackItems().slice(-12);return fb.length?"HOW RAHIM REACTED TO YOUR RECENT REPLIES (learn from these: do more of what got 👍 helpful, ❤️ hit home, 💪 fired me up, 😂 made me laugh; do less of what got 👎 missed the mark; never mention this list):\n"+fb.map(x=>`- ${x.e} ${REACT_MEAN[x.e]||""}: "${x.text}"`).join("\n")+"\n":""})()}${kickoff?.text&&addDays(kickoff.date,7)>todayStr()?"THIS WEEK'S KICKOFF MESSAGE (you wrote it Sunday; reference its focus when relevant): "+kickoff.text.replace(/\s+/g," ")+(kickoff.quote?" Quote: "+kickoff.quote:"")+"\n":""}${checkin?.text?"LATEST WEEKLY CHECK-IN ("+(checkin.date||"recent")+"):\n"+checkin.text.slice(0,1500)+"\n":""}${chat?"RECENT CHAT:\n"+chat:""}`;
+${Object.keys(mon).length?"MONTHLY REPORTS: "+Object.entries(mon).map(([k,m])=>`${k}: ${m.workouts} workouts, ${m.volumeKg} lb strength volume, ${m.runKm} km run; ${m.note||""}`).join(" | ")+"\n":""}${mealIdeasLine()}${challengeLine()}${recordsLine()}${(()=>{const fb=feedbackItems().slice(-12);return fb.length?"HOW RAHIM REACTED TO YOUR RECENT REPLIES (learn from these: do more of what got 👍 helpful, ❤️ hit home, 💪 fired me up, 😂 made me laugh; do less of what got 👎 missed the mark; never mention this list):\n"+fb.map(x=>`- ${x.e} ${REACT_MEAN[x.e]||""}: "${x.text}"`).join("\n")+"\n":""})()}${kickoff?.text&&addDays(kickoff.date,7)>todayStr()?"THIS WEEK'S KICKOFF MESSAGE (you wrote it Sunday; reference its focus when relevant): "+kickoff.text.replace(/\s+/g," ")+(kickoff.quote?" Quote: "+kickoff.quote:"")+"\n":""}${checkin?.text?"LATEST WEEKLY CHECK-IN ("+(checkin.date||"recent")+"):\n"+checkin.text.slice(0,1500)+"\n":""}${chat?"RECENT CHAT:\n"+chat:""}`;
 }
 const okDate=v=>/^\d{4}-\d\d-\d\d$/.test(v||"")?v:todayStr();
 const okTime=(v,d)=>/^\d\d:\d\d$/.test(v||"")?v:(d&&d!==todayStr()?"12:00":nowHM());
@@ -1543,9 +1626,9 @@ async function sendPhotos(list,extra){
 }
 document.addEventListener("change",e=>{if(e.target.id==="photoIn"&&e.target.files?.length)stagePhotos(e.target.files)});
 function mdLite(s){return esc(s).replace(/^#{1,3} (.+)$/gm,"<b>$1</b>").replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^[-*] (.+)$/gm,"• $1")}
-function parseKickoff(t){if(!t)return null;const m=t.match(/<!--\s*date:\s*(\d{4}-\d\d-\d\d)\s*-->/);let body=t.replace(/<!--[\s\S]*?-->/g,"").trim();
+function parseKickoff(t){if(!t)return null;const m=t.match(/<!--\s*date:\s*(\d{4}-\d\d-\d\d)\s*-->/);let challenge=null;{const cm=t.match(/<!--\s*challenge:\s*(\{[\s\S]*?\})\s*-->/);if(cm)try{challenge=JSON.parse(cm[1])}catch{}}let body=t.replace(/<!--[\s\S]*?-->/g,"").trim();
   let quote=null;const qm=body.match(/^>\s*(.+)$/m);if(qm){quote=qm[1].trim();body=body.replace(/^>.*$/m,"").trim()}
-  body=body.replace(/^#+\s.*$/gm,"").trim();return body?{date:m?m[1]:null,text:body,quote}:null}
+  body=body.replace(/^#+\s.*$/gm,"").trim();return body?{date:m?m[1]:null,text:body,quote,challenge}:null}
 function kickoffHeard(){try{return localStorage.getItem("tf-kickoff-heard")===kickoff?.date}catch{return false}}
 function kickoffCard(){if(!kickoff||!kickoff.date||addDays(kickoff.date,7)<=todayStr()||kickoff.date>todayStr())return"";
   const heard=kickoffHeard();const q=kickoff.quote?`<blockquote class="ko-q">${esc(kickoff.quote)}</blockquote>`:"";
@@ -1577,7 +1660,11 @@ function vCoach(){
   <div class="chat" id="chatLog"></div>
   <div class="qp" id="qp"></div>
   <div id="replyBar" class="replybar" hidden></div>
-  <form class="composer" id="composer"><div id="photoTray" class="phototray" hidden></div><div id="coachStatus" class="cstatus" hidden></div><button type="button" class="btn ghost" data-act="photo" aria-label="Log from a photo or screenshot" style="padding:10px 12px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><textarea id="chatIn" rows="1" placeholder="Message the Coach" aria-label="Message"></textarea><button type="button" class="micbtn" id="micBtn" aria-pressed="false" aria-label="Start voice conversation"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><button class="btn" id="chatSend" type="submit" hidden>Send</button></form></div>`;
+  <form class="composer" id="composer"><div class="cbox"><div id="photoTray" class="phototray" hidden></div><div id="coachStatus" class="cstatus" hidden></div>
+    <textarea id="chatIn" rows="1" placeholder="Message your Coach" aria-label="Message"></textarea>
+    <div class="ctools"><button type="button" class="cplus" data-act="photo" aria-label="Add photos or screenshots"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><span class="ctip">Photos, screenshots</span><span class="sp"></span>
+    <button type="button" class="micbtn" id="micBtn" aria-pressed="false" aria-label="Start voice conversation"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+    <button class="sendbtn" id="chatSend" type="submit" hidden aria-label="Send"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div></form></div>`;
 }
 function renderChat(){
   const el=$("#chatLog");if(!el)return;
@@ -1619,7 +1706,7 @@ function md(src){
   close();return out.replace(/^(<div class="gap"><\/div>)+|(<div class="gap"><\/div>)+$/g,"").replace(/(<div class="gap"><\/div>){2,}/g,'<div class="gap"></div>')}
 function bindComposer(){
   const f=$("#composer"),ta=$("#chatIn");
-  ta.addEventListener("input",()=>{ta.style.height="auto";ta.style.height=Math.min(140,ta.scrollHeight)+"px";syncSendMic()});
+  ta.addEventListener("input",()=>{ta.style.height="auto";ta.style.height=Math.min(200,ta.scrollHeight)+"px";syncSendMic()});
   ta.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!matchMedia("(pointer:coarse)").matches){e.preventDefault();f.requestSubmit()}});
   f.onsubmit=e=>{e.preventDefault();const v=ta.value.trim();if(staged.length){const fl=staged;staged=[];ta.value="";ta.style.height="auto";renderTray();syncSendMic();sendPhotos(fl,v);return}if(!v)return;ta.value="";ta.style.height="auto";syncSendMic();sendText(v)};
   renderTray();
@@ -1683,6 +1770,7 @@ document.addEventListener("click",async e=>{
   else if(a==="dismissPattern"){const P={...(col.patterns.main||{})};P.dismissed=[...new Set([...(P.dismissed||[]),b.dataset.t])];await safe(store.set("patterns","main",P),"Removed. The check-in won't bring it back.")}
   else if(a==="forgetNote"){const list=notes().slice();list.splice(+b.dataset.i,1);await safe(store.set("settings","memory",{notes:list}),"Removed")}
   else if(a==="kickoffPlay"){playKickoff()}
+  else if(a==="recSeen"){let seen={};try{seen=JSON.parse(localStorage.getItem("tf-rec-seen")||"{}")}catch{}for(const k of (b.dataset.k||"").split("|"))seen[k]=1;try{localStorage.setItem("tf-rec-seen",JSON.stringify(seen))}catch{}render()}
   else if(a==="kickoffDone"){try{localStorage.setItem("tf-kickoff-heard",kickoff?.date||"")}catch{}render()}
   else if(a==="voiceConn"){try{localStorage.setItem("tf-voice-conn",b.dataset.v)}catch{}if(convMode==="voice")await endConv();document.querySelectorAll("[data-act=voiceConn]").forEach(x=>{const on=x.dataset.v===b.dataset.v;x.classList.toggle("ghost",!on);x.setAttribute("aria-pressed",on)});toast(b.dataset.v==="websocket"?"Mode B: tap the mic to try it":"Mode A: tap the mic to try it")}
   else if(a==="chatSize"){const v=+b.dataset.v;try{localStorage.setItem("tf-chat-fs",String(v))}catch{}document.documentElement.style.setProperty("--chat-fs",v+"px");document.querySelectorAll("[data-act=chatSize]").forEach(x=>{const on=+x.dataset.v===v;x.classList.toggle("ghost",!on);x.setAttribute("aria-pressed",String(on))})}
@@ -1715,7 +1803,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-11a"; /* bump on every change so phones reload */
+const BUILD="2026-11-11b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
