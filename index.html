@@ -515,6 +515,16 @@ body.wide #coachPane .chatset-body{width:340px}
 .mwrap.open .mfoot .mf[data-act=openReact]{border-color:var(--accent);color:var(--accent)}
 @media (hover:hover){.mwrap:not(.open):hover .tapbar{display:none}}
 .chat .rxbadge{display:none}
+
+.rxbar{position:fixed;z-index:40;display:flex;align-items:center;gap:2px;justify-content:space-around;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:5px;box-shadow:0 10px 30px rgba(0,0,0,.25);animation:tfpop .14s ease-out}
+.rxbar .rx{display:flex;flex-direction:column;align-items:center;gap:1px;background:none;border:1px solid transparent;border-radius:12px;padding:6px 2px;min-width:44px;flex:1 1 0;cursor:pointer;color:var(--fg);font:inherit}
+.rxbar .rx .e{font-size:24px;line-height:1.1}
+.rxbar .rx .lbl{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap}
+.rxbar .rx.on{background:var(--accent-soft);border-color:var(--accent)}.rxbar .rx.on .lbl{color:var(--accent)}
+.rxbar .rx.rp .e{color:var(--accent);font-weight:800}
+.rxbar .rx.rxx .e{font-size:18px;color:var(--muted);line-height:1.45}
+body.wide .rxbar{justify-content:flex-start}
+body.wide .rxbar .rx{flex:none;min-width:58px}
 </style>
 </head>
 <body>
@@ -1594,6 +1604,18 @@ let convFiles=0, replyTarget=null;
 const REACTS=["👍","❤️","💪","😂","👎"];
 const REACT_SHORT={"👍":"Helpful","❤️":"Hit home","💪":"Fired up","😂":"Funny","👎":"Missed"};
 const REACT_MEAN={"👍":"Helpful","❤️":"Hit home","💪":"Fired me up","😂":"Made me laugh","👎":"Missed the mark"};
+function closeReactBar(){document.getElementById("rxbar")?.remove();document.querySelectorAll(".mwrap.open").forEach(x=>x.classList.remove("open"))}
+function openReactBar(i,anchor){const was=document.querySelector(`.mwrap.open[data-i="${i}"]`);closeReactBar();if(was)return;const t=(chatTurns||[])[i];if(!t)return;
+  const u=t.role==="user";const w=document.querySelector(`.mwrap[data-i="${i}"]`);w&&w.classList.add("open");
+  const bar=document.createElement("div");bar.id="rxbar";bar.className="rxbar";bar.setAttribute("role","toolbar");bar.setAttribute("aria-label","React or reply");
+  bar.innerHTML=(u?"":REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}" aria-label="${REACT_MEAN[e]}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join(""))+`<button type="button" class="rx rp" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="e">↩</span><span class="lbl">Reply</span></button><button type="button" class="rx rxx" data-act="closeReact" aria-label="Close"><span class="e">✕</span><span class="lbl">Close</span></button>`;
+  document.body.appendChild(bar);
+  const place=()=>{if(!bar.isConnected)return;const comp=document.querySelector("#composer");
+    if(isWide()&&anchor){const r=anchor.getBoundingClientRect();const bw=bar.offsetWidth,bh=bar.offsetHeight;let left=Math.min(Math.max(8,r.left),innerWidth-bw-8);let top=r.bottom+6;if(top+bh>innerHeight-8)top=Math.max(8,r.top-bh-6);bar.style.left=left+"px";bar.style.top=top+"px";bar.style.right="auto";bar.style.bottom="auto"}
+    else{const ct=comp?comp.querySelector(".cbox")?.getBoundingClientRect().top??comp.getBoundingClientRect().top:innerHeight-180;bar.style.left="12px";bar.style.right="12px";bar.style.top="auto";bar.style.bottom=Math.max(8,innerHeight-ct+8)+"px"}};
+  place();requestAnimationFrame(place)}
+document.addEventListener("click",e=>{const bar=document.getElementById("rxbar");if(!bar)return;if(e.target.closest("#rxbar,[data-tap],[data-act=openReact]"))return;closeReactBar()});
+window.addEventListener("resize",()=>{document.getElementById("rxbar")&&closeReactBar()});
 function feedbackItems(){if(Array.isArray(col.chat?.feedback?.items))return col.chat.feedback.items;return(chatTurns||[]).filter(t=>t.react&&t.role!=="user").map(t=>({at:t.at,e:t.react,text:snippet(t.content)}))}
 function recordFeedback(t,e){const snip=snippet(t.content);let items=feedbackItems().filter(x=>x.at!==t.at);if(e)items.push({at:t.at,e,text:snip,on:todayStr()});items=items.slice(-40);store.set("chat","feedback",{items})}
 async function photoTime(file){
@@ -1691,7 +1713,7 @@ function renderChat(){
     if(t.at){const d=homeParts(t.at).date;if(d!==lastDay){lastDay=d;sep=`<div class="daysep"><span>${esc(dayName(d))}</span></div>`}}
     const tm=t.at?fmtT(homeParts(t.at).time):"";
     const bar=`<div class="tapbar" role="toolbar" aria-label="React or reply">${u?"":REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}" aria-label="${REACT_MEAN[e]}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join("")}<button type="button" class="rx rp" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="e">↩</span><span class="lbl">Reply</span></button>${tm?`<span class="tbtime">${tm}</span>`:""}</div>`;
-    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}">${bar}<div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div>${u?"":`<div class="mfoot"><button type="button" class="mf" data-act="openReact" data-i="${i}" aria-label="React to this message">${t.react?`<span class="mfe">${t.react}</span> ${esc(REACT_SHORT[t.react]||"")}`:`<span class="mfe">☺︎</span> React`}</button><button type="button" class="mf" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="mfe">↩</span> Reply</button></div>`}</div>`}).join("")
+    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}"><div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div>${u?"":`<div class="mfoot"><button type="button" class="mf" data-act="openReact" data-i="${i}" aria-label="React to this message">${t.react?`<span class="mfe">${t.react}</span> ${esc(REACT_SHORT[t.react]||"")}`:`<span class="mfe">☺︎</span> React`}</button><button type="button" class="mf" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="mfe">↩</span> Reply</button></div>`}</div>`}).join("")
     +(awaiting?`<div class="msg a think" aria-label="Coach is typing"><span class="dots"><i></i><i></i><i></i></span></div>`:"")
     +(turns.length&&!S().reactHintSeen&&!turns.some(x=>x.react)?`<p class="hint" style="align-self:center;text-align:center;margin:4px 0 0">Tip: tap a Coach message to react ${REACTS.slice(0,3).join(" ")} or reply.</p>`:"");
   const all=el.querySelectorAll(".msg");all.length&&all[all.length-1].scrollIntoView({block:"nearest"});
@@ -1729,8 +1751,7 @@ function bindComposer(){
     sw.w.style.transform=`translateX(${sw.dx}px)`;sw.w.style.setProperty("--sw",p);sw.w.classList.toggle("swr",sw.dx>0);sw.w.classList.toggle("swl",sw.dx<0)},{passive:false});
   const endSwipe=()=>{if(!sw)return;const {w,dx,lock}=sw;sw=null;w.style.transition="";w.style.transform="";w.style.setProperty("--sw",0);
     if(lock==="h"&&Math.abs(dx)>=60){setReply(+w.dataset.i)}};
-  log.addEventListener("click",e=>{if(e.target.closest("button,a,img,.actbtn"))return;const m=e.target.closest("[data-tap]");if(!m)return;const w=m.closest(".mwrap");const was=w.classList.contains("open");log.querySelectorAll(".mwrap.open").forEach(x=>x.classList.remove("open"));if(!was)w.classList.add("open")});
-  document.addEventListener("click",e=>{if(!e.target.closest("#chatLog"))document.querySelectorAll(".mwrap.open").forEach(x=>x.classList.remove("open"))});
+  log.addEventListener("click",e=>{if(e.target.closest("button,a,img,.actbtn"))return;const m=e.target.closest("[data-tap]");if(!m)return;openReactBar(+m.dataset.tap,m)});
   log.addEventListener("touchend",endSwipe);log.addEventListener("touchcancel",endSwipe);
 }
 
@@ -1755,9 +1776,10 @@ document.addEventListener("click",async e=>{
   else if(a==="waterUndo"){const u=waterUndo.pop();if(!u)return;await safe(store.set("water",u.d,{...(col.water[u.d]||{}),ml:Math.max(0,waterOn(u.d)-u.ml)}),"Undone")}
   else if(a==="skipImport"){needsImport=false;render()}
   else if(a==="photo"){closeSheet();const pi=$("#photoIn");pi.value="";pi.click()}
-  else if(a==="openReact"){const w=b.closest(".mwrap");const was=w.classList.contains("open");document.querySelectorAll(".mwrap.open").forEach(x=>x.classList.remove("open"));if(!was)w.classList.add("open");e.stopPropagation()}
-  else if(a==="replyTo"){setReply(+b.dataset.i)}
-  else if(a==="react"){const i=+b.dataset.i,t=chatTurns&&chatTurns[i];if(t){const e=t.react===b.dataset.e?null:b.dataset.e;if(e)t.react=e;else delete t.react;saveChatSoon();recordFeedback(t,e);renderChat();
+  else if(a==="openReact"){openReactBar(+b.dataset.i,b)}
+  else if(a==="closeReact"){closeReactBar()}
+  else if(a==="replyTo"){closeReactBar();setReply(+b.dataset.i)}
+  else if(a==="react"){const i=+b.dataset.i,t=chatTurns&&chatTurns[i];closeReactBar();if(t){const e=t.react===b.dataset.e?null:b.dataset.e;if(e)t.react=e;else delete t.react;saveChatSoon();recordFeedback(t,e);renderChat();
     if(e){toast(e+" "+REACT_MEAN[e]+": the Coach will learn from this");try{if(conv&&convStatus==="connected")conv.sendContextualUpdate?.(`Rahim reacted ${e} (${REACT_MEAN[e]}) to your message: "${snippet(t.content)}". Note it silently; don't reply to the reaction.`)}catch{}
       if(e==="👎"){setReply(i);const ta=$("#chatIn");if(ta)ta.placeholder="What missed the mark? (optional)"}}}}
   else if(a==="cancelReply"){setReply(-1)}
@@ -1812,7 +1834,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-11e"; /* bump on every change so phones reload */
+const BUILD="2026-11-11f"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
