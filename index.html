@@ -1305,7 +1305,7 @@ function render(){
   document.querySelectorAll(".tabs a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===view?"page":"false"));
   const t=todayStr();$("#dateLabel").textContent=date===t?"Today":date===addDays(t,-1)?"Yesterday":longD(date);
   $("#datenav").style.visibility=view==="coach"||view==="trends"?"hidden":"visible";
-  if(isWide()){const pane=$("#coachPane");if(!pane.querySelector("#chatLog")){pane.innerHTML=vCoach();bindComposer();bindDrop(pane);renderChat()}}
+  if(isWide()){const pane=$("#coachPane");if(!pane.querySelector("#chatLog")){pane.innerHTML=vCoach();bindComposer();bindDrop(pane);renderChat()}else if(!chatBusy&&pane._n!==(chatTurns||[]).length+"/"+lastLoad){renderChat()}pane._n=(chatTurns||[]).length+"/"+lastLoad}
   if(view==="coach"&&!isWide()){ if(!$("#chatLog")){main.innerHTML=vCoach();bindComposer()} if(!chatBusy)renderChat(); return }
   const y=window.scrollY;
   main.innerHTML=view==="coach"?vToday():view==="food"?vFood():view==="train"?vTrain():view==="trends"?vTrends():vToday();
@@ -1803,7 +1803,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-11b"; /* bump on every change so phones reload */
+const BUILD="2026-11-11c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
