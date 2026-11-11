@@ -514,7 +514,6 @@ body.wide #coachPane .chatset-body{width:340px}
 .mfoot .mfe{font-size:17px;line-height:1}
 .mwrap.open .mfoot .mf[data-act=openReact]{border-color:var(--accent);color:var(--accent)}
 @media (hover:hover){.mwrap:not(.open):hover .tapbar{display:none}}
-.chat .rxbadge{display:none}
 
 .rxbar{position:fixed;z-index:40;display:flex;align-items:center;gap:2px;justify-content:space-around;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:5px;box-shadow:0 10px 30px rgba(0,0,0,.25);animation:tfpop .14s ease-out}
 .rxbar .rx{display:flex;flex-direction:column;align-items:center;gap:1px;background:none;border:1px solid transparent;border-radius:12px;padding:6px 2px;min-width:44px;flex:1 1 0;cursor:pointer;color:var(--fg);font:inherit}
@@ -535,6 +534,31 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 .mwrap.rxopen .mfoot .mf[data-act=openReact]{border-color:var(--accent);color:var(--accent)}
 .mfoot .mf{touch-action:manipulation}
 .mfoot .mf>*{pointer-events:none}
+
+.chat .msg[data-tap]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;cursor:pointer}
+@media (pointer:fine){.chat .msg[data-tap]{-webkit-user-select:text;user-select:text}}
+.chat .msg.a .rxbadge{right:auto;left:0;bottom:-22px}
+.chat .mwrap.a.reacted{margin-bottom:16px}
+.mwrap.held .msg{opacity:.35}
+.rxsheet{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(10px) saturate(1.2);backdrop-filter:blur(10px) saturate(1.2);display:flex;align-items:center;justify-content:center;padding:max(16px,env(safe-area-inset-top)) 14px max(16px,env(safe-area-inset-bottom));animation:rxfade .16s ease-out}
+.rxsheet.out{opacity:0;transition:opacity .14s}
+@keyframes rxfade{from{opacity:0}to{opacity:1}}
+.rxs-col{display:flex;flex-direction:column;gap:10px;width:min(560px,100%);max-height:100%}
+.rxs-pill{display:flex;gap:2px;align-self:flex-start;max-width:100%;overflow-x:auto;background:var(--surface);border-radius:999px;padding:6px 8px;box-shadow:0 8px 28px rgba(0,0,0,.25);animation:rxpop .18s ease-out}
+.rxs-e{display:flex;flex-direction:column;align-items:center;gap:0;min-width:54px;border:0;background:none;border-radius:999px;padding:6px 4px;cursor:pointer;color:var(--fg);font:inherit;touch-action:manipulation}
+.rxs-e span{font-size:30px;line-height:1.1;pointer-events:none}
+.rxs-e small{font-size:10.5px;font-weight:700;color:var(--muted);pointer-events:none;white-space:nowrap}
+.rxs-e.on{background:var(--surface-2);box-shadow:inset 0 0 0 2px var(--accent)}
+.rxs-msg{background:var(--surface);color:var(--fg);border-radius:20px;padding:14px 16px;max-height:42vh;overflow:auto;font-size:var(--chat-fs,18px);line-height:1.45;box-shadow:0 8px 28px rgba(0,0,0,.2);animation:rxpop .18s ease-out}
+.rxs-msg.u{background:var(--accent);color:var(--accent-ink);align-self:flex-end;max-width:85%}
+.rxs-msg ul,.rxs-msg ol{margin:2px 0;padding-left:1.25em}.rxs-msg .gap{height:.55em}.rxs-msg .acts,.rxs-msg .rxbadge,.rxs-msg .thumbs{display:none}
+.rxs-menu{align-self:flex-start;min-width:220px;background:var(--surface);border-radius:18px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.25);animation:rxpop .2s ease-out}
+.rxs-msg.u~.rxs-menu{align-self:flex-end}
+.rxs-menu button{display:flex;align-items:center;gap:14px;width:100%;padding:14px 18px;border:0;background:none;color:var(--fg);font:inherit;font-size:19px;font-weight:600;text-align:left;cursor:pointer;touch-action:manipulation}
+.rxs-menu button+button{border-top:1px solid var(--line)}
+.rxs-menu .ic{width:24px;text-align:center;font-size:20px;pointer-events:none}
+@keyframes rxpop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.rxsheet,.rxs-pill,.rxs-msg,.rxs-menu{animation:none}}
 </style>
 </head>
 <body>
@@ -1614,8 +1638,16 @@ let convFiles=0, replyTarget=null;
 const REACTS=["👍","❤️","💪","😂","👎"];
 const REACT_SHORT={"👍":"Helpful","❤️":"Hit home","💪":"Fired up","😂":"Funny","👎":"Missed"};
 const REACT_MEAN={"👍":"Helpful","❤️":"Hit home","💪":"Fired me up","😂":"Made me laugh","👎":"Missed the mark"};
-function closeReactBar(){document.querySelectorAll(".mwrap.rxopen,.mwrap.open").forEach(x=>x.classList.remove("rxopen","open"))}
-function openReactBar(i){const w=document.querySelector(`.mwrap[data-i="${i}"]`);if(!w||w.classList.contains("u"))return;const was=w.classList.contains("rxopen");closeReactBar();if(!was){w.classList.add("rxopen");const row=w.querySelector(".rxrow");row&&row.scrollIntoView({block:"nearest",behavior:"smooth"})}}
+function closeReactBar(){const o=document.getElementById("rxsheet");if(o){o.classList.add("out");setTimeout(()=>o.remove(),140)}document.querySelectorAll(".mwrap.held").forEach(x=>x.classList.remove("held"))}
+function openReactBar(i){closeReactBar();const t=(chatTurns||[])[i];if(!t)return;const u=t.role==="user";
+  const src=document.querySelector(`.mwrap[data-i="${i}"] .msg`);
+  const o=document.createElement("div");o.id="rxsheet";o.className="rxsheet";o.setAttribute("role","dialog");o.setAttribute("aria-label","Message actions");
+  const canShare=!!navigator.share;
+  o.innerHTML=`<div class="rxs-col">${u?"":`<div class="rxs-pill">${REACTS.map(e=>`<button type="button" class="rxs-e${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-label="${REACT_MEAN[e]}" aria-pressed="${t.react===e}"><span>${e}</span><small>${REACT_SHORT[e]}</small></button>`).join("")}</div>`}
+  <div class="rxs-msg ${u?"u":"a"}">${src?src.innerHTML:md(t.content)}</div>
+  <div class="rxs-menu"><button type="button" data-act="replyTo" data-i="${i}"><span class="ic">↩︎</span>Reply</button><button type="button" data-act="copyMsg" data-i="${i}"><span class="ic">⧉</span>Copy</button>${canShare?`<button type="button" data-act="shareMsg" data-i="${i}"><span class="ic">⇪</span>Share</button>`:""}</div></div>`;
+  o.addEventListener("click",e=>{if(e.target===o||e.target.classList.contains("rxs-col"))closeReactBar()});
+  document.body.appendChild(o);try{navigator.vibrate?.(8)}catch{}}
 function feedbackItems(){if(Array.isArray(col.chat?.feedback?.items))return col.chat.feedback.items;return(chatTurns||[]).filter(t=>t.react&&t.role!=="user").map(t=>({at:t.at,e:t.react,text:snippet(t.content)}))}
 function recordFeedback(t,e){const snip=snippet(t.content);let items=feedbackItems().filter(x=>x.at!==t.at);if(e)items.push({at:t.at,e,text:snip,on:todayStr()});items=items.slice(-40);store.set("chat","feedback",{items})}
 async function photoTime(file){
@@ -1713,9 +1745,9 @@ function renderChat(){
     if(t.at){const d=homeParts(t.at).date;if(d!==lastDay){lastDay=d;sep=`<div class="daysep"><span>${esc(dayName(d))}</span></div>`}}
     const tm=t.at?fmtT(homeParts(t.at).time):"";
     const bar=`<div class="tapbar" role="toolbar" aria-label="React or reply">${u?"":REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}" aria-label="${REACT_MEAN[e]}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join("")}<button type="button" class="rx rp" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="e">↩</span><span class="lbl">Reply</span></button>${tm?`<span class="tbtime">${tm}</span>`:""}</div>`;
-    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}"><div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div>${u?"":`<div class="mfoot"><button type="button" class="mf" data-act="openReact" data-i="${i}" aria-label="React to this message">${t.react?`<span class="mfe">${t.react}</span> ${esc(REACT_SHORT[t.react]||"")}`:`<span class="mfe">☺︎</span> React`}</button><button type="button" class="mf" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="mfe">↩︎</span> Reply</button></div><div class="rxrow" role="group" aria-label="React">${REACTS.map(e=>`<button type="button" class="rxi${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join("")}</div>`}</div>`}).join("")
+    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}"><div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div></div>`}).join("")
     +(awaiting?`<div class="msg a think" aria-label="Coach is typing"><span class="dots"><i></i><i></i><i></i></span></div>`:"")
-    +(turns.length&&!S().reactHintSeen&&!turns.some(x=>x.react)?`<p class="hint" style="align-self:center;text-align:center;margin:4px 0 0">Tip: tap a Coach message to react ${REACTS.slice(0,3).join(" ")} or reply.</p>`:"");
+    +(turns.length&&!S().reactHintSeen&&!turns.some(x=>x.react)?`<p class="hint" style="align-self:center;text-align:center;margin:4px 0 0">Tip: press and hold a message to react ${REACTS.slice(0,3).join(" ")}, reply or copy.</p>`:"");
   const all=el.querySelectorAll(".msg");all.length&&all[all.length-1].scrollIntoView({block:"nearest"});
 }
 function actChip(a){if(typeof a==="string")return`<span>✓ ${esc(a)}</span>`;
@@ -1751,7 +1783,14 @@ function bindComposer(){
     sw.w.style.transform=`translateX(${sw.dx}px)`;sw.w.style.setProperty("--sw",p);sw.w.classList.toggle("swr",sw.dx>0);sw.w.classList.toggle("swl",sw.dx<0)},{passive:false});
   const endSwipe=()=>{if(!sw)return;const {w,dx,lock}=sw;sw=null;w.style.transition="";w.style.transform="";w.style.setProperty("--sw",0);
     if(lock==="h"&&Math.abs(dx)>=60){setReply(+w.dataset.i)}};
-  log.addEventListener("click",e=>{if(e.target.closest("button,a,img,.actbtn"))return;const m=e.target.closest("[data-tap]");if(!m)return;openReactBar(+m.dataset.tap,m)});
+  let lp=null,lpFired=false;
+  log.addEventListener("touchstart",e=>{const m=e.target.closest(".msg[data-tap]");if(!m||e.touches.length>1||e.target.closest("button,a,.actbtn"))return;const t0=e.touches[0];lpFired=false;clearTimeout(lp?.tm);lp={x:t0.clientX,y:t0.clientY,tm:setTimeout(()=>{lpFired=true;const w=m.closest(".mwrap");w&&w.classList.add("held");openReactBar(+m.dataset.tap)},420)}},{passive:true});
+  const lpCancel=()=>{if(lp){clearTimeout(lp.tm);lp=null}};
+  log.addEventListener("touchmove",e=>{if(!lp)return;const t0=e.touches[0];if(Math.abs(t0.clientX-lp.x)>8||Math.abs(t0.clientY-lp.y)>8)lpCancel()},{passive:true});
+  log.addEventListener("touchend",e=>{if(lpFired){e.preventDefault();lpFired=false}lpCancel()},{passive:false});
+  log.addEventListener("touchcancel",lpCancel);
+  log.addEventListener("contextmenu",e=>{const m=e.target.closest(".msg[data-tap]");if(m){e.preventDefault();openReactBar(+m.dataset.tap)}});
+  log.addEventListener("click",e=>{if(e.target.closest("button,a,img,.actbtn"))return;if(matchMedia("(pointer:coarse)").matches)return;if(String(getSelection?.()||"").trim())return;const m=e.target.closest(".msg[data-tap]");if(m)openReactBar(+m.dataset.tap)});
   log.addEventListener("touchend",endSwipe);log.addEventListener("touchcancel",endSwipe);
 }
 
@@ -1776,7 +1815,9 @@ document.addEventListener("click",async e=>{
   else if(a==="waterUndo"){const u=waterUndo.pop();if(!u)return;await safe(store.set("water",u.d,{...(col.water[u.d]||{}),ml:Math.max(0,waterOn(u.d)-u.ml)}),"Undone")}
   else if(a==="skipImport"){needsImport=false;render()}
   else if(a==="photo"){closeSheet();const pi=$("#photoIn");pi.value="";pi.click()}
-  else if(a==="openReact"){openReactBar(+b.dataset.i,b)}
+  else if(a==="openReact"){openReactBar(+b.dataset.i)}
+  else if(a==="copyMsg"){const t=chatTurns&&chatTurns[+b.dataset.i];closeReactBar();if(t){try{await navigator.clipboard.writeText(t.content);toast("Copied")}catch{toast("Couldn't copy")}}}
+  else if(a==="shareMsg"){const t=chatTurns&&chatTurns[+b.dataset.i];closeReactBar();if(t){try{await navigator.share({text:t.content})}catch{}}}
   else if(a==="closeReact"){closeReactBar()}
   else if(a==="replyTo"){closeReactBar();setReply(+b.dataset.i)}
   else if(a==="react"){const i=+b.dataset.i,t=chatTurns&&chatTurns[i];closeReactBar();if(t){const e=t.react===b.dataset.e?null:b.dataset.e;if(e)t.react=e;else delete t.react;saveChatSoon();recordFeedback(t,e);renderChat();
@@ -1834,7 +1875,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-11g"; /* bump on every change so phones reload */
+const BUILD="2026-11-11h"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
