@@ -450,8 +450,8 @@ body.wide .iphint{display:none}
 .mwrap.a .tapbar{left:0}.mwrap.u .tapbar{right:0}
 .mwrap.open,.mwrap:hover{z-index:3}
 .mwrap.open .msg{box-shadow:inset 0 0 0 2px var(--accent)}
-.mwrap.open .tapbar{position:fixed;left:16px;right:16px;top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));justify-content:space-around;z-index:9;max-width:none}
-body.kb .mwrap.open .tapbar{bottom:90px}
+.mwrap.open .tapbar{position:fixed;left:16px;right:16px;top:auto;bottom:calc(196px + env(safe-area-inset-bottom,0px));justify-content:space-around;z-index:9;max-width:none}
+body.kb .mwrap.open .tapbar{bottom:136px}
 body.wide .mwrap.open .tapbar{position:absolute;left:0;right:auto;top:calc(100% + 2px);bottom:auto;justify-content:flex-start}
 body.wide .mwrap.u.open .tapbar{left:auto;right:0}
 .mwrap.open .tapbar{display:flex}
@@ -507,6 +507,14 @@ body.wide #coachPane .chatset-body{width:340px}
 .recs{border:2px solid var(--good)}
 .recs .rec{display:flex;gap:10px;align-items:flex-start;font-size:17px;font-weight:600;margin-top:8px}
 .recs .ri{font-size:22px;line-height:1}
+
+.mfoot{display:flex;gap:4px;margin-top:2px}
+.mfoot .mf{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid transparent;border-radius:999px;padding:6px 10px;min-height:34px;font:inherit;font-size:14px;font-weight:700;color:var(--muted);cursor:pointer}
+.mfoot .mf:hover,.mfoot .mf:focus-visible{border-color:var(--line);color:var(--fg)}
+.mfoot .mfe{font-size:17px;line-height:1}
+.mwrap.open .mfoot .mf[data-act=openReact]{border-color:var(--accent);color:var(--accent)}
+@media (hover:hover){.mwrap:not(.open):hover .tapbar{display:none}}
+.chat .rxbadge{display:none}
 </style>
 </head>
 <body>
@@ -1683,7 +1691,7 @@ function renderChat(){
     if(t.at){const d=homeParts(t.at).date;if(d!==lastDay){lastDay=d;sep=`<div class="daysep"><span>${esc(dayName(d))}</span></div>`}}
     const tm=t.at?fmtT(homeParts(t.at).time):"";
     const bar=`<div class="tapbar" role="toolbar" aria-label="React or reply">${u?"":REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}" aria-label="${REACT_MEAN[e]}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join("")}<button type="button" class="rx rp" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="e">↩</span><span class="lbl">Reply</span></button>${tm?`<span class="tbtime">${tm}</span>`:""}</div>`;
-    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}">${bar}<div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div></div>`}).join("")
+    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}">${bar}<div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div>${u?"":`<div class="mfoot"><button type="button" class="mf" data-act="openReact" data-i="${i}" aria-label="React to this message">${t.react?`<span class="mfe">${t.react}</span> ${esc(REACT_SHORT[t.react]||"")}`:`<span class="mfe">☺︎</span> React`}</button><button type="button" class="mf" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="mfe">↩</span> Reply</button></div>`}</div>`}).join("")
     +(awaiting?`<div class="msg a think" aria-label="Coach is typing"><span class="dots"><i></i><i></i><i></i></span></div>`:"")
     +(turns.length&&!S().reactHintSeen&&!turns.some(x=>x.react)?`<p class="hint" style="align-self:center;text-align:center;margin:4px 0 0">Tip: tap a Coach message to react ${REACTS.slice(0,3).join(" ")} or reply.</p>`:"");
   const all=el.querySelectorAll(".msg");all.length&&all[all.length-1].scrollIntoView({block:"nearest"});
@@ -1747,6 +1755,7 @@ document.addEventListener("click",async e=>{
   else if(a==="waterUndo"){const u=waterUndo.pop();if(!u)return;await safe(store.set("water",u.d,{...(col.water[u.d]||{}),ml:Math.max(0,waterOn(u.d)-u.ml)}),"Undone")}
   else if(a==="skipImport"){needsImport=false;render()}
   else if(a==="photo"){closeSheet();const pi=$("#photoIn");pi.value="";pi.click()}
+  else if(a==="openReact"){const w=b.closest(".mwrap");const was=w.classList.contains("open");document.querySelectorAll(".mwrap.open").forEach(x=>x.classList.remove("open"));if(!was)w.classList.add("open");e.stopPropagation()}
   else if(a==="replyTo"){setReply(+b.dataset.i)}
   else if(a==="react"){const i=+b.dataset.i,t=chatTurns&&chatTurns[i];if(t){const e=t.react===b.dataset.e?null:b.dataset.e;if(e)t.react=e;else delete t.react;saveChatSoon();recordFeedback(t,e);renderChat();
     if(e){toast(e+" "+REACT_MEAN[e]+": the Coach will learn from this");try{if(conv&&convStatus==="connected")conv.sendContextualUpdate?.(`Rahim reacted ${e} (${REACT_MEAN[e]}) to your message: "${snippet(t.content)}". Note it silently; don't reply to the reaction.`)}catch{}
@@ -1803,7 +1812,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-11d"; /* bump on every change so phones reload */
+const BUILD="2026-11-11e"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
