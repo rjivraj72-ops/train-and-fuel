@@ -655,7 +655,7 @@ const CFG_KEY="tf-github";
 let cfg=null;try{cfg=JSON.parse(localStorage.getItem(CFG_KEY)||"null")}catch{}
 const PROFILE_COLS=["settings","saved","history","weights"];
 let kickoffRaw=null;
-let checkin=null, kickoff=null, kickoffPlaying=false, kickoffT=null, nudge=null, lastLoad=0, syncState="idle", needsImport=false;
+let checkin=null, kickoff=null, kickoffPlaying=false, kickoffT=null, speakSkip=null, autoReadT=null, nudge=null, lastLoad=0, syncState="idle", needsImport=false;
 const loadedMonths=new Set();
 function fileFor(c,id,data){
   if(PROFILE_COLS.includes(c))return"profile.json";
@@ -1557,7 +1557,7 @@ WEEKLY SCORE so far: ${sc.score??"n/a"} (calories on target ${sc.cal}/${sc.count
 LAST 13 DAYS:
 ${recent.join("\n")}
 WEIGH-INS: ${wts||"none"}
-${Object.keys(mon).length?"MONTHLY REPORTS: "+Object.entries(mon).map(([k,m])=>`${k}: ${m.workouts} workouts, ${m.volumeKg} lb strength volume, ${m.runKm} km run; ${m.note||""}`).join(" | ")+"\n":""}${mealIdeasLine()}${challengeLine()}${recordsLine()}${(()=>{const fb=feedbackItems().slice(-12);return fb.length?"HOW RAHIM REACTED TO YOUR RECENT REPLIES (learn from these: do more of what got 👍 helpful, ❤️ hit home, 💪 fired me up, 😂 made me laugh; do less of what got 👎 missed the mark; never mention this list):\n"+fb.map(x=>`- ${x.e} ${REACT_MEAN[x.e]||""}: "${x.text}"`).join("\n")+"\n":""})()}${kickoff?.text&&addDays(kickoff.date,7)>todayStr()?"THIS WEEK'S KICKOFF MESSAGE (you wrote it Sunday; reference its focus when relevant): "+kickoff.text.replace(/\s+/g," ")+(kickoff.quote?" Quote: "+kickoff.quote:"")+"\n":""}${checkin?.text?"LATEST WEEKLY CHECK-IN ("+(checkin.date||"recent")+"):\n"+checkin.text.slice(0,1500)+"\n":""}${chat?"RECENT CHAT:\n"+chat:""}`;
+${Object.keys(mon).length?"MONTHLY REPORTS: "+Object.entries(mon).map(([k,m])=>`${k}: ${m.workouts} workouts, ${m.volumeKg} lb strength volume, ${m.runKm} km run; ${m.note||""}`).join(" | ")+"\n":""}${(()=>{const t0=todayStr();const mine=(chatTurns||[]).filter(x=>x.role!=="user"&&x.at&&homeParts(x.at).date===t0).slice(-12);return mine.length?"WHAT YOU'VE ALREADY TOLD THEM TODAY (don't repeat these points, numbers, flags, records or challenge updates unless something changed or they ask):\n"+mine.map(x=>"- "+snippet(x.content)).join("\n")+"\n":""})()}${mealIdeasLine()}${challengeLine()}${recordsLine()}${(()=>{const fb=feedbackItems().slice(-12);return fb.length?"HOW RAHIM REACTED TO YOUR RECENT REPLIES (learn from these: do more of what got 👍 helpful, ❤️ hit home, 💪 fired me up, 😂 made me laugh; do less of what got 👎 missed the mark; never mention this list):\n"+fb.map(x=>`- ${x.e} ${REACT_MEAN[x.e]||""}: "${x.text}"`).join("\n")+"\n":""})()}${kickoff?.text&&addDays(kickoff.date,7)>todayStr()?"THIS WEEK'S KICKOFF MESSAGE (you wrote it Sunday; reference its focus when relevant): "+kickoff.text.replace(/\s+/g," ")+(kickoff.quote?" Quote: "+kickoff.quote:"")+"\n":""}${checkin?.text?"LATEST WEEKLY CHECK-IN ("+(checkin.date||"recent")+"):\n"+checkin.text.slice(0,1500)+"\n":""}${chat?"RECENT CHAT:\n"+chat:""}`;
 }
 const okDate=v=>/^\d{4}-\d\d-\d\d$/.test(v||"")?v:todayStr();
 const okTime=(v,d)=>/^\d\d:\d\d$/.test(v||"")?v:(d&&d!==todayStr()?"12:00":nowHM());
@@ -1599,7 +1599,10 @@ async function startConv(mode,extraOv){
   if(!window.ElevenLabsClient)throw new Error("Voice library didn't load");
   convMode=mode;convStatus="connecting";updateMic();
   const opts={agentId:AGENT_ID,connectionType:mode==="voice"?voiceConn():"websocket",dynamicVariables:{context:buildContext()},clientTools:clientTools(),
-    onMessage:m=>{const role=m.role||(m.source==="ai"?"agent":"user");if(!m.message)return;if(role==="user"){if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT)}if(convMode==="voice")addTurn("user",m.message);return}awaiting=false;addTurn("assistant",m.message);touchIdle()},
+    onMessage:m=>{const role=m.role||(m.source==="ai"?"agent":"user");if(!m.message)return;
+      if(role!=="user"&&speakSkip){const a=speechText(m.message).slice(0,60),b=speakSkip.slice(0,60);if(a===b||m.message.replace(/\s+/g," ").startsWith(speakSkip.slice(0,40))){speakSkip=null;return}}
+      if(role!=="user"&&convMode==="text"&&readAloudOn()){clearTimeout(autoReadT);autoReadT=setTimeout(()=>{const ts=chatTurns||[];let k=ts.length-1;const parts=[];while(k>=0&&ts[k].role!=="user"){parts.unshift(ts[k].content);k--}if(parts.length)speakAloud(parts.join("\n\n"))},1500)}
+      if(role==="user"){if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT)}if(convMode==="voice")addTurn("user",m.message);return}awaiting=false;addTurn("assistant",m.message);touchIdle()},
     onModeChange:({mode:md})=>{const was=agentSpeaking;agentSpeaking=md==="speaking";updateMic();if(kickoffPlaying&&was&&!agentSpeaking){clearTimeout(kickoffT);kickoffT=setTimeout(()=>{if(kickoffPlaying){kickoffPlaying=false;endConv().then(render)}},7000)}},
     onStatusChange:({status})=>{convStatus=status;updateMic()},
     onDisconnect:()=>{if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT);setTimeout(render,0)}conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;awaiting=false;clearTimeout(idleTimer);updateMic();renderChat()},
@@ -1645,7 +1648,7 @@ function openReactBar(i){closeReactBar();const t=(chatTurns||[])[i];if(!t)return
   const canShare=!!navigator.share;
   o.innerHTML=`<div class="rxs-col">${u?"":`<div class="rxs-pill">${REACTS.map(e=>`<button type="button" class="rxs-e${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-label="${REACT_MEAN[e]}" aria-pressed="${t.react===e}"><span>${e}</span><small>${REACT_SHORT[e]}</small></button>`).join("")}</div>`}
   <div class="rxs-msg ${u?"u":"a"}">${src?src.innerHTML:md(t.content)}</div>
-  <div class="rxs-menu"><button type="button" data-act="replyTo" data-i="${i}"><span class="ic">↩︎</span>Reply</button><button type="button" data-act="copyMsg" data-i="${i}"><span class="ic">⧉</span>Copy</button>${canShare?`<button type="button" data-act="shareMsg" data-i="${i}"><span class="ic">⇪</span>Share</button>`:""}</div></div>`;
+  <div class="rxs-menu">${u?"":`<button type="button" data-act="listenMsg" data-i="${i}"><span class="ic">🔊</span>Listen</button>`}<button type="button" data-act="replyTo" data-i="${i}"><span class="ic">↩︎</span>Reply</button><button type="button" data-act="copyMsg" data-i="${i}"><span class="ic">⧉</span>Copy</button>${canShare?`<button type="button" data-act="shareMsg" data-i="${i}"><span class="ic">⇪</span>Share</button>`:""}</div></div>`;
   o.addEventListener("click",e=>{if(e.target===o||e.target.classList.contains("rxs-col"))closeReactBar()});
   document.body.appendChild(o);try{navigator.vibrate?.(8)}catch{}}
 function feedbackItems(){if(Array.isArray(col.chat?.feedback?.items))return col.chat.feedback.items;return(chatTurns||[]).filter(t=>t.react&&t.role!=="user").map(t=>({at:t.at,e:t.react,text:snippet(t.content)}))}
@@ -1699,10 +1702,17 @@ function kickoffCard(){if(!kickoff||!kickoff.date||addDays(kickoff.date,7)<=toda
   <div class="ko-text">${esc(kickoff.text).replace(/\n{2,}/g,"</p><p>").replace(/^/,"<p>")+"</p>"}</div>${q}<div class="row" style="margin-top:12px;gap:8px">${btn}${heard?"":`<button type="button" class="btn ghost" data-act="kickoffDone">Got it</button>`}</div></details>`}
 function kickoffSpoken(){if(!kickoff)return"";let q="";if(kickoff.quote){const mm=kickoff.quote.match(/^[“"](.+?)[”"]\s*[—–-]\s*(.+)$/);q=mm?` As ${mm[2].split(",")[0].trim()} put it: ${mm[1]}`:` ${kickoff.quote}`}
   return(kickoff.text.replace(/\s+/g," ")+q).slice(0,1400)}
+function speechText(t){return String(t||"").replace(/\*\*(.+?)\*\*/g,"$1").replace(/^#+\s*/gm,"").replace(/^\s*[-•*]\s+/gm,"").replace(/^\s*(\d+)[.)]\s+/gm,"$1. ").replace(/[_`>]/g,"").replace(/\n{2,}/g,". ").replace(/\n/g,". ").replace(/\.\s*\./g,".").replace(/\s+/g," ").trim().slice(0,1500)}
+function readAloudOn(){try{return localStorage.getItem("tf-readaloud")==="1"}catch{return false}}
+async function speakAloud(text){const t=speechText(text);if(!t)return;
+  if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT);await endConv()}
+  try{if(conv)await endConv();kickoffPlaying=true;speakSkip=t;toast("🔊 Aaron is reading it · tap the mic to stop");
+    const c=await startConv("voice",{agent:{firstMessage:t}});try{c.setMicMuted?.(true)}catch{}
+  }catch(e){kickoffPlaying=false;speakSkip=null;toast(/permission|NotAllowed/i.test(String(e?.message||e))?"Allow microphone access so Aaron can read aloud (it uses the voice Coach).":"Couldn't start the voice. Check your connection.")}}
 async function playKickoff(){
   if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT);await endConv();render();return}
   try{if(conv)await endConv();kickoffPlaying=true;render();toast("Aaron's getting ready…");
-    await startConv("voice",{agent:{firstMessage:kickoffSpoken()}});
+    speakSkip=kickoffSpoken();const kc=await startConv("voice",{agent:{firstMessage:kickoffSpoken()}});try{kc.setMicMuted?.(true)}catch{}
     try{localStorage.setItem("tf-kickoff-heard",kickoff.date)}catch{}
   }catch(e){kickoffPlaying=false;render();toast(/permission|NotAllowed/i.test(String(e?.message||e))?"Allow microphone access so Aaron can play it (it uses the voice Coach).":"Couldn't start the voice. Check your connection.")}}
 function checkinCard(compact,noBtn){
@@ -1715,6 +1725,7 @@ function vCoach(){
   <details class="chatset"><summary>Chat settings</summary><div class="chatset-body">
   <div class="chatsize" role="group" aria-label="Chat text size"><span>Text size</span>${CHAT_FS.map((v,i)=>`<button type="button" class="btn sm ${chatFs()===v?"":"ghost"}" data-act="chatSize" data-v="${v}" aria-pressed="${chatFs()===v}" aria-label="${["Normal","Large","Extra large"][i]}" style="font-size:${14+i*4}px">A</button>`).join("")}</div>
   <div class="chatsize" role="group" aria-label="Voice audio mode"><span>Voice audio</span>${[["webrtc","Mode A"],["websocket","Mode B"]].map(([v,l])=>`<button type="button" class="btn sm ${voiceConn()===v?"":"ghost"}" data-act="voiceConn" data-v="${v}" aria-pressed="${voiceConn()===v}">${l}</button>`).join("")}</div><p class="hint iphint" style="margin:2px 0 0">Crackly on the iPhone speaker? Try the other mode.</p>
+  <div class="chatsize" role="group" aria-label="Read replies aloud"><span>Read replies aloud</span><button type="button" class="btn sm ${readAloudOn()?"":"ghost"}" data-act="readAloud" aria-pressed="${readAloudOn()}">${readAloudOn()?"On":"Off"}</button></div><p class="hint" style="margin:2px 0 0">Handy in the car: Aaron reads each typed reply out loud. Or press and hold any reply → 🔊 Listen.</p>
   <div class="eyebrow" style="margin-top:12px">Reactions teach the Coach</div><p class="small" style="margin:4px 0 0">Tap any Coach message to react: ${REACTS.map(e=>e+" "+REACT_MEAN[e]).join(" · ")}. It does more of what lands and less of what misses.</p>
   <button type="button" class="btn sm ghost" data-act="clearChat" style="margin-top:12px">Clear conversation</button><p class="hint" style="margin:10px 0 0">App version ${typeof BUILD!=="undefined"?BUILD:""}</p></div></details></div>
   <div id="checkinSlot"></div>
@@ -1816,6 +1827,8 @@ document.addEventListener("click",async e=>{
   else if(a==="skipImport"){needsImport=false;render()}
   else if(a==="photo"){closeSheet();const pi=$("#photoIn");pi.value="";pi.click()}
   else if(a==="openReact"){openReactBar(+b.dataset.i)}
+  else if(a==="listenMsg"){const t=chatTurns&&chatTurns[+b.dataset.i];closeReactBar();if(t)speakAloud(t.content)}
+  else if(a==="readAloud"){const on=!readAloudOn();try{localStorage.setItem("tf-readaloud",on?"1":"0")}catch{}document.querySelectorAll("[data-act=readAloud]").forEach(x=>{x.classList.toggle("ghost",!on);x.setAttribute("aria-pressed",on);x.textContent=on?"On":"Off"});toast(on?"Coach replies will be read aloud":"Read aloud off")}
   else if(a==="copyMsg"){const t=chatTurns&&chatTurns[+b.dataset.i];closeReactBar();if(t){try{await navigator.clipboard.writeText(t.content);toast("Copied")}catch{toast("Couldn't copy")}}}
   else if(a==="shareMsg"){const t=chatTurns&&chatTurns[+b.dataset.i];closeReactBar();if(t){try{await navigator.share({text:t.content})}catch{}}}
   else if(a==="closeReact"){closeReactBar()}
@@ -1875,7 +1888,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-11h"; /* bump on every change so phones reload */
+const BUILD="2026-11-12a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
