@@ -1603,7 +1603,7 @@ async function startConv(mode,extraOv){
       if(role!=="user"&&speakSkip){const a=speechText(m.message).slice(0,60),b=speakSkip.slice(0,60);if(a===b||m.message.replace(/\s+/g," ").startsWith(speakSkip.slice(0,40))){speakSkip=null;return}}
       if(role!=="user"&&convMode==="text"&&readAloudOn()){clearTimeout(autoReadT);autoReadT=setTimeout(()=>{const ts=chatTurns||[];let k=ts.length-1;const parts=[];while(k>=0&&ts[k].role!=="user"){parts.unshift(ts[k].content);k--}if(parts.length)speakAloud(parts.join("\n\n"))},1500)}
       if(role==="user"){if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT)}if(convMode==="voice")addTurn("user",m.message);return}awaiting=false;addTurn("assistant",m.message);touchIdle()},
-    onModeChange:({mode:md})=>{const was=agentSpeaking;agentSpeaking=md==="speaking";updateMic();if(kickoffPlaying&&was&&!agentSpeaking){clearTimeout(kickoffT);kickoffT=setTimeout(()=>{if(kickoffPlaying){kickoffPlaying=false;endConv().then(render)}},7000)}},
+    onModeChange:({mode:md})=>{const was=agentSpeaking;agentSpeaking=md==="speaking";updateMic();if(kickoffPlaying&&agentSpeaking)clearTimeout(kickoffT);if(kickoffPlaying&&was&&!agentSpeaking){clearTimeout(kickoffT);kickoffT=setTimeout(()=>{if(kickoffPlaying&&!agentSpeaking){kickoffPlaying=false;endConv().then(render)}},8000)}},
     onStatusChange:({status})=>{convStatus=status;updateMic()},
     onDisconnect:()=>{if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT);setTimeout(render,0)}conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;awaiting=false;clearTimeout(idleTimer);updateMic();renderChat()},
     onError:msg=>{console.warn("coach error",msg);if(convMode==="voice")toast("Voice error: "+String(msg).slice(0,80))}};
@@ -1701,8 +1701,8 @@ function kickoffCard(){if(!kickoff||!kickoff.date||addDays(kickoff.date,7)<=toda
   return`<details class="card kickoff" ${heard?"":"open"}><summary><span class="eyebrow">Week kickoff · ${short(kickoff.date)}</span>${heard?`<span class="ko-mini">${esc(kickoff.text.split(/(?<=[.!?])\s/)[0])}</span>`:""}</summary>
   <div class="ko-text">${esc(kickoff.text).replace(/\n{2,}/g,"</p><p>").replace(/^/,"<p>")+"</p>"}</div>${q}<div class="row" style="margin-top:12px;gap:8px">${btn}${heard?"":`<button type="button" class="btn ghost" data-act="kickoffDone">Got it</button>`}</div></details>`}
 function kickoffSpoken(){if(!kickoff)return"";let q="";if(kickoff.quote){const mm=kickoff.quote.match(/^[“"](.+?)[”"]\s*[—–-]\s*(.+)$/);q=mm?` As ${mm[2].split(",")[0].trim()} put it: ${mm[1]}`:` ${kickoff.quote}`}
-  return(kickoff.text.replace(/\s+/g," ")+q).slice(0,1400)}
-function speechText(t){return String(t||"").replace(/\*\*(.+?)\*\*/g,"$1").replace(/^#+\s*/gm,"").replace(/^\s*[-•*]\s+/gm,"").replace(/^\s*(\d+)[.)]\s+/gm,"$1. ").replace(/[_`>]/g,"").replace(/\n{2,}/g,". ").replace(/\n/g,". ").replace(/\.\s*\./g,".").replace(/\s+/g," ").trim().slice(0,1500)}
+  return(kickoff.text.replace(/\s+/g," ")+q).slice(0,4000)}
+function speechText(t){return String(t||"").replace(/\*\*(.+?)\*\*/g,"$1").replace(/^#+\s*/gm,"").replace(/^\s*[-•*]\s+/gm,"").replace(/^\s*(\d+)[.)]\s+/gm,"$1. ").replace(/[_`>]/g,"").replace(/\n{2,}/g,". ").replace(/\n/g,". ").replace(/\.\s*\./g,".").replace(/\s+/g," ").trim().slice(0,4000)}
 function readAloudOn(){try{return localStorage.getItem("tf-readaloud")==="1"}catch{return false}}
 async function speakAloud(text){const t=speechText(text);if(!t)return;
   if(kickoffPlaying){kickoffPlaying=false;clearTimeout(kickoffT);await endConv()}
@@ -1888,7 +1888,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-12a"; /* bump on every change so phones reload */
+const BUILD="2026-11-12b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
