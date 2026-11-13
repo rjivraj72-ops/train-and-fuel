@@ -994,17 +994,28 @@ function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=
 }
 function chartWeight(pts,lo,hi){
   if(!pts.length)return`<div class="empty">No weigh-ins yet. Add your first one above.</div>`;
-  const W=340,h=170,top=16,bot=22,left=34,right=40,iw=W-left-right,ih=h-top-bot;
+  const W=340,h=196,top=24,bot=46,left=34,right=14,iw=W-left-right,ih=h-top-bot;
   const t=pts.map(p=>parse(p.date).getTime());const t0=Math.min(...t),t1=Math.max(...t)||t0+1;
   const vs=pts.map(p=>+p.lb);const mn=Math.floor(Math.min(lo,...vs)-1),mx=Math.ceil(Math.max(hi,...vs)+1);
   const x=tt=>left+(t1===t0?iw/2:(tt-t0)/(t1-t0)*iw),y=v=>top+ih-(v-mn)/(mx-mn)*ih;
   let s=`<rect x="${left}" y="${y(hi)}" width="${iw}" height="${y(lo)-y(hi)}" fill="var(--good-soft)"/>`;
-  for(const v of[mn,lo,hi,mx])s+=`<line class="grid" x1="${left}" x2="${left+iw}" y1="${y(v)}" y2="${y(v)}"/><text x="${left-6}" y="${y(v)+3}" text-anchor="end">${v}</text>`;
-  s+=`<text x="${left+iw+4}" y="${(y(hi)+y(lo))/2+3}" style="fill:var(--good)">target</text>`;
+  s+=`<text x="${left+6}" y="${y(lo)-6}" style="fill:var(--good);font-size:11px">target</text>`;
+  // y labels: target edges always; outer lines only if they don't crowd them
+  const ys=[lo,hi];if(y(mn)-y(lo)>=16)ys.push(mn);if(y(hi)-y(mx)>=16)ys.push(mx);
+  for(const v of ys)s+=`<line class="grid" x1="${left}" x2="${left+iw}" y1="${y(v)}" y2="${y(v)}"/><text x="${left-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`;
+  // x axis: one tick per week (or every 2nd/4th week if long), on Sundays, plus the latest weigh-in
+  const DAY=864e5,span=(t1-t0)/DAY,step=span<=63?7:span<=126?14:28;
+  const lastX=x(t1),ticks=[];
+  for(let k=t0;k<=t1;k+=step*DAY){if(lastX-x(k)>=40)ticks.push(k)}
+  s+=`<line class="grid" x1="${left}" x2="${left+iw}" y1="${top+ih}" y2="${top+ih}"/>`;
+  const tick=(tt,xx,anchor,hot)=>{const d=new Date(tt);const st=hot?"fill:var(--accent);font-weight:800":"fill:var(--fg);font-weight:700";
+    return`<line x1="${xx}" x2="${xx}" y1="${top+ih}" y2="${top+ih+5}" stroke="${hot?"var(--accent)":"var(--line)"}" stroke-width="${hot?2:1.5}"/><text x="${xx}" y="${top+ih+20}" text-anchor="${anchor}" style="font-size:14px;${st}">${d.getDate()}</text><text x="${xx}" y="${top+ih+34}" text-anchor="${anchor}" style="font-size:11px${hot?";fill:var(--accent)":""}">${MON[d.getMonth()]}</text>`};
+  ticks.forEach((k,n)=>{s+=tick(k,x(k),n===0?"start":"middle",false)});
+  s+=tick(t1,lastX,"end",true);
   s+=`<path d="${pts.map((p,i)=>(i?"L":"M")+x(t[i]).toFixed(1)+" "+y(+p.lb).toFixed(1)).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
-  chartWeight._lx=null;pts.forEach((p,i)=>{const last=i===pts.length-1;s+=`<circle cx="${x(t[i])}" cy="${y(+p.lb)}" r="${last?5:3.2}" fill="${last?"var(--accent)":"var(--surface)"}" stroke="var(--accent)" stroke-width="2"/>`;
-    if(last||i===0)s+=`<text x="${x(t[i])+(i===0&&!last?8:last?-8:0)}" y="${y(+p.lb)+(last?18:-9)}" text-anchor="${i===0&&!last?"start":last?"end":"middle"}" class="halo" style="fill:var(--fg);font-weight:700">${n1(p.lb)}</text>`;
-    const xi=x(t[i]);if(last||i===0||(xi-(chartWeight._lx??-99)>=58&&x(t[t.length-1])-xi>=58)){chartWeight._lx=xi;s+=`<text x="${xi}" y="${h-6}" text-anchor="${i===0&&!last?"start":last&&i>0?"end":"middle"}">${short(p.date)}</text>`}});chartWeight._lx=null;
+  pts.forEach((p,i)=>{const last=i===pts.length-1;s+=`<circle cx="${x(t[i])}" cy="${y(+p.lb)}" r="${last?5:3.2}" fill="${last?"var(--accent)":"var(--surface)"}" stroke="var(--accent)" stroke-width="2"><title>${short(p.date)}: ${n1(p.lb)} lb</title></circle>`;
+    if(i===0&&!last)s+=`<text x="${x(t[i])+8}" y="${y(+p.lb)-9}" text-anchor="start" class="halo" style="fill:var(--fg);font-weight:700">${n1(p.lb)}</text>`;
+    if(last)s+=`<text x="${x(t[i])}" y="${y(+p.lb)-11}" text-anchor="end" class="halo" style="fill:var(--fg);font-weight:700">${n1(p.lb)}</text>`});
   return`<svg class="chart" viewBox="0 0 ${W} ${h}" role="img" aria-label="Weight trend">${s}</svg>`;
 }
 
@@ -1913,7 +1924,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-13d"; /* bump on every change so phones reload */
+const BUILD="2026-11-13e"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
