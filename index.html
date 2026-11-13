@@ -979,8 +979,9 @@ function macroStatus(val,lo,hi,d,kind){
   const o=hm2min(s.open),c=hm2min(s.close),n=hm2min(nowHM());const frac=Math.max(.15,Math.min(1,(n-o)/(c-o)));
   return val<lo*frac*0.8?["Pacing low","bad"]:["On pace","good"];
 }
-function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=n0,hatchLast,everyLabel}){
-  const W=340,top=14,bot=22,left=34,iw=W-left-4,ih=h-top-bot;
+function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=n0,hatchLast,everyLabel,dates}){
+  if(dates)h+=16;
+  const W=340,top=14,bot=dates?38:22,left=34,iw=W-left-4,ih=h-top-bot;
   const vals=values.map(v=>v==null?0:v);const mx=Math.max(target||0,...vals)||1;
   const step=Math.pow(10,Math.floor(Math.log10(mx)));const nice=Math.ceil(mx/step*1.1)*step;
   const y=v=>top+ih-(v/nice)*ih;const bw=iw/values.length;
@@ -988,6 +989,9 @@ function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=
   let b="";values.forEach((v,i)=>{const x=left+i*bw+bw*.18,w=bw*.64;const c=colors?colors[i]:color;
     if(v==null){b+=`<text x="${x+w/2}" y="${y(0)-4}" text-anchor="middle">–</text>`}
     else{const hh=Math.max(1,ih*(v/nice));b+=`<rect x="${x}" y="${y(0)-hh}" width="${w}" height="${hh}" rx="3" fill="${c}" ${hatchLast&&i===values.length-1?'fill-opacity=".45"':""}/><text x="${x+w/2}" y="${y(0)-hh-4}" text-anchor="middle" class="halo" style="fill:var(--fg);font-weight:600">${fmt(v)}</text>`}
+    if(dates){const d=parse(dates[i]),pm=i?parse(dates[i-1]).getMonth():-1,cx=x+w/2,cur=hatchLast&&i===values.length-1;
+      b+=`<text x="${cx}" y="${h-22}" text-anchor="middle" style="font-size:14px;font-weight:700;fill:${cur?"var(--accent)":"var(--fg)"}">${d.getDate()}</text>`;
+      if(d.getMonth()!==pm)b+=`<text x="${cx}" y="${h-7}" text-anchor="middle" style="font-size:11px">${MON[d.getMonth()]}</text>`;return}
     const every=everyLabel?1:Math.ceil(values.length/7);if(i%every===0||(!everyLabel&&i===values.length-1&&(values.length-1)%every>=every/2))b+=`<text x="${x+w/2}" y="${h-6}" text-anchor="middle">${esc(labels[i])}</text>`});
   if(target){b+=`<line x1="${left}" x2="${W-4}" y1="${y(target)}" y2="${y(target)}" stroke="var(--fg)" stroke-dasharray="4 4" stroke-width="1.2" opacity=".6"/>`}
   return`<svg class="chart" viewBox="0 0 ${W} ${h}" role="img">${g}${b}</svg>`;
@@ -1319,7 +1323,7 @@ function monthCard(){
   <div class="ig-cal-grid">${cells}</div>
   ${IG_LEGEND}
   ${st.core?`<div class="ig-rings" style="margin-top:14px">${igRing(st.proOn,st.core,"Protein days",pv.core?`${prevLabel} ${pv.proOn}/${pv.core}`:"","var(--good)")}${igRing(st.calOn,st.core,"Calorie days",pv.core?`${prevLabel} ${pv.calOn}/${pv.core}`:"","var(--good)")}${igRing(st.clean,st.core,"Kitchen closed",pv.core?`${prevLabel} ${pv.clean}/${pv.core}`:"","var(--cool)")}</div>`:""}
-  ${wv.some(v=>v)?`<div class="eyebrow" style="margin-top:16px">Strength volume by week</div>${chartBars({labels:wks.map(short),values:wv.map(v=>v||null),color:"var(--t-str)",h:120,fmt:v=>(v/1000).toFixed(1)+"k"})}`:""}
+  ${wv.some(v=>v)?`<div class="eyebrow" style="margin-top:16px">Strength volume by week</div>${chartBars({labels:wks.map(short),dates:wks,values:wv.map(v=>v||null),color:"var(--t-str)",h:120,fmt:v=>(v>=10000?Math.round(v/1000):(v/1000).toFixed(1))+"k"})}`:""}
   ${igPairs([["Avg protein",st.protein,pv.protein,1,"g","var(--accent)",s.proteinMin],["Avg calories",st.kcal,pv.kcal,0,"kcal","var(--accent)",s.kcal],["Workouts",W||null,pW,1,"","var(--t-cross)"],["Avg workout HR",st.hr,pv.hr,0,"bpm","var(--bad)"],["Strength volume",V?V/1000:null,pV?pV/1000:null,1,"k lb","var(--t-str)",null,1],["Run",K||null,pK,1,"km","var(--t-run)",null,1]].filter(r=>r[1]!=null||r[2]!=null),label.split(" ")[0]+(mlim?" 1–"+mlim:""),prevLabel)}
   ${st.w0?`<p class="sub">Weight ${n1(st.w0.lb)} → ${n1(st.w1.lb)} lb (${st.w1.lb-st.w0.lb>0?"+":""}${n1(st.w1.lb-st.w0.lb)}) · range ${s.weightLo}–${s.weightHi}</p>`:""}
   ${reportText[m]?`<details style="margin-top:10px"><summary class="eyebrow" style="cursor:pointer">Coach's write-up</summary><div class="small" style="white-space:pre-wrap;margin-top:8px;line-height:1.55">${mdLite(reportText[m])}</div></details>`:""}
@@ -1356,9 +1360,9 @@ function vTrends(){
   <section class="card"><div class="eyebrow">Last ${ND} days</div><h2>Protein vs ${s.proteinMin} g floor</h2><p class="sub">Grams per day. Dashed line is the ${s.proteinMin} g floor; today (faded) is still in progress.</p>
     ${chartBars({labels:days.map(dayLab),values:pr,hatchLast:true,everyLabel:true,target:s.proteinMin,colors:pr.map(v=>v==null?"var(--line)":v>=s.proteinMin?"var(--good)":"var(--accent)")})}</section>
   <section class="card"><div class="eyebrow">Adherence</div><h2>Weekly scores</h2><p class="sub">Calories within ±200, protein at the floor, and planned sessions done. Faded bar is this week, still in progress.</p>
-    ${chartBars({labels:weeks.map(short),values:scores,colors:scoreCol,hatchLast:true})}</section>
+    ${chartBars({labels:weeks.map(short),dates:weeks,values:scores,colors:scoreCol,hatchLast:true})}</section>
   <section class="card"><div class="eyebrow">Training</div><h2>Weekly strength volume</h2>
-    ${chartBars({labels:weeks.map(short),values:vols,color:"var(--t-str)",fmt:v=>(v/1000).toFixed(1)+"k",hatchLast:true})}</section>
+    ${chartBars({labels:weeks.map(short),dates:weeks,values:vols,color:"var(--t-str)",fmt:v=>(v>=10000?Math.round(v/1000):(v/1000).toFixed(1))+"k",hatchLast:true})}</section>
   ${monKeys.length?`<section class="card"><div class="eyebrow">Monthly reports</div>${monKeys.map(k=>{const m=mon[k];return`<h2 style="margin-top:6px">${esc(m.label||k)}</h2><div class="stats" style="margin-top:10px"><div class="stat"><div class="l">Workouts</div><div class="mid">${n0(m.workouts)}</div></div><div class="stat"><div class="l">Volume</div><div class="mid">${n0((m.volumeKg||0)/1000)}<small>k lb</small></div></div><div class="stat"><div class="l">Run</div><div class="mid">${n1(m.runKm)}<small>km</small></div></div></div><p class="sub">${esc(m.note||"")}</p>`}).join("")}</section>`:""}
   </div>`;
 }
@@ -1924,7 +1928,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-13e"; /* bump on every change so phones reload */
+const BUILD="2026-11-13f"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
