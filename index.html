@@ -559,6 +559,10 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 .rxs-menu .ic{width:24px;text-align:center;font-size:20px;pointer-events:none}
 @keyframes rxpop{from{transform:scale(.92);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.rxsheet,.rxs-pill,.rxs-msg,.rxs-menu{animation:none}}
+
+.fxp{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px;padding:9px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);font:inherit;font-weight:700;font-size:15px;border:1.5px solid var(--line);cursor:pointer;line-height:1.1}
+.fxp i{font-style:normal;font-size:10px;font-weight:700;opacity:.8}
+.fxp[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -835,15 +839,23 @@ function carbRange(s){return[Math.max(0,Math.round((s.kcal-s.proteinMax*4-s.fatM
 /* flex day: one weekend night (Sat or Sun) per week. Manual pick wins; otherwise Sunday if only Sunday had a late meal; otherwise the default. */
 function isLate(m){const s=S();return !!m.time&&hm2min(m.time)>=hm2min(s.close)}
 function weekendSat(d){const w=dow(d);return w===0?addDays(d,-1):addDays(d,6-w)}
-function flexDayFor(sat){const s=S();const sun=addDays(sat,1);const o=(s.flexNights||{})[sat];if(o===sat||o===sun)return o;
-  const leg=(s.flexWeeks||{})[addDays(sat,-5)];if(leg===6)return sat;if(leg===0)return sun;
-  const lS=mealsOn(sat).some(isLate),lU=mealsOn(sun).some(isLate);
-  if(lU&&!lS)return sun;if(lS&&!lU)return sat;return s.flexDow===0?sun:sat}
+function flexPicked(ws){const s=S();const p=(s.flexPick||{})[ws];const end=addDays(ws,6);if(p&&p>=ws&&p<=end)return p;
+  for(const v of Object.values(s.flexNights||{}))if(v>=ws&&v<=end)return v;
+  for(const[m,v]of Object.entries(s.flexWeeks||{})){const d=v===6?addDays(m,5):v===0?addDays(m,6):null;if(d&&d>=ws&&d<=end)return d}
+  return null}
+function flexDayForWeek(ws){const p=flexPicked(ws);if(p)return p;const s=S();const sun=ws,sat=addDays(ws,6);
+  const lS=mealsOn(sat).some(isLate),lU=mealsOn(sun).some(isLate);if(lU&&!lS)return sun;if(lS&&!lU)return sat;return s.flexDow===0?sun:sat}
+function flexDayFor(x){return flexDayForWeek(weekStart(x))}
+function flexPickerHTML(){const t=todayStr(),ws=weekStart(t),cur=flexDayForWeek(ws),picked=flexPicked(ws);
+  const days=[0,1,2,3,4,5,6].map(i=>addDays(ws,i));
+  return`<label>Flex night this week <span class="muted" style="font-weight:600">(${short(ws)} – ${short(addDays(ws,6))})</span></label>
+  <div class="row wrap flexpick" style="gap:6px">${days.map(d=>{const past=d<t&&mealsOn(d).length&&d!==cur;return`<button type="button" class="fxp" data-act="flexPick" data-ws="${ws}" data-d="${d}" aria-pressed="${cur===d}">${DOW[dow(d)]}${d===t?"<i>today</i>":""}</button>`}).join("")}</div>
+  <span class="hint">One flex night per week (Sun–Sat): not scored, no kitchen close. It's on the weekend unless you move it here, or tell the Coach "use my flex night tonight". ${picked?`<button type="button" class="linkbtn" data-act="flexPick" data-ws="${ws}" data-d="" style="background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:700;text-decoration:underline;cursor:pointer">Reset to weekend</button>`:"Currently the weekend default."}</span>`}
 function weighToday(){const t=todayStr(),wd=S().weighDays||[];return wd.includes(dow(t))&&!col.weights[t]&&!weights().some(w=>w.date===t)}
 function isTravel(d){return !!(S().travel||{})[d]}
 const DEV_TZ=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone}catch{return HOME_TZ}})();
 function awayFromHome(){try{const now=Date.now();const off=tz=>{const f=new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(now);return f};return off(DEV_TZ)!==off(HOME_TZ)}catch{return false}}
-function isFlex(d){const w=dow(d);return(w===0||w===6)&&flexDayFor(weekendSat(d))===d}
+function isFlex(d){return flexDayForWeek(weekStart(d))===d}
 function dayDone(d){const t=todayStr();if(d<t)return true;if(d>t)return false;if(isFlex(d))return false;return hm2min(nowHM())>=hm2min(S().close)}
 function sessionState(d){
   const s=S(),p=s.plan[(dow(d)+6)%7],ws=workoutsOn(d),t=todayStr();
@@ -1053,7 +1065,7 @@ function vToday(){
       <div class="score" style="border-color:${sc.score==null?"var(--line)":sc.score>=80?"var(--good)":sc.score>=60?"var(--warn)":"var(--bad)"}"><div><b>${sc.score??"–"}</b><span>/100</span></div></div></div>
     <div class="weekdots">${dots}</div>
     <div class="weekkey"><span>Top bar: training</span><span>Bottom bar: food</span><span><b style="background:var(--good)"></b>all 3 hit</span><span><b style="background:var(--warn)"></b>1–2 hit</span><span><b style="background:var(--bad)"></b>none</span><span><b style="border:2px dashed var(--line);box-sizing:border-box"></b>flex</span></div>
-    <p class="sub" style="margin-top:10px"><b style="color:var(--accent)">${st.n}</b> consecutive training weeks (3+ sessions) · best ${st.best}. Flex night this weekend: <span class="row" style="display:inline-flex;gap:4px;vertical-align:middle">${(()=>{const sat=weekendSat(todayStr());return[sat,addDays(sat,1)].map(x=>`<button type="button" class="btn sm ${flexDayFor(sat)===x?"":"ghost"}" data-act="flexWeek" data-ws="${sat}" data-d="${x}">${DOW[dow(x)]}</button>`).join("")})()}</span> (not scored). Each day counts once the kitchen closes at ${fmtT(s.close)}.</p>
+    <p class="sub" style="margin-top:10px"><b style="color:var(--accent)">${st.n}</b> consecutive training weeks (3+ sessions) · best ${st.best}. Flex night this week: <b>${DOW[dow(flexDayForWeek(weekStart(todayStr())))]}</b> (change it in settings). Each day counts once the kitchen closes at ${fmtT(s.close)}.</p>
   </section>
   ${overnightCard(d)}
   </div>`;
@@ -1511,7 +1523,8 @@ function settingsSheet(){
     <div class="f q"><label for="sOpen">Kitchen opens</label><input id="sOpen" type="time" value="${s.open}"></div>
     <div class="f q"><label for="sClose">Kitchen closes</label><input id="sClose" type="time" value="${s.close}"></div>
     <div class="f"><label>Weigh-in days</label><div class="row wrap" style="gap:6px">${[1,2,3,4,5,6,0].map(i=>`<label class="wdpick"><input type="checkbox" id="wd${i}" ${(s.weighDays||[]).includes(i)?"checked":""}><span>${DOW[i]}</span></label>`).join("")}</div></div>
-    <div class="f h"><label for="sFlex">Default weekend flex night</label><select id="sFlex">${[6,0].map(i=>`<option value="${i}" ${s.flexDow===i?"selected":""}>${DOW[i]}</option>`).join("")}</select></div>
+    <div class="f" id="flexBox">${flexPickerHTML()}</div>
+    <div class="f h"><label for="sFlex">Weekend default (when not moved)</label><select id="sFlex">${[6,0].map(i=>`<option value="${i}" ${s.flexDow===i?"selected":""}>${DOW[i]}</option>`).join("")}</select></div>
     <div class="f"><label for="sAbout">About me (the Coach reads this every time)</label><textarea id="sAbout" rows="7" placeholder="Age, height, sport and training history, goals, schedule, foods you love or avoid, injuries, what motivates you, what usually derails you…">${esc(s.about||s.profile)}</textarea></div>
     <div class="f"><label for="sStyle">How the Coach should talk to you</label><textarea id="sStyle" placeholder="e.g. Be blunt. Call out late-night snacks. Keep replies under 4 lines. Remind me I'm gluten-free.">${esc(s.coachStyle)}</textarea></div>
     <div class="f"><label for="sQP">Quick prompts (one per line)</label><textarea id="sQP" rows="5">${esc((s.quickPrompts||[]).join("\n"))}</textarea><span class="hint">These appear as one-tap buttons in the Coach.</span></div>
@@ -1546,7 +1559,7 @@ function buildContext(){
   const sc=weekScore(ws);const mon=H().monthly||{};
   const chat=(chatTurns||[]).slice(-8).map(x=>(x.role==="user"?"Them: ":"You: ")+(x.quote?"(replying to \""+x.quote+"\") ":"")+x.content.replace(/\s+/g," ").slice(0,300)+(x.react?" [they reacted "+x.react+"]":"")).join("\n");
   return`NOW: ${longD(t)}, ${fmtT(now)} Vancouver time (date ${t}, time ${now}). All dates and times in the log and in your tool calls are Vancouver time, even when they travel. If they give a time in another zone (e.g. Seattle or a trip abroad), convert it to Vancouver time before logging.
-TARGETS: ${s.kcal} kcal/day (±200 counts as on target); protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g; carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except one weekend flex night (Saturday or Sunday). Weeks run Sunday to Saturday. This weekend's flex night: ${DOW[dow(flexDayFor(weekendSat(t)))]} ${flexDayFor(weekendSat(t))} (no calorie flag, not scored). A day counts in the weekly score once the kitchen closes.
+TARGETS: ${s.kcal} kcal/day (±200 counts as on target); protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g; carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except one weekend flex night (Saturday or Sunday). Weeks run Sunday to Saturday. One flex night per week (not scored, no kitchen close): this week's is ${DOW[dow(flexDayForWeek(weekStart(t)))]} ${flexDayForWeek(weekStart(t))}${flexPicked(weekStart(t))?" (chosen)":" (weekend default; they can move it to any night this week with set_flex_night)"}. A day counts in the weekly score once the kitchen closes.
 ${(s.about||s.profile)?"ABOUT THEM (in their words):\n"+(s.about||s.profile)+"\n":""}${s.coachStyle?"THEIR COACHING STYLE INSTRUCTIONS (follow these): "+s.coachStyle+"\n":""}${notes().length?"LEARNED IN PAST CHATS:\n"+notes().map(n=>"- "+n.text).join("\n")+"\n":""}WEEK-OVER-WEEK FLAGS (this week vs last): ${(()=>{const ws0=weekStart(t);const f=weekFlags(weekStats(ws0),weekStats(addDays(ws0,-7)));return f.length?f.map(x=>x.level.toUpperCase()+": "+x.txt).join(" | "):"none"})()}\nPATTERNS FROM THEIR LOG (last 8 weeks):\n${insights().map(x=>"- "+x.text).join("\n")}\n${coachPatterns().length?"PATTERNS FROM WEEKLY CHECK-INS:\n"+coachPatterns().map(x=>"- "+x.text).join("\n")+"\n":""}
 ${Object.keys(S().travel||{}).length?"TRAVEL DAYS (recent): "+Object.keys(S().travel||{}).filter(x=>x>=addDays(t,-30)).sort().join(", ")+". On travel days, estimate restaurant portions generously (bigger plates, more oil and sauce) and read their numbers in that context.\n":""}TODAY: ${dayDigest(t)}
 TODAY'S MEALS (id | time | name | kcal P/C/F):${today.length?today.map(m=>`\n- ${m.id} | ${m.time} | ${m.name} | ${m.kcal} ${m.protein}/${m.carbs}/${m.fat}${m.est?" | your estimate, not yet checked: "+(m.est.note||"portions"):m.adjusted?" | they corrected your estimate":""}`).join(""):" none yet"}${(()=>{const ad=Object.values(col.meals).filter(m=>m.adjusted&&m.date>=addDays(t,-30));return ad.length?`\nTHEIR CORRECTIONS TO YOUR ESTIMATES (last 30 days, learn their real portions from these): ${ad.slice(-8).map(m=>m.name+" → "+m.kcal+" kcal").join("; ")}`:""})()}
@@ -1575,6 +1588,8 @@ function clientTools(){return{
   log_weight:async p=>{const lb=+p.lb;if(!lb)return"Error: lb required";const d=okDate(p.date);await store.set("weights",d,{date:d,lb});pendingActions.push(`Weigh-in ${lb} lb`);return"saved"},
   delete_entry:async p=>{if(p.kind==="weight"){const d=okDate(p.id);if(!col.weights[d])return"Error: no weigh-in on "+d;await store.del("weights",d);pendingActions.push(`Removed weigh-in${dayTag(d)}`);return JSON.stringify({ok:true})}
     const c=p.kind==="workout"?"workouts":"meals";const id=String(p.id||"");const ex=col[c][id];if(!ex)return"Error: no entry with that id. Call get_days for that date to get current ids.";await store.del(c,id);pendingActions.push(`Removed ${ex.name}${dayTag(ex.date)}`);return JSON.stringify({ok:true,...dayLine(ex.date)})},
+  set_flex_night:async p=>{const d=okDate(p.date);const ws=weekStart(d);const st=S();const prev=flexDayForWeek(ws);const fp={...(st.flexPick||{})};fp[ws]=d;const fn={...(st.flexNights||{})};for(const[k,v]of Object.entries(fn))if(v>=ws&&v<=addDays(ws,6))delete fn[k];
+    await store.set("settings","main",{...(col.settings.main||{}),flexPick:fp,flexNights:fn});pendingActions.push(`Flex night: ${DOW[dow(d)]} ${short(d)}`);return JSON.stringify({ok:true,flex_night:d,previous:prev,note:prev!==d?`${DOW[dow(prev)]} ${prev} is now a normal scored night`:"unchanged"})},
   update_entry:async p=>{const c=p.kind==="workout"?"workouts":"meals";const id=String(p.id||"");const ex=col[c][id];if(!ex)return"Error: no entry with that id. Call get_days for that date to get current ids.";
     const o={...ex};const nz=v=>v!==undefined&&v!==null&&v!=="";
     if(nz(p.name))o.name=String(p.name).slice(0,140);if(nz(p.date))o.date=okDate(p.date);if(nz(p.time)&&/^\d\d:\d\d$/.test(p.time))o.time=p.time;
@@ -1839,7 +1854,8 @@ document.addEventListener("click",async e=>{
   else if(a==="cancelReply"){setReply(-1)}
   else if(a==="unstage"){staged.splice(+b.dataset.i,1);renderTray();syncSendMic();if(!staged.length){const ta=$("#chatIn");if(ta)ta.placeholder="Message your Coach"}}
   else if(a==="unstageAll"){staged=[];renderTray();syncSendMic();const ta=$("#chatIn");if(ta)ta.placeholder="Message your Coach"}
-  else if(a==="flexWeek"){const st=S();const fn={...(st.flexNights||{})};fn[b.dataset.ws]=b.dataset.d;await safe(store.set("settings","main",{...(col.settings.main||{}),flexNights:fn}),DOW[dow(b.dataset.d)]+" is this weekend's flex night")}
+  else if(a==="flexPick"){const ws=b.dataset.ws,d=b.dataset.d;const st=S();const fp={...(st.flexPick||{})};if(d)fp[ws]=d;else delete fp[ws];const fn={...(st.flexNights||{})};for(const[k,v]of Object.entries(fn))if(v>=ws&&v<=addDays(ws,6))delete fn[k];
+    await safe(store.set("settings","main",{...(col.settings.main||{}),flexPick:fp,flexNights:fn}),d?`Flex night: ${DOW[dow(d)]} ${short(d)}`:"Flex night back to the weekend default");const box=document.getElementById("flexBox");if(box)box.innerHTML=flexPickerHTML()}
   else if(a==="retrySync"){setSync("saving");flush()}
   else if(a==="retryLoad"){loadAll()}
   else if(a==="disconnect"){if(b.dataset.armed){try{localStorage.removeItem(CFG_KEY)}catch{};cfg=null;closeSheet();await endConv();COLS.forEach(c=>col[c]={});render()}else{b.dataset.armed="1";b.textContent="Tap again to disconnect"}}
@@ -1888,7 +1904,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-12c"; /* bump on every change so phones reload */
+const BUILD="2026-11-12d"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
