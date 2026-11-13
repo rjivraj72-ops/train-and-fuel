@@ -1781,7 +1781,7 @@ function bindComposer(){
   const f=$("#composer"),ta=$("#chatIn");
   ta.addEventListener("input",()=>{ta.style.height="auto";ta.style.height=Math.min(200,ta.scrollHeight)+"px";syncSendMic()});
   ta.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!matchMedia("(pointer:coarse)").matches){e.preventDefault();f.requestSubmit()}});
-  f.onsubmit=e=>{e.preventDefault();const v=ta.value.trim();if(staged.length){const fl=staged;staged=[];ta.value="";ta.style.height="auto";renderTray();syncSendMic();sendPhotos(fl,v);return}if(!v)return;ta.value="";ta.style.height="auto";syncSendMic();sendText(v)};
+  f.onsubmit=e=>{e.preventDefault();const v=ta.value.trim();if(matchMedia("(pointer:coarse)").matches)ta.blur();if(staged.length){const fl=staged;staged=[];ta.value="";ta.style.height="auto";renderTray();syncSendMic();sendPhotos(fl,v);return}if(!v)return;ta.value="";ta.style.height="auto";syncSendMic();sendText(v)};
   renderTray();
   $("#micBtn").onclick=toggleVoice;updateMic();
   /* swipe a message left or right to reply to it */
@@ -1795,7 +1795,7 @@ function bindComposer(){
   const endSwipe=()=>{if(!sw)return;const {w,dx,lock}=sw;sw=null;w.style.transition="";w.style.transform="";w.style.setProperty("--sw",0);
     if(lock==="h"&&Math.abs(dx)>=60){setReply(+w.dataset.i)}};
   let lp=null,lpFired=false;
-  log.addEventListener("touchstart",e=>{const m=e.target.closest(".msg[data-tap]");if(!m||e.touches.length>1||e.target.closest("button,a,.actbtn"))return;const t0=e.touches[0];lpFired=false;clearTimeout(lp?.tm);lp={x:t0.clientX,y:t0.clientY,tm:setTimeout(()=>{lpFired=true;const w=m.closest(".mwrap");w&&w.classList.add("held");openReactBar(+m.dataset.tap)},420)}},{passive:true});
+  log.addEventListener("touchstart",e=>{const m=e.target.closest(".msg[data-tap]");if(!m||e.touches.length>1||e.target.closest("button,a,.actbtn"))return;if(document.activeElement===ta)ta.blur();const t0=e.touches[0];lpFired=false;clearTimeout(lp?.tm);lp={x:t0.clientX,y:t0.clientY,tm:setTimeout(()=>{lpFired=true;const w=m.closest(".mwrap");w&&w.classList.add("held");openReactBar(+m.dataset.tap)},420)}},{passive:true});
   const lpCancel=()=>{if(lp){clearTimeout(lp.tm);lp=null}};
   log.addEventListener("touchmove",e=>{if(!lp)return;const t0=e.touches[0];if(Math.abs(t0.clientX-lp.x)>8||Math.abs(t0.clientY-lp.y)>8)lpCancel()},{passive:true});
   log.addEventListener("touchend",e=>{if(lpFired){e.preventDefault();lpFired=false}lpCancel()},{passive:false});
@@ -1888,7 +1888,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-12b"; /* bump on every change so phones reload */
+const BUILD="2026-11-12c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
