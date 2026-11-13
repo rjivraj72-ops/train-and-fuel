@@ -697,8 +697,8 @@ const CHAT_FS=[18,21,25];
 function voiceConn(){let v="webrtc";try{v=localStorage.getItem("tf-voice-conn")||"webrtc"}catch{}return v==="websocket"?"websocket":"webrtc"}
 function chatFs(){let v=18;try{v=+localStorage.getItem("tf-chat-fs")||18}catch{}return CHAT_FS.includes(v)?v:18}
 document.documentElement.style.setProperty("--chat-fs",chatFs()+"px");
-function saveCache(){try{const snap={at:Date.now(),col:{},checkin,chat:(chatTurns||[]).slice(-30).map(({img,imgs,...r})=>r)};COLS.forEach(c=>{if(c!=="chat")snap.col[c]=col[c]});localStorage.setItem(CACHE_KEY,JSON.stringify(snap))}catch{}}
-function loadCache(){try{const snap=JSON.parse(localStorage.getItem(CACHE_KEY)||"null");if(!snap)return false;COLS.forEach(c=>{if(snap.col[c])col[c]=snap.col[c]});if(!chatTurns)chatTurns=snap.chat||[];checkin=snap.checkin||checkin;return true}catch{return false}}
+function saveCache(){try{const snap={at:Date.now(),col:{},checkin,kickoffText:kickoffRaw?.text||null,nudge,chat:(chatTurns||[]).slice(-30).map(({img,imgs,...r})=>r)};COLS.forEach(c=>{if(c!=="chat")snap.col[c]=col[c]});localStorage.setItem(CACHE_KEY,JSON.stringify(snap))}catch{}}
+function loadCache(){try{const snap=JSON.parse(localStorage.getItem(CACHE_KEY)||"null");if(!snap)return false;COLS.forEach(c=>{if(snap.col[c])col[c]=snap.col[c]});if(!chatTurns)chatTurns=snap.chat||[];checkin=snap.checkin||checkin;if(snap.kickoffText&&!kickoff){kickoffRaw={text:snap.kickoffText};kickoff=parseKickoff(snap.kickoffText)}if(snap.nudge&&!nudge)nudge=snap.nudge;return true}catch{return false}}
 function reapplyPending(){for(const src of[inflight,pending])for(const ops of Object.values(src))for(const o of ops||[]){col[o.c]=col[o.c]||{};if(o.val==null)delete col[o.c][o.id];else col[o.c][o.id]=o.val}}
 function queue(c,id,val){const p=fileFor(c,id,val);(pending[p]=pending[p]||[]).push({c,id,val});persistPending();clearTimeout(flushTimer);flushTimer=setTimeout(flush,700);setSync("saving")}
 const hasPending=()=>Object.values(pending).some(a=>a&&a.length)||Object.values(inflight).some(a=>a&&a.length);
@@ -756,6 +756,7 @@ async function loadAll(){
     checkin=null;if(ci&&ci.text){const m=ci.text.match(/<!--\s*date:\s*(\d{4}-\d\d-\d\d)\s*-->/);checkin={date:m?m[1]:null,text:ci.text.replace(/<!--[\s\S]*?-->/g,"").trim()}}
     nudge=(nu?.data&&typeof nu.data.text==="string"&&/^\d{4}-\d\d-\d\d$/.test(nu.data.date||""))?nu.data:null;
     reapplyPending();
+    saveCache();render();
     await processInbox();
     lastLoad=Date.now();saveCache();setSync(hasPending()?"saving":"saved");if(hasPending())flush();
     setTimeout(applyQuickWater,0);
@@ -1912,7 +1913,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-13c"; /* bump on every change so phones reload */
+const BUILD="2026-11-13d"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
