@@ -578,7 +578,7 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
     <button class="iconbtn" id="settingsBtn" aria-label="Targets and routine"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
   </header>
   <div id="status"></div>
-  <input type="file" id="photoIn" accept="image/*" multiple hidden>
+  <input type="file" id="photoIn" accept="image/*" multiple hidden><input type="file" id="wkIn" accept="image/*" multiple hidden>
   <main id="main"></main>
 </div>
 
@@ -1057,7 +1057,7 @@ function vToday(){
     <div class="head"><div><div class="eyebrow">${isT?"Today's session":"Session · "+longD(d)}</div><h2>${esc(ss.p.title)}</h2><p class="sub">${esc(ss.p.detail)}</p></div>
       <span class="pill ${ss.st==="done"?"good":ss.st==="today"?"acc":ss.st==="miss"?"bad":""}">${ss.label}</span></div>
     ${ss.ws.length?`<div class="list" style="margin-top:8px">${ss.ws.map(wItem).join("")}</div>`:""}
-    <div class="row" style="margin-top:12px"><button class="btn line block" data-act="addWorkout">Log workout</button></div>
+    <div class="row" style="margin-top:12px;gap:8px"><button class="btn line" style="flex:1" data-act="addWorkout">Log workout</button><button class="btn line" style="flex:1" data-act="wkShot" data-d="${d}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.2"/><path d="M8 5l1.5-2h5L16 5"/></svg> Screenshot</button></div>
   </section>
   <section class="card">
     <div class="head"><div><div class="eyebrow">Week of ${short(ws)}</div><h2>Weekly score</h2>
@@ -1688,11 +1688,11 @@ async function stagePhotos(list){
   if(!isWide()&&location.hash!=="#coach"){location.hash="coach";await new Promise(r=>setTimeout(r,80))}
   renderTray();syncSendMic();const ta=$("#chatIn");if(ta){ta.placeholder="Add context (optional): what it is, when, how much…";ta.focus()}
 }
-async function sendPhotos(list,extra){
+async function sendPhotos(list,extra,label){
   const files=[...list].slice(0,6);if(!files.length)return;
   const ta0=$("#chatIn");if(ta0)ta0.placeholder="Message your Coach";
   const q=replyTarget;setReply(-1);
-  chatTurns=chatTurns||[];addTurn("user",(files.length>1?"["+files.length+" photos]":"[Photo]")+(extra?" "+extra:""));
+  chatTurns=chatTurns||[];addTurn("user",(files.length>1?"["+files.length+" photos]":"[Photo]")+(label!=null?(label?" "+label:""):(extra?" "+extra:"")));
   if(q)chatTurns[chatTurns.length-1].quote=q.text;
   chatTurns[chatTurns.length-1].imgs=files.map(f=>f._url||URL.createObjectURL(f));
   awaiting=true;renderChat();
@@ -1704,7 +1704,14 @@ async function sendPhotos(list,extra){
     c.sendMultimodalMessage({text:(q?`(Replying to ${q.role==="user"?"my":"your"} earlier message: "${q.text}")\n\n`:"")+(extra?"My note with these photos (use it as context: it overrides your guesses about what, how much or when): "+extra+"\n\n":"")+photoAsk(ids.length)+tinfo,fileIds:ids});touchIdle();
   }catch(e){awaiting=false;addTurn("assistant","I couldn't send "+(files.length>1?"those photos":"that photo")+" ("+(e?.message||"upload failed")+"). Try again, or describe it in words.")}
 }
-document.addEventListener("change",e=>{if(e.target.id==="photoIn"&&e.target.files?.length)stagePhotos(e.target.files)});
+document.addEventListener("change",e=>{if(e.target.id==="photoIn"&&e.target.files?.length)stagePhotos(e.target.files);if(e.target.id==="wkIn"&&e.target.files?.length)sendWorkoutShots(e.target.files)});
+var wkShotDay=null;
+async function sendWorkoutShots(list){
+  const files=[...list].slice(0,6);const d=wkShotDay||todayStr();wkShotDay=null;
+  for(const f of files)f._url=URL.createObjectURL(f);
+  if(!isWide()&&location.hash!=="#coach"){location.hash="coach";await new Promise(r=>setTimeout(r,120))}
+  const note=`Workout screenshot${files.length>1?"s":""} from the Today tab: log ${files.length>1?"each workout shown (one entry per workout, no duplicates)":"this workout"} with log_workout, using the date and time on the screen${d!==todayStr()?` (I was looking at ${d}, use that if no date is shown)`:""}. Confirm in one line.`;
+  await sendPhotos(files,note,"Log this workout")}
 function mdLite(s){return esc(s).replace(/^#{1,3} (.+)$/gm,"<b>$1</b>").replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/^[-*] (.+)$/gm,"• $1")}
 function parseKickoff(t){if(!t)return null;const m=t.match(/<!--\s*date:\s*(\d{4}-\d\d-\d\d)\s*-->/);let challenge=null;{const cm=t.match(/<!--\s*challenge:\s*(\{[\s\S]*?\})\s*-->/);if(cm)try{challenge=JSON.parse(cm[1])}catch{}}let body=t.replace(/<!--[\s\S]*?-->/g,"").trim();
   let quote=null;const qm=body.match(/^>\s*(.+)$/m);if(qm){quote=qm[1].trim();body=body.replace(/^>.*$/m,"").trim()}
@@ -1840,6 +1847,7 @@ document.addEventListener("click",async e=>{
   else if(a==="water"){const ml=+b.dataset.ml;const cur=waterOn(date);waterUndo.push({d:date,ml});await safe(store.set("water",date,{...(col.water[date]||{}),ml:cur+ml}))}
   else if(a==="waterUndo"){const u=waterUndo.pop();if(!u)return;await safe(store.set("water",u.d,{...(col.water[u.d]||{}),ml:Math.max(0,waterOn(u.d)-u.ml)}),"Undone")}
   else if(a==="skipImport"){needsImport=false;render()}
+  else if(a==="wkShot"){wkShotDay=b.dataset.d||todayStr();const wi=$("#wkIn");wi.value="";wi.click()}
   else if(a==="photo"){closeSheet();const pi=$("#photoIn");pi.value="";pi.click()}
   else if(a==="openReact"){openReactBar(+b.dataset.i)}
   else if(a==="listenMsg"){const t=chatTurns&&chatTurns[+b.dataset.i];closeReactBar();if(t)speakAloud(t.content)}
@@ -1904,7 +1912,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-12d"; /* bump on every change so phones reload */
+const BUILD="2026-11-13a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
