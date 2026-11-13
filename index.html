@@ -1038,7 +1038,7 @@ function vToday(){
     ${meter(t.kcal,s.kcal-200,s.kcal+200,s.kcal*1.25,kcalCls)}
     <p class="sub">${t.n} ${t.n===1?"entry":"entries"} · green band is ±200 kcal of target</p>
     <div style="margin-top:8px">${mrow("Protein",t.protein,s.proteinMin,s.proteinMax,"protein")}${mrow("Fat",t.fat,s.fatMin,s.fatMax,"fat")}${mrow("Carbs",t.carbs,cLo,cHi,"carbs")}</div>
-    <div class="row" style="margin-top:6px"><button class="btn" style="flex:1" data-act="addMeal">Add meal</button><button class="btn ghost" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Photo</button></div>
+    <div class="row" style="margin-top:6px"><button class="btn line" style="flex:1" data-act="addMeal">Add meal</button><button class="btn" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Photo</button></div>
   </section>
   <div class="grid2 stack">
     <section class="card"><div class="eyebrow">Hydration</div>
@@ -1057,7 +1057,7 @@ function vToday(){
     <div class="head"><div><div class="eyebrow">${isT?"Today's session":"Session · "+longD(d)}</div><h2>${esc(ss.p.title)}</h2><p class="sub">${esc(ss.p.detail)}</p></div>
       <span class="pill ${ss.st==="done"?"good":ss.st==="today"?"acc":ss.st==="miss"?"bad":""}">${ss.label}</span></div>
     ${ss.ws.length?`<div class="list" style="margin-top:8px">${ss.ws.map(wItem).join("")}</div>`:""}
-    <div class="row" style="margin-top:12px;gap:8px"><button class="btn line" style="flex:1" data-act="addWorkout">Log workout</button><button class="btn line" style="flex:1" data-act="wkShot" data-d="${d}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.2"/><path d="M8 5l1.5-2h5L16 5"/></svg> Screenshot</button></div>
+    <div class="row" style="margin-top:12px;gap:8px"><button class="btn line" style="flex:1" data-act="addWorkout">Log workout</button><button class="btn" style="flex:1" data-act="wkShot" data-d="${d}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="12" cy="12" r="3.2"/><path d="M8 5l1.5-2h5L16 5"/></svg> Screenshot</button></div>
   </section>
   <section class="card">
     <div class="head"><div><div class="eyebrow">Week of ${short(ws)}</div><h2>Weekly score</h2>
@@ -1107,7 +1107,7 @@ function vTrain(){
   return`<div class="view">
   <section class="card"><div class="head"><div><div class="eyebrow">Week of Sun, ${short(ws)}</div><h2>This week</h2><p class="sub">${done} of ${planned} planned sessions complete${s.profile?" · "+esc(s.profile):""}</p></div><button class="btn line sm" data-act="settings">Edit routine</button></div>
     <div class="plan" style="margin-top:10px">${rows}</div>
-    <div class="row" style="margin-top:12px"><button class="btn" style="flex:1" data-act="addWorkout">Log workout</button><button class="btn ghost" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Screenshot</button></div></section>
+    <div class="row" style="margin-top:12px"><button class="btn line" style="flex:1" data-act="addWorkout">Log workout</button><button class="btn" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Screenshot</button></div></section>
   <section class="card"><div class="stats"><div class="stat"><div class="l">Sessions</div><div class="mid">${ww.length}</div></div><div class="stat"><div class="l">Volume</div><div class="mid">${vol>=10000?n1(vol/1000)+"<small>k lb</small>":n0(vol)+"<small>lb</small>"}</div></div><div class="stat"><div class="l">Run</div><div class="mid">${n1(km)}<small>km</small></div></div></div></section>
   <section class="card"><div class="eyebrow">Personal records</div><h2>Your best work</h2>
     <div class="list" style="margin-top:6px">
@@ -1912,7 +1912,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-13a"; /* bump on every change so phones reload */
+const BUILD="2026-11-13b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
