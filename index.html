@@ -772,13 +772,28 @@ async function processInbox(){
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
     for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
       try{const raw=await getRaw("inbox/"+f.name);const j=JSON.parse(raw.text||"{}");const d=/^\d{4}-\d\d-\d\d$/.test(j.date||"")?j.date:null;
-        if(d){const ak=Math.round(num(j.activeKcal)||0),st=Math.round(num(j.steps)||0);await store.set("health",d,{activeKcal:ak,steps:st,syncedAt:new Date().toISOString()});
+        if(d){const ak=Math.round(num(j.activeKcal)||0),st=Math.round(num(j.steps)||0);const prev=col.health[d]||{};const rec={...prev,activeKcal:ak||prev.activeKcal||0,steps:st||prev.steps||0,syncedAt:new Date().toISOString()};
+          const sl=j.sleep!=null&&String(j.sleep).includes("~")?parseSleep(j.sleep):(sleepNum(j.sleep)?{sleepMin:sleepNum(j.sleep)}:null);if(sl)Object.assign(rec,sl);
+          if(j.sleep!=null&&String(j.sleep).trim()&&!/^\[.*\]$/.test(String(j.sleep).trim()))rec.sleepRaw=String(j.sleep).slice(0,1500);
+          if(j.workouts!=null&&String(j.workouts).trim()&&!/^\[.*\]$/.test(String(j.workouts).trim()))rec.workoutsRaw=String(j.workouts).slice(0,3000);
+          await store.set("health",d,rec);
           let lb=num(j.weightLb);if(lb&&lb<130&&/kg/i.test(String(j.weightUnit||"")))lb=Math.round(lb*2.20462*10)/10;
           if(lb&&lb>70&&lb<400&&(!col.weights[d]||Math.abs(col.weights[d].lb-lb)>0.05))await store.set("weights",d,{date:d,lb:Math.round(lb*10)/10,source:"Apple Health"})}
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
   }catch{}
 }
 const healthOn=d=>col.health[d]||null;
+/* Sleep from a Shortcut: "Value~StartISO~EndISO;..." (Core/Deep/REM/Asleep/Awake/In Bed). Overlaps (Watch + iPhone) are merged. */
+function parseSleep(txt){const segs=[];const st={deep:0,rem:0,core:0};
+  for(const part of String(txt||"").split(/[;\n]+/)){const [v,a,b]=part.split("~").map(x=>(x||"").trim());if(!v||!a||!b)continue;
+    if(/awake|in\s*bed|inbed/i.test(v))continue;const t0=Date.parse(a.replace(" at "," ")),t1=Date.parse(b.replace(" at "," "));if(!(t1>t0)||t1-t0>16*36e5)continue;
+    segs.push([t0,t1]);const m=(t1-t0)/6e4;if(/deep/i.test(v))st.deep+=m;else if(/rem/i.test(v))st.rem+=m;else if(/core/i.test(v))st.core+=m}
+  if(!segs.length)return null;segs.sort((x,y)=>x[0]-y[0]);let tot=0,cs=segs[0][0],ce=segs[0][1];
+  for(const [a,b] of segs.slice(1)){if(a<=ce)ce=Math.max(ce,b);else{tot+=ce-cs;cs=a;ce=b}}tot+=ce-cs;
+  const hmL=t=>new Date(t).toLocaleTimeString("en-CA",{timeZone:HOME_TZ,hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+  return{sleepMin:Math.round(tot/6e4),bed:hmL(segs[0][0]),wake:hmL(Math.max(...segs.map(x=>x[1]))),stages:{deep:Math.round(st.deep),rem:Math.round(st.rem),core:Math.round(st.core)}}}
+function sleepNum(v){const n=num(v);if(!n)return null;return Math.round(n>1000?n/60:n>24?n:n*60)}
+const fmtHM=m=>m==null?"—":Math.floor(m/60)+"h "+pad(Math.round(m%60))+"m";
 function setStatus(){
   const el=$("#status");if(!el)return;
   const msg=syncState==="auth"?`GitHub didn't accept your access token (expired or missing permission). <button class="btn sm" data-act="settings">Reconnect</button>`
@@ -913,6 +928,7 @@ function overnightCard(d){
     <div class="on-stats"><div><div class="l">Last night</div><div class="v">${hmF(ln.mins)}</div><div class="s">last food → first food</div></div>
     <div><div class="l">7-night average</div><div class="v">${hmF(avg)}</div><div class="s">overnight stretch</div></div>
     <div><div class="l">Clean nights</div><div class="v">${judged.length?`${cleanN} <span>of</span> ${judged.length}`:"—"}</div><div class="s">flex nights not counted</div></div></div>
+    ${(()=>{const h=healthOn(d);return h?.sleepMin?`<div class="on-line"><b>Slept ${fmtHM(h.sleepMin)}</b>${h.bed?` · ${fmtT(h.bed)} to ${fmtT(h.wake)}`:""}${h.stages?.deep?` · deep ${fmtHM(h.stages.deep)} · REM ${fmtHM(h.stages.rem)}`:""}</div>`:""})()}
     ${ln.last||ln.first?`<div class="on-line">${ln.last?"Last meal "+fmtT(ln.last):""}${ln.last&&ln.first?" · ":""}${ln.first?"First meal "+fmtT(ln.first):""}</div>`:""}
     <div class="on-chart">${bars}</div>
     <p class="on-note">Each bar: last food of the evening to first food next morning, in hours. <b class="ok">✓</b> nothing after the ${fmtT(s.close)} close · orange = ate after close · <b class="fx">F</b> flex night (not counted).</p></section>`;
@@ -1513,20 +1529,30 @@ function waterHelpSheet(){
 }
 function healthSheet(){
   const url=`https://api.github.com/repos/${cfg?.repo||DEFAULT_REPO}/contents/inbox/health-[Stamp].json`;
-  const body='{"date":"[Day]","activeKcal":"[Active]","steps":"[Steps]","weightLb":"[Weight]"}';
+  const body='{"date":"[Day]","activeKcal":"[Active]","steps":"[Steps]","weightLb":"[Weight]","sleep":"[Sleep]","workouts":"[Workouts]"}';
+  const ks=Object.keys(col.health||{}).sort();const lk=ks[ks.length-1],L=lk?col.health[lk]:null;
+  const diag=L?`<div class="card" style="margin:10px 0;padding:14px;background:var(--surface-2)"><div class="eyebrow">Last sync received · ${esc(short(lk))}</div>
+    <div class="small" style="line-height:1.7;margin-top:6px">Active ${n0(L.activeKcal||0)} kcal · ${n0(L.steps||0)} steps<br>
+    Sleep: ${L.sleepMin?`<b>${fmtHM(L.sleepMin)}</b>${L.bed?` (${fmtT(L.bed)} to ${fmtT(L.wake)})`:""}${L.stages?.deep?` · deep ${fmtHM(L.stages.deep)}, REM ${fmtHM(L.stages.rem)}, core ${fmtHM(L.stages.core)}`:""}`:L.sleepRaw?"received but couldn't read it (see raw below)":"not sent"}<br>
+    Workouts: ${L.workoutsRaw?"received (raw below)":"not sent"}</div>
+    ${L.sleepRaw&&!L.sleepMin?`<div class="f"><label>Sleep raw</label><textarea readonly rows="3">${esc(L.sleepRaw)}</textarea></div>`:""}
+    ${L.workoutsRaw?`<div class="f"><label>Workouts raw (test: tell the Coach or Claude what you see)</label><textarea readonly rows="4">${esc(L.workoutsRaw)}</textarea></div>`:""}</div>`:"";
   openSheet(`<div class="head"><h3>Apple Health sync</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
-  <p class="sub">An iPhone Shortcut sends today's Apple Watch active calories, steps and latest weight to your log. The app picks it up next time it opens. Workouts still come from screenshots or the Coach: Shortcuts can't read Watch workouts reliably.</p>
+  <p class="sub">An iPhone Shortcut sends today's Apple Watch active calories, steps, latest weight and last night's sleep to your log. Workouts are a test for now: the app records what arrives but doesn't log it yet.</p>
+  ${diag}
   <ol class="small" style="padding-left:18px;line-height:1.65">
-   <li>Shortcuts app → <b>+</b> → name it <b>Train & Fuel Sync</b>.</li>
+   <li>Shortcuts app → open <b>Train & Fuel Sync</b> (or <b>+</b> → name it that).</li>
    <li><b>Find Health Samples</b> → Type <b>Active Energy</b>, filter Start Date <b>is today</b>. Then <b>Get Details of Health Samples</b> → <b>Value</b>. Then <b>Calculate Statistics</b> → <b>Sum</b>. Then <b>Set Variable</b> → <b>Active</b>.</li>
    <li>Same again with Type <b>Steps</b>, saving to variable <b>Steps</b>.</li>
    <li><b>Find Health Samples</b> → Type <b>Weight</b>, Sort by Start Date <b>Latest First</b>, Limit <b>1</b> → <b>Get Details</b> → <b>Value</b> → <b>Set Variable</b> → <b>Weight</b>.</li>
+   <li><b>Sleep (new):</b> <b>Find Health Samples</b> → Type <b>Sleep Analysis</b>, Start Date <b>is in the last 1 days</b>, Sort by Start Date <b>Oldest First</b>. Then <b>Repeat with Each</b>, and inside it a <b>Text</b> action: <code>Value~Start Date~End Date</code> using the Repeat Item's fields (tap each date and set Date Format to <b>ISO 8601</b>). After <b>End Repeat</b>: <b>Combine Text</b> with Custom separator <code>;</code> → <b>Set Variable</b> → <b>Sleep</b>.</li>
+   <li><b>Workouts (test):</b> <b>Find Health Samples</b> → if <b>Workouts</b> is in the Type list, pick it, Start Date <b>is in the last 1 days</b>. <b>Repeat with Each</b> → <b>Text</b>: tap Repeat Item and add whatever fields it offers (name, type, start date, duration, energy, distance), separated by <code>~</code>. After <b>End Repeat</b>: <b>Combine Text</b> with <code>;</code> → <b>Set Variable</b> → <b>Workouts</b>. If Workouts isn't in the list, skip this step and leave [Workouts] empty.</li>
    <li><b>Format Date</b> (Current Date, Custom <code>yyyy-MM-dd</code>) → variable <b>Day</b>. Another <b>Format Date</b> (Custom <code>yyyyMMdd-HHmmss</code>) → variable <b>Stamp</b>.</li>
    <li><b>Text</b>: paste the line below and swap each [ ] for the matching variable.</li>
    <li><b>Base64 Encode</b> the Text (Line Breaks: <b>None</b>).</li>
    <li><b>Get Contents of URL</b>: the URL below (swap in Stamp). Method <b>PUT</b>. Headers: <code>Authorization</code> = <code>Bearer your-token</code> (the same token you pasted into this app) and <code>Accept</code> = <code>application/vnd.github+json</code>. Request Body <b>JSON</b>: <code>message</code> = <code>Health sync</code>, <code>content</code> = <b>Base64 Encoded</b>.</li>
-   <li>Run it once and allow Health access. Then reopen this app: Today's energy balance shows Watch calories and steps.</li>
-   <li>To make it automatic: Automation → <b>Time of Day</b> 7:50 PM → Run Immediately → Train & Fuel Sync. iPhone blocks Health while the phone is locked, so if a run is missed, tap the shortcut yourself.</li>
+   <li>Run it once, allow Health access for Sleep (and Workouts), then reopen this app and open this screen again: the box at the top shows what arrived.</li>
+   <li>Automatic runs: Automation → <b>Time of Day</b> 7:50 PM → Run Immediately → Train & Fuel Sync. iPhone blocks Health while the phone is locked, so if a run is missed, tap the shortcut yourself.</li>
   </ol>
   <div class="f"><label>Text line</label><input readonly value='${esc(body)}' onclick="this.select()"></div>
   <div class="f" style="margin-top:8px"><label>URL</label><input readonly value="${esc(url)}" onclick="this.select()"></div>`,el=>{el.querySelector("[data-x]").onclick=closeSheet});
@@ -1578,7 +1604,7 @@ function settingsSheet(){
 
 /* ---------- coach (ElevenLabs agent: voice + text) ---------- */
 let conv=null,convMode=null,convStatus="disconnected",agentSpeaking=false,idleTimer=null,pendingActions=[],awaiting=false,saveChatT=null;
-function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.avgHr?", avg HR "+w.avgHr+" bpm":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
+function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?.sleepMin?` [Sleep: ${fmtHM(hl.sleepMin)}${hl.bed?`, ${hl.bed}-${hl.wake}`:""}${hl.stages?.deep?`, deep ${fmtHM(hl.stages.deep)}, REM ${fmtHM(hl.stages.rem)}`:""}]`:""}${hl?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.avgHr?", avg HR "+w.avgHr+" bpm":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
 function buildContext(){
   const s=S(),t=todayStr(),now=nowHM(),ws=weekStart(t),[cLo,cHi]=carbRange(s);
   const today=mealsOn(t);
@@ -1941,7 +1967,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14a"; /* bump on every change so phones reload */
+const BUILD="2026-11-14b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
