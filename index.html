@@ -771,11 +771,11 @@ async function processInbox(){
         if(d&&ml>=50&&ml<=3000){const cur=col.water[d]||{};const seen=Array.isArray(cur.inbox)?cur.inbox:[];if(!seen.includes(f.name))await store.set("water",d,{...cur,ml:(+cur.ml||0)+ml,inbox:[...seen,f.name].slice(-40)})}
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
     for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
-      try{const raw=await getRaw("inbox/"+f.name);const j=JSON.parse(raw.text||"{}");const d=toDay(j.date)||todayStr();
+      try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const d=toDay(j.date)||todayStr();
         if(d){const ak=Math.round(num(j.activeKcal)||0),st=Math.round(num(j.steps)||0);const prev=col.health[d]||{};const rec={...prev,activeKcal:ak||prev.activeKcal||0,steps:st||prev.steps||0,syncedAt:new Date().toISOString()};
           let other={};if(j.sleep!=null&&String(j.sleep).includes("~")){const by=sleepByDay(j.sleep);if(by[d])Object.assign(rec,{napMin:0},by[d]);else{const ks=Object.keys(by).sort();if(ks.length)Object.assign(rec,{napMin:0},by[ks[ks.length-1]])}for(const k of Object.keys(by))if(k!==d)other[k]=by[k]}
           else if(sleepNum(j.sleep))rec.sleepMin=sleepNum(j.sleep);
-          for(const [k,v] of Object.entries(other))if(!col.health[k]?.sleepMin||k<d)await store.set("health",k,{...(col.health[k]||{}),...v});
+          for(const [k,v] of Object.entries(other))if(!(col.health[k]?.sleepMin>=v.sleepMin))await store.set("health",k,{...(col.health[k]||{}),...v});
           if(j.sleep!=null&&String(j.sleep).trim()&&!/^\[.*\]$/.test(String(j.sleep).trim()))rec.sleepRaw=String(j.sleep).slice(0,1500);
           if(j.workouts!=null&&String(j.workouts).trim()&&!/^\[.*\]$/.test(String(j.workouts).trim()))rec.workoutsRaw=String(j.workouts).slice(0,3000);
           await store.set("health",d,rec);
@@ -800,12 +800,17 @@ function parseSleepNights(txt){const segs=[];
   return groups.map(gs=>{const st={deep:0,rem:0,core:0};for(const [a,b,v] of gs){const m=(b-a)/6e4;if(/deep/i.test(v))st.deep+=m;else if(/rem/i.test(v))st.rem+=m;else if(/core/i.test(v))st.core+=m}
     let tot=0,cs=gs[0][0],ce=gs[0][1];for(const [a,b] of gs.slice(1)){if(a<=ce)ce=Math.max(ce,b);else{tot+=ce-cs;cs=a;ce=b}}tot+=ce-cs;const wk=Math.max(...gs.map(x=>x[1]));
     return{wakeTs:wk,sleepMin:Math.round(tot/6e4),bed:hmL(gs[0][0]),wake:hmL(wk),stages:{deep:Math.round(st.deep),rem:Math.round(st.rem),core:Math.round(st.core)}}}).filter(n=>n.sleepMin>=15)}
+function looseJSON(t){t=String(t||"").trim();try{return JSON.parse(t||"{}")}catch{}t=t.replace(/^\{+\s*/,"{").replace(/\s*\}+$/,"}");try{return JSON.parse(t)}catch{}
+  const o={};for(const m of t.matchAll(/"(\w+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g))o[m[1]]=m[2];return o}
+const MONS={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
 function normSp(v){return String(v||"").replace(/[   ]/g," ").trim()}
 function wallTs(y,mo,d,h,mi,se){let t=Date.UTC(y,mo-1,d,h,mi,se||0);for(let k=0;k<2;k++){const p=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:HOME_TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(t).map(x=>[x.type,x.value]));
   const seen=Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second);t+=Date.UTC(y,mo-1,d,h,mi,se||0)-seen}return t}
 function anyDate(v){v=normSp(v);if(!v)return NaN;if(/^\d{4}-\d\d-\d\dT/.test(v))return Date.parse(v);
   const m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[,\s]+(?:at\s+)?(\d{1,2}):(\d\d)(?::(\d\d))?\s*([AaPp][Mm])?$/);
   if(m){let h=+m[4];if(m[7]){const pm=/p/i.test(m[7]);if(h===12)h=pm?12:0;else if(pm)h+=12}return wallTs(+m[1],+m[2],+m[3],h,+m[5],+(m[6]||0))}
+  const n=v.match(/^([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})(?:[,\s]+(?:at\s+)?(\d{1,2}):(\d\d)(?::(\d\d))?\s*([AaPp][Mm])?)?$/);
+  if(n&&MONS[n[1].toLowerCase()]){let h=+(n[4]||0);if(n[7]){const pm=/p/i.test(n[7]);if(h===12)h=pm?12:0;else if(pm)h+=12}return wallTs(+n[3],MONS[n[1].toLowerCase()],+n[2],h,+(n[5]||0),+(n[6]||0))}
   const t=Date.parse(v.replace(/\s+at\s+/i," "));return t}
 function toDay(v){v=normSp(v);if(/^\d{4}-\d\d-\d\d$/.test(v))return v;const t=anyDate(v);if(isNaN(t))return null;return new Intl.DateTimeFormat("en-CA",{timeZone:HOME_TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(t)}
 function sleepNum(v){const n=num(v);if(!n)return null;return Math.round(n>1000?n/60:n>24?n:n*60)}
@@ -1985,7 +1990,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14i"; /* bump on every change so phones reload */
+const BUILD="2026-11-14j"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
@@ -1995,7 +2000,7 @@ var pendingSleep=(()=>{try{const q=new URLSearchParams(location.search);const v=
 async function applyPendingSleep(){if(pendingSleep==null||!cfg)return;const raw=pendingSleep;pendingSleep=null;try{localStorage.removeItem("tf-pending-sleep")}catch{}
   try{localStorage.setItem("tf-sleep-last-raw",JSON.stringify({at:new Date().toISOString(),raw:raw.slice(0,4000)}))}catch{}
   const by=sleepByDay(raw);const ks=Object.keys(by).sort();if(!ks.length){toast("Couldn't read the sleep data. Open Settings → Apple Health sync setup.",6000);return}
-  for(const d of ks)await store.set("health",d,{...(col.health[d]||{}),...by[d],sleepSyncedAt:new Date().toISOString()});
+  for(const d of ks){if(d!==ks[ks.length-1]&&col.health[d]?.sleepMin>=by[d].sleepMin)continue;await store.set("health",d,{...(col.health[d]||{}),...by[d],sleepSyncedAt:new Date().toISOString()})}
   const last=by[ks[ks.length-1]];toast(`😴 Sleep synced: ${fmtHM(last.sleepMin)} last night (${fmtT(last.bed)} to ${fmtT(last.wake)})`,6000);render()}
 route();setStatus();if(cfg)loadAll();
 </script>
