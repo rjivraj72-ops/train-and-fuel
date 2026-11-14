@@ -773,7 +773,9 @@ async function processInbox(){
     for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
       try{const raw=await getRaw("inbox/"+f.name);const j=JSON.parse(raw.text||"{}");const d=toDay(j.date)||todayStr();
         if(d){const ak=Math.round(num(j.activeKcal)||0),st=Math.round(num(j.steps)||0);const prev=col.health[d]||{};const rec={...prev,activeKcal:ak||prev.activeKcal||0,steps:st||prev.steps||0,syncedAt:new Date().toISOString()};
-          const sl=j.sleep!=null&&String(j.sleep).includes("~")?parseSleep(j.sleep):(sleepNum(j.sleep)?{sleepMin:sleepNum(j.sleep)}:null);if(sl){const{wakeTs,...x}=sl;Object.assign(rec,{napMin:0},x)}
+          let other={};if(j.sleep!=null&&String(j.sleep).includes("~")){const by=sleepByDay(j.sleep);if(by[d])Object.assign(rec,{napMin:0},by[d]);else{const ks=Object.keys(by).sort();if(ks.length)Object.assign(rec,{napMin:0},by[ks[ks.length-1]])}for(const k of Object.keys(by))if(k!==d)other[k]=by[k]}
+          else if(sleepNum(j.sleep))rec.sleepMin=sleepNum(j.sleep);
+          for(const [k,v] of Object.entries(other))if(!col.health[k]?.sleepMin||k<d)await store.set("health",k,{...(col.health[k]||{}),...v});
           if(j.sleep!=null&&String(j.sleep).trim()&&!/^\[.*\]$/.test(String(j.sleep).trim()))rec.sleepRaw=String(j.sleep).slice(0,1500);
           if(j.workouts!=null&&String(j.workouts).trim()&&!/^\[.*\]$/.test(String(j.workouts).trim()))rec.workoutsRaw=String(j.workouts).slice(0,3000);
           await store.set("health",d,rec);
@@ -1620,7 +1622,7 @@ function settingsSheet(){
 
 /* ---------- coach (ElevenLabs agent: voice + text) ---------- */
 let conv=null,convMode=null,convStatus="disconnected",agentSpeaking=false,idleTimer=null,pendingActions=[],awaiting=false,saveChatT=null;
-function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?.sleepMin?` [Sleep: ${fmtHM(hl.sleepMin)}${hl.bed?`, ${hl.bed}-${hl.wake}`:""}${hl.stages?.deep?`, deep ${fmtHM(hl.stages.deep)}, REM ${fmtHM(hl.stages.rem)}`:""}${hl.napMin?`, plus a ${fmtHM(hl.napMin)} nap`:""}]`:""}${hl?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.avgHr?", avg HR "+w.avgHr+" bpm":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
+function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?.sleepMin?` [Sleep: ${fmtHM(hl.sleepMin)}${hl.bed?`, ${hl.bed}-${hl.wake}`:""}${hl.stages?.deep?`, deep ${fmtHM(hl.stages.deep)}, REM ${fmtHM(hl.stages.rem)}`:""}${hl.napMin?`, plus a ${fmtHM(hl.napMin)} nap`:""}]`:""}${hl?.activeKcal?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.avgHr?", avg HR "+w.avgHr+" bpm":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
 function buildContext(){
   const s=S(),t=todayStr(),now=nowHM(),ws=weekStart(t),[cLo,cHi]=carbRange(s);
   const today=mealsOn(t);
@@ -1983,7 +1985,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14h"; /* bump on every change so phones reload */
+const BUILD="2026-11-14i"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
