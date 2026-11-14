@@ -772,7 +772,8 @@ async function processInbox(){
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
     for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
       try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const d=toDay(j.date)||todayStr();
-        if(d){const ak=Math.round(num(j.activeKcal)||0),st=Math.round(num(j.steps)||0);const prev=col.health[d]||{};const rec={...prev,activeKcal:ak||prev.activeKcal||0,steps:st||prev.steps||0,syncedAt:new Date().toISOString()};
+        if(d){const hn=v=>Math.round(num(String(v??"").replace(/[,\s]/g,""))||0);const ak=hn(j.activeKcal),st=hn(j.steps);const prev=col.health[d]||{};const rec={...prev,activeKcal:Math.max(ak,prev.activeKcal||0),steps:Math.max(st,prev.steps||0),syncedAt:new Date().toISOString()};
+          {const yd=addDays(d,-1),yak=hn(j.yActiveKcal),yst=hn(j.ySteps);if(yak||yst){const yp=col.health[yd]||{};await store.set("health",yd,{...yp,activeKcal:Math.max(yak,yp.activeKcal||0),steps:Math.max(yst,yp.steps||0),syncedAt:new Date().toISOString()})}}
           let other={};if(j.sleep!=null&&String(j.sleep).includes("~")){const by=sleepByDay(j.sleep);if(by[d])Object.assign(rec,{napMin:0},by[d]);else{const ks=Object.keys(by).sort();if(ks.length)Object.assign(rec,{napMin:0},by[ks[ks.length-1]])}for(const k of Object.keys(by))if(k!==d)other[k]=by[k]}
           else if(sleepNum(j.sleep))rec.sleepMin=sleepNum(j.sleep);
           for(const [k,v] of Object.entries(other))if(!(col.health[k]?.sleepMin>=v.sleepMin))await store.set("health",k,{...(col.health[k]||{}),...v});
@@ -1990,7 +1991,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14j"; /* bump on every change so phones reload */
+const BUILD="2026-11-14k"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
