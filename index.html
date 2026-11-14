@@ -773,7 +773,7 @@ async function processInbox(){
     for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
       try{const raw=await getRaw("inbox/"+f.name);const j=JSON.parse(raw.text||"{}");const d=toDay(j.date)||todayStr();
         if(d){const ak=Math.round(num(j.activeKcal)||0),st=Math.round(num(j.steps)||0);const prev=col.health[d]||{};const rec={...prev,activeKcal:ak||prev.activeKcal||0,steps:st||prev.steps||0,syncedAt:new Date().toISOString()};
-          const sl=j.sleep!=null&&String(j.sleep).includes("~")?parseSleep(j.sleep):(sleepNum(j.sleep)?{sleepMin:sleepNum(j.sleep)}:null);if(sl){const{wakeTs,...x}=sl;Object.assign(rec,x)}
+          const sl=j.sleep!=null&&String(j.sleep).includes("~")?parseSleep(j.sleep):(sleepNum(j.sleep)?{sleepMin:sleepNum(j.sleep)}:null);if(sl){const{wakeTs,...x}=sl;Object.assign(rec,{napMin:0},x)}
           if(j.sleep!=null&&String(j.sleep).trim()&&!/^\[.*\]$/.test(String(j.sleep).trim()))rec.sleepRaw=String(j.sleep).slice(0,1500);
           if(j.workouts!=null&&String(j.workouts).trim()&&!/^\[.*\]$/.test(String(j.workouts).trim()))rec.workoutsRaw=String(j.workouts).slice(0,3000);
           await store.set("health",d,rec);
@@ -784,7 +784,9 @@ async function processInbox(){
 }
 const healthOn=d=>col.health[d]||null;
 /* Sleep from a Shortcut: "Value~StartISO~EndISO;..." (Core/Deep/REM/Asleep/Awake/In Bed). Overlaps (Watch + iPhone) are merged. */
-function parseSleep(txt){const nights=parseSleepNights(txt);return nights.length?nights[nights.length-1]:null}
+function sleepByDay(txt){const by={};for(const n of parseSleepNights(txt)){const d=toDay(new Date(n.wakeTs).toISOString());if(!d)continue;(by[d]=by[d]||[]).push(n)}
+  const out={};for(const [d,ns] of Object.entries(by)){ns.sort((a,b)=>b.sleepMin-a.sleepMin);const{wakeTs,...main}=ns[0];out[d]={...main,napMin:ns.slice(1).reduce((a,n)=>a+n.sleepMin,0)}}return out}
+function parseSleep(txt){const by=sleepByDay(txt);const ks=Object.keys(by).sort();return ks.length?by[ks[ks.length-1]]:null}
 /* Groups samples into nights (a gap of 4h+ starts a new night). Returns one summary per night, oldest first. */
 function parseSleepNights(txt){const segs=[];
   for(const part of String(txt||"").split(/[;\n]+/)){const f=part.split("~").map(x=>normSp(x));if(f.length<2)continue;
@@ -795,7 +797,7 @@ function parseSleepNights(txt){const segs=[];
   const hmL=t=>new Date(t).toLocaleTimeString("en-CA",{timeZone:HOME_TZ,hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
   return groups.map(gs=>{const st={deep:0,rem:0,core:0};for(const [a,b,v] of gs){const m=(b-a)/6e4;if(/deep/i.test(v))st.deep+=m;else if(/rem/i.test(v))st.rem+=m;else if(/core/i.test(v))st.core+=m}
     let tot=0,cs=gs[0][0],ce=gs[0][1];for(const [a,b] of gs.slice(1)){if(a<=ce)ce=Math.max(ce,b);else{tot+=ce-cs;cs=a;ce=b}}tot+=ce-cs;const wk=Math.max(...gs.map(x=>x[1]));
-    return{wakeTs:wk,sleepMin:Math.round(tot/6e4),bed:hmL(gs[0][0]),wake:hmL(wk),stages:{deep:Math.round(st.deep),rem:Math.round(st.rem),core:Math.round(st.core)}}}).filter(n=>n.sleepMin>=60)}
+    return{wakeTs:wk,sleepMin:Math.round(tot/6e4),bed:hmL(gs[0][0]),wake:hmL(wk),stages:{deep:Math.round(st.deep),rem:Math.round(st.rem),core:Math.round(st.core)}}}).filter(n=>n.sleepMin>=15)}
 function normSp(v){return String(v||"").replace(/[   ]/g," ").trim()}
 function wallTs(y,mo,d,h,mi,se){let t=Date.UTC(y,mo-1,d,h,mi,se||0);for(let k=0;k<2;k++){const p=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:HOME_TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(t).map(x=>[x.type,x.value]));
   const seen=Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second);t+=Date.UTC(y,mo-1,d,h,mi,se||0)-seen}return t}
@@ -940,7 +942,7 @@ function overnightCard(d){
     <div class="on-stats"><div><div class="l">Last night</div><div class="v">${hmF(ln.mins)}</div><div class="s">last food → first food</div></div>
     <div><div class="l">7-night average</div><div class="v">${hmF(avg)}</div><div class="s">overnight stretch</div></div>
     <div><div class="l">Clean nights</div><div class="v">${judged.length?`${cleanN} <span>of</span> ${judged.length}`:"—"}</div><div class="s">flex nights not counted</div></div></div>
-    ${(()=>{const h=healthOn(d);return h?.sleepMin?`<div class="on-line"><b>Slept ${fmtHM(h.sleepMin)}</b>${h.bed?` · ${fmtT(h.bed)} to ${fmtT(h.wake)}`:""}${h.stages?.deep?` · deep ${fmtHM(h.stages.deep)} · REM ${fmtHM(h.stages.rem)}`:""}</div>`:""})()}
+    ${(()=>{const h=healthOn(d);return h?.sleepMin?`<div class="on-line"><b>Slept ${fmtHM(h.sleepMin)}</b>${h.bed?` · ${fmtT(h.bed)} to ${fmtT(h.wake)}`:""}${h.stages?.deep?` · deep ${fmtHM(h.stages.deep)} · REM ${fmtHM(h.stages.rem)}`:""}${h.napMin?` · nap ${fmtHM(h.napMin)}`:""}</div>`:""})()}
     ${ln.last||ln.first?`<div class="on-line">${ln.last?"Last meal "+fmtT(ln.last):""}${ln.last&&ln.first?" · ":""}${ln.first?"First meal "+fmtT(ln.first):""}</div>`:""}
     <div class="on-chart">${bars}</div>
     <p class="on-note">Each bar: last food of the evening to first food next morning, in hours. <b class="ok">✓</b> nothing after the ${fmtT(s.close)} close · orange = ate after close · <b class="fx">F</b> flex night (not counted).</p></section>`;
@@ -1618,7 +1620,7 @@ function settingsSheet(){
 
 /* ---------- coach (ElevenLabs agent: voice + text) ---------- */
 let conv=null,convMode=null,convStatus="disconnected",agentSpeaking=false,idleTimer=null,pendingActions=[],awaiting=false,saveChatT=null;
-function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?.sleepMin?` [Sleep: ${fmtHM(hl.sleepMin)}${hl.bed?`, ${hl.bed}-${hl.wake}`:""}${hl.stages?.deep?`, deep ${fmtHM(hl.stages.deep)}, REM ${fmtHM(hl.stages.rem)}`:""}]`:""}${hl?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.avgHr?", avg HR "+w.avgHr+" bpm":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
+function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?.sleepMin?` [Sleep: ${fmtHM(hl.sleepMin)}${hl.bed?`, ${hl.bed}-${hl.wake}`:""}${hl.stages?.deep?`, deep ${fmtHM(hl.stages.deep)}, REM ${fmtHM(hl.stages.rem)}`:""}${hl.napMin?`, plus a ${fmtHM(hl.napMin)} nap`:""}]`:""}${hl?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.avgHr?", avg HR "+w.avgHr+" bpm":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
 function buildContext(){
   const s=S(),t=todayStr(),now=nowHM(),ws=weekStart(t),[cLo,cHi]=carbRange(s);
   const today=mealsOn(t);
@@ -1981,7 +1983,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14g"; /* bump on every change so phones reload */
+const BUILD="2026-11-14h"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
@@ -1990,10 +1992,9 @@ if(cfg&&loadCache())reapplyPending();
 var pendingSleep=(()=>{try{const q=new URLSearchParams(location.search);const v=q.get("sleep");if(v!=null){history.replaceState(null,"",location.pathname+location.hash);try{localStorage.setItem("tf-pending-sleep",v)}catch{}return v}return localStorage.getItem("tf-pending-sleep")}catch{return null}})();
 async function applyPendingSleep(){if(pendingSleep==null||!cfg)return;const raw=pendingSleep;pendingSleep=null;try{localStorage.removeItem("tf-pending-sleep")}catch{}
   try{localStorage.setItem("tf-sleep-last-raw",JSON.stringify({at:new Date().toISOString(),raw:raw.slice(0,4000)}))}catch{}
-  const ns=parseSleepNights(raw);if(!ns.length){toast("Couldn't read the sleep data. Open Settings → Apple Health sync setup.",6000);return}
-  for(const n of ns){const d=toDay(new Date(n.wakeTs).toISOString())||todayStr();const{wakeTs,...rest}=n;
-    await store.set("health",d,{...(col.health[d]||{}),...rest,sleepSyncedAt:new Date().toISOString()})}
-  const last=ns[ns.length-1];toast(`😴 Sleep synced: ${fmtHM(last.sleepMin)} last night (${fmtT(last.bed)} to ${fmtT(last.wake)})`,6000);render()}
+  const by=sleepByDay(raw);const ks=Object.keys(by).sort();if(!ks.length){toast("Couldn't read the sleep data. Open Settings → Apple Health sync setup.",6000);return}
+  for(const d of ks)await store.set("health",d,{...(col.health[d]||{}),...by[d],sleepSyncedAt:new Date().toISOString()});
+  const last=by[ks[ks.length-1]];toast(`😴 Sleep synced: ${fmtHM(last.sleepMin)} last night (${fmtT(last.bed)} to ${fmtT(last.wake)})`,6000);render()}
 route();setStatus();if(cfg)loadAll();
 </script>
 </body>
