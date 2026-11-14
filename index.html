@@ -1958,7 +1958,7 @@ $("#prevDay").onclick=()=>{date=addDays(date,-1);render()};
 $("#nextDay").onclick=()=>{date=addDays(date,1);render()};
 $("#dateLabel").onclick=()=>{date=todayStr();render()};
 $("#settingsBtn").onclick=settingsSheet;
-let toastT;function toast(m){document.querySelector(".toast")?.remove();const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=m;document.body.appendChild(t);clearTimeout(toastT);toastT=setTimeout(()=>t.remove(),2200)}
+let toastT;function toast(m,ms){document.querySelector(".toast")?.remove();const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=m;t.onclick=()=>t.remove();document.body.appendChild(t);clearTimeout(toastT);toastT=setTimeout(()=>t.remove(),ms||2200)}
 const VIEWS=["today","food","train","trends","coach"];
 let quickWater=null;{const m=location.hash.match(/^#water=(\d{2,4})$/);if(m){quickWater=+m[1];history.replaceState(null,"",location.pathname+location.search+"#today")}}
 async function applyQuickWater(){if(!quickWater||!lastLoad)return;const ml=quickWater;quickWater=null;if(ml<50||ml>3000)return;const t=todayStr();waterUndo.push({d:t,ml});
@@ -1981,7 +1981,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14f"; /* bump on every change so phones reload */
+const BUILD="2026-11-14g"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
@@ -1993,7 +1993,7 @@ async function applyPendingSleep(){if(pendingSleep==null||!cfg)return;const raw=
   const ns=parseSleepNights(raw);if(!ns.length){toast("Couldn't read the sleep data. Open Settings → Apple Health sync setup.",6000);return}
   for(const n of ns){const d=toDay(new Date(n.wakeTs).toISOString())||todayStr();const{wakeTs,...rest}=n;
     await store.set("health",d,{...(col.health[d]||{}),...rest,sleepSyncedAt:new Date().toISOString()})}
-  const last=ns[ns.length-1];toast(`Sleep synced: ${fmtHM(last.sleepMin)} last night${ns.length>1?` (+${ns.length-1} earlier)`:""}`);render()}
+  const last=ns[ns.length-1];toast(`😴 Sleep synced: ${fmtHM(last.sleepMin)} last night (${fmtT(last.bed)} to ${fmtT(last.wake)})`,6000);render()}
 route();setStatus();if(cfg)loadAll();
 </script>
 </body>
