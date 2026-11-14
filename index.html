@@ -1562,24 +1562,13 @@ function healthSheet(){
   let lr=null;try{lr=JSON.parse(localStorage.getItem("tf-sleep-last-raw")||"null")}catch{}
   const lrBox=lr?`<div class="f" style="margin:10px 0"><label>Last sleep link received (${esc(new Date(lr.at).toLocaleString("en-CA",{timeZone:HOME_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}) · ${lr.raw.split(/[;\n]+/).filter(Boolean).length} pieces</label><textarea readonly rows="6">${esc(lr.raw.slice(0,1200)||"(empty)")}</textarea></div>`:"";
   openSheet(`<div class="head"><h3>Apple Health sync</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
-  <p class="sub">An iPhone Shortcut sends today's Apple Watch active calories, steps, latest weight and last night's sleep to your log. Workouts are a test for now: the app records what arrives but doesn't log it yet.</p>
+  <p class="sub">Your <b>Sleep Sync</b> shortcut uploads last night's sleep each morning (9 AM automation). The app reads it when it opens: it shows on the Overnight stretch card and the Coach can see it. If a night is missing, run Sleep Sync once from the Shortcuts app.</p>
   ${lrBox}${diag}
-  <ol class="small" style="padding-left:18px;line-height:1.65">
-   <li>Shortcuts app → open <b>Train & Fuel Sync</b> (or <b>+</b> → name it that).</li>
-   <li><b>Find Health Samples</b> → Type <b>Active Energy</b>, filter Start Date <b>is today</b>. Then <b>Get Details of Health Samples</b> → <b>Value</b>. Then <b>Calculate Statistics</b> → <b>Sum</b>. Then <b>Set Variable</b> → <b>Active</b>.</li>
-   <li>Same again with Type <b>Steps</b>, saving to variable <b>Steps</b>.</li>
-   <li><b>Find Health Samples</b> → Type <b>Weight</b>, Sort by Start Date <b>Latest First</b>, Limit <b>1</b> → <b>Get Details</b> → <b>Value</b> → <b>Set Variable</b> → <b>Weight</b>.</li>
-   <li><b>Sleep (new):</b> <b>Find Health Samples</b> → Type <b>Sleep Analysis</b>, Start Date <b>is in the last 1 days</b>, Sort by Start Date <b>Oldest First</b>. Then <b>Repeat with Each</b>, and inside it a <b>Text</b> action: <code>Value~Start Date~End Date</code> using the Repeat Item's fields (tap each date and set Date Format to <b>ISO 8601</b>). After <b>End Repeat</b>: <b>Combine Text</b> with Custom separator <code>;</code> → <b>Set Variable</b> → <b>Sleep</b>.</li>
-   <li><b>Workouts (test):</b> <b>Find Health Samples</b> → if <b>Workouts</b> is in the Type list, pick it, Start Date <b>is in the last 1 days</b>. <b>Repeat with Each</b> → <b>Text</b>: tap Repeat Item and add whatever fields it offers (name, type, start date, duration, energy, distance), separated by <code>~</code>. After <b>End Repeat</b>: <b>Combine Text</b> with <code>;</code> → <b>Set Variable</b> → <b>Workouts</b>. If Workouts isn't in the list, skip this step and leave [Workouts] empty.</li>
-   <li><b>Format Date</b> (Current Date, Custom <code>yyyy-MM-dd</code>) → variable <b>Day</b>. Another <b>Format Date</b> (Custom <code>yyyyMMdd-HHmmss</code>) → variable <b>Stamp</b>.</li>
-   <li><b>Text</b>: paste the line below and swap each [ ] for the matching variable.</li>
-   <li><b>Base64 Encode</b> the Text (Line Breaks: <b>None</b>).</li>
-   <li><b>Get Contents of URL</b>: the URL below (swap in Stamp). Method <b>PUT</b>. Headers: <code>Authorization</code> = <code>Bearer your-token</code> (the same token you pasted into this app) and <code>Accept</code> = <code>application/vnd.github+json</code>. Request Body <b>JSON</b>: <code>message</code> = <code>Health sync</code>, <code>content</code> = <b>Base64 Encoded</b>.</li>
-   <li>Run it once, allow Health access for Sleep (and Workouts), then reopen this app and open this screen again: the box at the top shows what arrived.</li>
-   <li>Automatic runs: Automation → <b>Time of Day</b> 7:50 PM → Run Immediately → Train & Fuel Sync. iPhone blocks Health while the phone is locked, so if a run is missed, tap the shortcut yourself.</li>
-  </ol>
+  <p class="small muted" style="margin-top:10px">Workouts can't be read by Shortcuts, so log them with the Photo button (Peloton Strength+ volume only appears in Peloton anyway).</p>
+  <details class="small" style="margin-top:10px"><summary>Technical details (for rebuilding the shortcut)</summary>
+  <p>The shortcut PUTs a Base64 JSON file to the URL below with header <code>Authorization: Bearer &lt;token&gt;</code>. The JSON can include date, sleep ("Value~Start~End;…"), activeKcal, steps, weightLb.</p>
   <div class="f"><label>Text line</label><input readonly value='${esc(body)}' onclick="this.select()"></div>
-  <div class="f" style="margin-top:8px"><label>URL</label><input readonly value="${esc(url)}" onclick="this.select()"></div>`,el=>{el.querySelector("[data-x]").onclick=closeSheet});
+  <div class="f" style="margin-top:8px"><label>URL</label><input readonly value="${esc(url)}" onclick="this.select()"></div></details>`,el=>{el.querySelector("[data-x]").onclick=closeSheet});
 }
 function settingsSheet(){
   const s=S();const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
@@ -1991,7 +1980,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14k"; /* bump on every change so phones reload */
+const BUILD="2026-11-14l"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
