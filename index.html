@@ -197,7 +197,7 @@ input[type=time]::-webkit-date-and-time-value,input[type=date]::-webkit-date-and
 .aibox .row input[type=text]{flex:1;min-width:0;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px}
 .filebtn{position:relative;cursor:pointer;overflow:hidden}
 .filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.planedit{grid-column:span 4;display:grid;grid-template-columns:40px 1fr 1fr 96px;gap:6px;align-items:center}
+.planedit{grid-column:span 4;display:grid;grid-template-columns:40px 1fr 1fr;gap:6px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}.planedit b{grid-row:span 2}
 .planedit>*{min-width:0}
 .planedit input,.planedit select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px;width:100%}
 
@@ -836,6 +836,14 @@ document.addEventListener("submit",async e=>{
 });
 
 /* ---------- derived ---------- */
+const FUEL={hard:"Big day",normal:"Normal day",light:"Rest day"};
+function defaultFuel(p){if(!p)return"normal";if(p.kind==="rest")return"light";if(/zone\s*4|interval|long run|race|tempo/i.test((p.title||"")+" "+(p.detail||"")))return"hard";return"normal"}
+function dayFuel(d){const s=S(),i=(dow(d)+6)%7,p=s.plan[i];let tier=(s.fuelDays||[])[i]||defaultFuel(p),auto=false;
+  if(tier!=="hard"&&burnOn(d)>=(+s.bigBurn||700)){tier="hard";auto=true}
+  const up=s.fuelUp==null?300:+s.fuelUp,down=s.fuelDown==null?0:+s.fuelDown;
+  return{tier,auto,label:FUEL[tier],kcal:Math.round(s.kcal+(tier==="hard"?up:tier==="light"?-down:0))}}
+function dayKcal(d){return dayFuel(d).kcal}
+function carbRangeFor(d){return carbRange({...S(),kcal:dayKcal(d)})}
 function carbRange(s){return[Math.max(0,Math.round((s.kcal-s.proteinMax*4-s.fatMax*9)/4/5)*5),Math.max(0,Math.round((s.kcal-s.proteinMin*4-s.fatMin*9)/4/5)*5)]}
 /* flex day: one weekend night (Sat or Sun) per week. Manual pick wins; otherwise Sunday if only Sunday had a late meal; otherwise the default. */
 function isLate(m){const s=S();return !!m.time&&hm2min(m.time)>=hm2min(s.close)}
@@ -868,11 +876,11 @@ function sessionState(d){
   return{p,st:"plan",label:"Planned",ws};
 }
 function foodState(d){if(!dayDone(d))return{st:"",label:""};if(isFlex(d))return{st:"flex",label:"Flex night, not scored"};const s=S(),tt=totals(d);if(!tt.n)return{st:"",label:"No food logged"};
-  const cal=Math.abs(tt.kcal-s.kcal)<=200,pro=tt.protein>=s.proteinMin,clean=!mealsOn(d).some(isLate),h=cal+pro+clean;
+  const cal=Math.abs(tt.kcal-dayKcal(d))<=200,pro=tt.protein>=s.proteinMin,clean=!mealsOn(d).some(isLate),h=cal+pro+clean;
   return{st:h===3?"good":h===0?"bad":"part",label:`${n0(tt.kcal)} kcal${cal?"":" (off target)"} · ${n0(tt.protein)} g protein${pro?"":" (under)"} · ${clean?"kitchen closed on time":"ate after close"}`}}
 function weekScore(ws,lim){
   const s=S(),t=todayStr();let counted=0,cal=0,pro=0,clean=0,logged=0;lim=lim||7;
-  for(let i=0;i<lim;i++){const d=addDays(ws,i);if(!dayDone(d))continue;if(isFlex(d))continue;const tt=totals(d);if(!tt.n)continue;counted++;if(Math.abs(tt.kcal-s.kcal)<=200)cal++;if(tt.protein>=s.proteinMin)pro++;if(!mealsOn(d).some(isLate))clean++}
+  for(let i=0;i<lim;i++){const d=addDays(ws,i);if(!dayDone(d))continue;if(isFlex(d))continue;const tt=totals(d);if(!tt.n)continue;counted++;if(Math.abs(tt.kcal-dayKcal(d))<=200)cal++;if(tt.protein>=s.proteinMin)pro++;if(!mealsOn(d).some(isLate))clean++}
   let planned=0,done=0;for(let i=0;i<lim;i++){const d=addDays(ws,i);if(d>t)continue;const ss=sessionState(d);if(ss.st==="rest")continue;if(d===t&&ss.st!=="done")continue;planned++;if(ss.st==="done")done++}
   const parts=[];if(counted){parts.push(cal/counted,pro/counted,clean/counted)}if(planned)parts.push(done/planned);
   return{score:parts.length?Math.round(parts.reduce((a,b)=>a+b,0)/parts.length*100):null,counted,cal,pro,clean,planned,done,provisional:addDays(ws,6)>=t};
@@ -944,7 +952,7 @@ function challengeStatus(){const ch=kickoff?.challenge;if(!ch||!Array.isArray(ch
   if(!kickoff.date||addDays(kickoff.date,7)<=t||kickoff.date>t)return null;
   const min=+ch.min||0;
   const val=d=>{const tt=totals(d);switch(ch.metric){case"protein":return{v:tt.protein,ok:tt.protein>=(min||s.proteinMin),u:"g"};
-    case"kcal":return{v:tt.kcal,ok:tt.n&&Math.abs(tt.kcal-s.kcal)<=200,u:"kcal"};
+    case"kcal":return{v:tt.kcal,ok:tt.n&&Math.abs(tt.kcal-dayKcal(d))<=200,u:"kcal"};
     case"kitchen":{const ms=mealsOn(d);return{v:ms.length?fmtT(ms[ms.length-1].time):"—",ok:ms.length>0&&!ms.some(isLate),u:""}}
     case"session":{const x=sessionState(d);return{v:x.label,ok:x.st==="done",u:""}}
     case"water":{const w=waterOn(d);return{v:w,ok:w>=(min||s.waterMl),u:"ml"}}
@@ -961,7 +969,7 @@ function mealIdeasLine(){const s=S(),t=todayStr(),tt=totals(t);
   const fq={};for(const m of Object.values(col.meals)){if(!m.date||m.date<addDays(t,-30))continue;const k=normName(m.name);if(!k)continue;(fq[k]=fq[k]||{n:0,name:m.name,k:0,p:0,c:0,f:0});const q=fq[k];q.n++;q.k+=+m.kcal||0;q.p+=+m.protein||0;q.c+=+m.carbs||0;q.f+=+m.fat||0;q.name=m.name}
   const top=Object.values(fq).filter(q=>q.n>=2).sort((a,b)=>b.n-a.n).slice(0,10).map(q=>`${q.name} (${q.n}x): ~${n0(q.k/q.n)} kcal ${n0(q.p/q.n)}/${n0(q.c/q.n)}/${n0(q.f/q.n)}`).join("; ");
   const minsToClose=hm2min(s.close)-hm2min(nowHM());
-  return`REMAINING TODAY: ${n0(s.kcal-tt.kcal)} kcal to target, ${n0(Math.max(0,s.proteinMin-tt.protein))} g protein to the ${s.proteinMin} g floor (${n0(Math.max(0,s.proteinMax-tt.protein))} g to the top), fat ${n0(tt.fat)}/${s.fatMin}-${s.fatMax} g; ${minsToClose>0?Math.floor(minsToClose/60)+"h "+pad(minsToClose%60)+"m until the kitchen closes":"kitchen closed"}${isFlex(t)?" (flex night)":""}.
+  return`REMAINING TODAY (${dayFuel(t).label.toLowerCase()}, ${n0(dayKcal(t))} kcal target): ${n0(dayKcal(t)-tt.kcal)} kcal to target, ${n0(Math.max(0,s.proteinMin-tt.protein))} g protein to the ${s.proteinMin} g floor (${n0(Math.max(0,s.proteinMax-tt.protein))} g to the top), fat ${n0(tt.fat)}/${s.fatMin}-${s.fatMax} g; ${minsToClose>0?Math.floor(minsToClose/60)+"h "+pad(minsToClose%60)+"m until the kitchen closes":"kitchen closed"}${isFlex(t)?" (flex night)":""}.
 SAVED MEALS (their one-tap usuals, kcal P/C/F): ${sv||"none"}
 OFTEN EATEN (last 30 days, avg kcal P/C/F): ${top||"not enough data"}
 `}
@@ -1026,8 +1034,8 @@ function chartWeight(pts,lo,hi){
 /* ---------- views ---------- */
 function vToday(){
   const s=S(),d=date,t=totals(d),isT=d===todayStr(),flex=isFlex(d);
-  const [cLo,cHi]=carbRange(s);const left=s.kcal-t.kcal;
-  const kcalCls=flex?"cool":t.kcal>s.kcal+200?"bad":Math.abs(t.kcal-s.kcal)<=200?"good":"";
+  const fu=dayFuel(d),K=fu.kcal;const [cLo,cHi]=carbRangeFor(d);const left=K-t.kcal;
+  const kcalCls=flex?"cool":t.kcal>K+200?"bad":Math.abs(t.kcal-K)<=200?"good":"";
   const mrow=(nm,val,lo,hi,kind)=>{const[lab,c]=macroStatus(val,lo,hi,d,kind);return`<div class="macro"><span class="nm">${nm}</span><span class="v"><span class="mid">${n0(val)}<small>g</small></span>${lab!=="—"?`<span class="pill ${c}">${lab}</span>`:""}</span><span class="rg">${lo}–${hi} g</span>${meter(val,lo,hi,hi*1.2,c==="bad"&&kind!=="protein"?"bad":c)}</div>`};
   const w=waterOn(d),wp=Math.min(100,w/s.waterMl*100);
   const hl=healthOn(d),wburn=burnOn(d),burn=Math.max(wburn,hl?.activeKcal||0),net=t.kcal-burn;
@@ -1048,10 +1056,10 @@ function vToday(){
   ${isT&&weighToday()?`<button class="note weighnote" data-act="addWeight"><b>⚖ Weigh-in day</b> · ${(S().weighDays||[]).map(i=>DOW[i]).join(" & ")} · last ${(()=>{const l=weights().slice(-1)[0];return l?n1(l.lb)+" lb, "+short(l.date):"none yet"})()} <span class="pill acc">Weigh in</span></button>`:""}
   <div class="row wrap">${kitchen}${isTravel(d)?`<span class="pill acc">✈ Travel day</span>`:""}<button type="button" class="btn sm ghost" data-act="travelDay" data-d="${d}" data-on="${isTravel(d)?0:1}" style="margin-left:auto">${isTravel(d)?"Not a travel day":"✈ Travel day"}</button></div>
   <section class="card">
-    <div class="head"><div><div class="eyebrow">${flex?"Flex day · no calorie flag":"Calories · "+n0(s.kcal)+" target"}</div>
+    <div class="head"><div><div class="eyebrow">${flex?"Flex day · no calorie flag":"Calories · "+n0(K)+" target"+(fu.tier!=="normal"?" · "+fu.label+(fu.auto?" (big session logged)":""):"")}</div>
       <div class="big" style="margin-top:8px">${n0(t.kcal)}<small>kcal</small></div></div>
       <div style="text-align:right"><div class="eyebrow">${left>=0?"Left":"Over"}</div><div class="mid" style="margin-top:6px;color:${left>=0?"var(--fg)":"var(--bad)"}">${n0(Math.abs(left))}</div></div></div>
-    ${meter(t.kcal,s.kcal-200,s.kcal+200,s.kcal*1.25,kcalCls)}
+    ${meter(t.kcal,K-200,K+200,K*1.25,kcalCls)}
     <p class="sub">${t.n} ${t.n===1?"entry":"entries"} · green band is ±200 kcal of target</p>
     <div style="margin-top:8px">${mrow("Protein",t.protein,s.proteinMin,s.proteinMax,"protein")}${mrow("Fat",t.fat,s.fatMin,s.fatMax,"fat")}${mrow("Carbs",t.carbs,cLo,cHi,"carbs")}</div>
     <div class="row" style="gap:8px;margin-top:6px"><button class="btn line" style="flex:1" data-act="addMeal">Add meal</button><button class="btn" style="flex:1" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Photo</button></div>
@@ -1065,8 +1073,8 @@ function vToday(){
     <section class="card balance"><div class="eyebrow">Energy balance</div>
       <div class="mid" style="margin-top:10px">${n0(net)}<small>kcal net</small></div>
       <div class="sub">${hl?`Food in minus Apple Watch active calories (${n0(hl.activeKcal)}); workouts logged ${n0(wburn)}. ${hl.steps?n0(hl.steps)+" steps.":""}`:"Net = food in minus workout burn. Excludes everyday metabolism."}</div>
-      <div class="ln"><span class="small muted">In</span>${meter(t.kcal,null,null,Math.max(s.kcal,t.kcal)*1.05,"")}<span class="num small">${n0(t.kcal)}</span></div>
-      <div class="ln"><span class="small muted">Out</span>${meter(burn,null,null,Math.max(s.kcal,t.kcal)*1.05,"good")}<span class="num small">${n0(burn)}</span></div>
+      <div class="ln"><span class="small muted">In</span>${meter(t.kcal,null,null,Math.max(K,t.kcal)*1.05,"")}<span class="num small">${n0(t.kcal)}</span></div>
+      <div class="ln"><span class="small muted">Out</span>${meter(burn,null,null,Math.max(K,t.kcal)*1.05,"good")}<span class="num small">${n0(burn)}</span></div>
     </section>
   </div>
   <section class="card">
@@ -1157,7 +1165,7 @@ function insights(){
     out.push({id:"late",text:`Food after ${fmtT(s.close)} on ${late.length} of ${core.length} non-flex nights${top[1]>=2?`, most often ${DOWN[+top[0]]} (${top[1]})`:""}.`,n:core.length})}
   else out.push({id:"late",text:`Kitchen closed by ${fmtT(s.close)} on all ${core.length} non-flex nights logged.`,n:core.length});
   // calories: on-target rate and direction
-  const kc=core.map(d=>totals(d).kcal),on=kc.filter(k=>Math.abs(k-s.kcal)<=200).length,over=kc.filter(k=>k>s.kcal+200).length,under=kc.filter(k=>k<s.kcal-200).length;
+  const kc=core.map(d=>totals(d).kcal),kt=core.map(dayKcal),on=kc.filter((k,i)=>Math.abs(k-kt[i])<=200).length,over=kc.filter((k,i)=>k>kt[i]+200).length,under=kc.filter((k,i)=>k<kt[i]-200).length;
   out.push({id:"kcal",text:`Calories on target ${on} of ${core.length} days; ${over} over, ${under} under. Average ${n0(kc.reduce((a,b)=>a+b,0)/kc.length)} kcal.`,n:core.length});
   // flex nights
   const flex=logged.filter(d=>isFlex(d));if(flex.length>=2){const fk=Math.round(flex.reduce((a,d)=>a+totals(d).kcal,0)/flex.length);out.push({id:"flex",text:`Flex nights average ${n0(fk)} kcal vs ${n0(kc.reduce((a,b)=>a+b,0)/kc.length)} on other days.`,n:flex.length})}
@@ -1223,7 +1231,7 @@ function monthStats(m,lim){
   return{days:days.length,workouts:ws.length,strength:by("strength"),runs:by("run")+by("cardio"),mob:by("yoga"),cross:by("cross"),other:by("other"),
     vol:ws.reduce((a,w)=>a+(+w.volumeKg||0),0),km:ws.reduce((a,w)=>a+(+w.distanceKm||0),0),wkcal:ws.reduce((a,w)=>a+(+w.kcal||0),0),
     logged:logged.length,kcal:avg("kcal"),protein:avg("protein"),fat:avg("fat"),
-    calOn:core.filter(x=>Math.abs(totals(x).kcal-s.kcal)<=200).length,proOn:core.filter(x=>totals(x).protein>=s.proteinMin).length,clean:core.filter(x=>!mealsOn(x).some(isLate)).length,core:core.length,
+    calOn:core.filter(x=>Math.abs(totals(x).kcal-dayKcal(x))<=200).length,proOn:core.filter(x=>totals(x).protein>=s.proteinMin).length,clean:core.filter(x=>!mealsOn(x).some(isLate)).length,core:core.length,
     travel:days.filter(isTravel).length,w0:wts[0],w1:wts[wts.length-1],best,hr:hrW.length?hrW.reduce((a,w)=>a+(+w.avgHr),0)/hrW.length:null,hrN:hrW.length};
 }
 /* ---------- infographic helpers ---------- */
@@ -1248,7 +1256,7 @@ function igPairs(rows,nowL,prevL){
 function igDayCell(d,big){
   const s=S(),t=todayStr(),tt=totals(d),fut=d>t,flex=isFlex(d),late=mealsOn(d).some(isLate),ss=sessionState(d);
   const pc=fut||!tt.n?"":flex?"cool":tt.protein>=s.proteinMin?"good":"acc";
-  const cal=!tt.n||fut?"":flex?"var(--cool)":Math.abs(tt.kcal-s.kcal)<=200?"var(--good)":tt.kcal>s.kcal?"var(--warn)":"var(--t-mob)";
+  const K=dayKcal(d),cal=!tt.n||fut?"":flex?"var(--cool)":Math.abs(tt.kcal-K)<=200?"var(--good)":tt.kcal>K?"var(--warn)":"var(--t-mob)";
   const types=[...new Set(workoutsOn(d).map(w=>w.type))];
   return`<div class="ig-day ${pc} ${fut?"fut":""} ${d===t?"today":""}" title="${esc(longD(d))}${tt.n?` · ${n0(tt.protein)} g · ${n0(tt.kcal)} kcal`:""}">
     <div class="ig-dn">${big?DOW[dow(d)].slice(0,3):parse(d).getDate()}</div>
@@ -1340,7 +1348,7 @@ function vTrends(){
   const days=[];for(let i=ND-1;i>=0;i--)days.push(addDays(t,-i));
   const kc=days.map(d=>{const x=totals(d);return x.n?x.kcal:null});
   const dayLab=d=>d===t?"Today":DOW[dow(d)].slice(0,ND>7?1:3)+(ND>7?parse(d).getDate():"");
-  const kcCol=days.map((d,i)=>kc[i]==null?"var(--line)":isFlex(d)?"var(--cool)":Math.abs(kc[i]-s.kcal)<=200?"var(--good)":kc[i]>s.kcal?"var(--warn)":"var(--t-mob)");
+  const kcCol=days.map((d,i)=>kc[i]==null?"var(--line)":isFlex(d)?"var(--cool)":Math.abs(kc[i]-dayKcal(d))<=200?"var(--good)":kc[i]>dayKcal(d)?"var(--warn)":"var(--t-mob)");
   const logged=kc.slice(0,-1).filter(v=>v!=null);const avgK=logged.length?logged.reduce((a,b)=>a+b,0)/logged.length:null;
   const pr=days.map(d=>{const x=totals(d);return x.n?x.protein:null});
   const mon=H().monthly||{};const monKeys=Object.keys(mon).sort().reverse();
@@ -1528,7 +1536,7 @@ function settingsSheet(){
   openSheet(`<div class="head"><h3>Targets & routine</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
   <div class="f" style="margin-bottom:14px"><label>Appearance</label><div class="seg" role="radiogroup" aria-label="Appearance">${[["auto","Match iPhone"],["light","☀ Light"],["dark","☾ Dark"]].map(([v,l])=>{let cur="auto";try{cur=localStorage.getItem("tf-theme")||"auto"}catch{}return`<button type="button" role="radio" aria-checked="${cur===v}" class="${cur===v?"on":""}" data-theme-set="${v}">${l}</button>`}).join("")}</div></div>
   <form class="form" id="setForm">
-    <div class="f h"><label for="sKcal">Daily calories</label><input id="sKcal" inputmode="decimal" value="${s.kcal}"></div>
+    <div class="f h"><label for="sKcal">Daily calories (normal day)</label><input id="sKcal" inputmode="decimal" value="${s.kcal}"></div>
     <div class="f h"><label for="sWater">Water target (ml)</label><input id="sWater" inputmode="decimal" value="${s.waterMl}"></div>
     <div class="f q"><label for="sPmin">Protein min</label><input id="sPmin" inputmode="decimal" value="${s.proteinMin}"></div>
     <div class="f q"><label for="sPmax">Protein max</label><input id="sPmax" inputmode="decimal" value="${s.proteinMax}"></div>
@@ -1544,8 +1552,12 @@ function settingsSheet(){
     <div class="f"><label for="sAbout">About me (the Coach reads this every time)</label><textarea id="sAbout" rows="7" placeholder="Age, height, sport and training history, goals, schedule, foods you love or avoid, injuries, what motivates you, what usually derails you…">${esc(s.about||s.profile)}</textarea></div>
     <div class="f"><label for="sStyle">How the Coach should talk to you</label><textarea id="sStyle" placeholder="e.g. Be blunt. Call out late-night snacks. Keep replies under 4 lines. Remind me I'm gluten-free.">${esc(s.coachStyle)}</textarea></div>
     <div class="f"><label for="sQP">Quick prompts (one per line)</label><textarea id="sQP" rows="5">${esc((s.quickPrompts||[]).join("\n"))}</textarea><span class="hint">These appear as one-tap buttons in the Coach.</span></div>
+    <div class="f"><label>Fuel by day type</label><span class="hint">Big days get extra calories (all from carbs). Rest days can drop a little. Each routine day below has a fuel setting.</span></div>
+    <div class="f q"><label for="sFup">Big day: extra kcal</label><input id="sFup" inputmode="decimal" value="${s.fuelUp==null?300:s.fuelUp}"></div>
+    <div class="f q"><label for="sFdn">Rest day: fewer kcal</label><input id="sFdn" inputmode="decimal" value="${s.fuelDown==null?0:s.fuelDown}"></div>
+    <div class="f"><label for="sBig">Auto big day when logged workouts burn at least (kcal)</label><input id="sBig" inputmode="decimal" value="${s.bigBurn||700}"></div>
     <div class="f"><label>Weekly routine</label></div>
-    ${s.plan.map((p,i)=>`<div class="planedit"><b class="small">${days[i]}</b><input id="pT${i}" value="${esc(p.title)}" aria-label="${days[i]} session"><input id="pD${i}" value="${esc(p.detail)}" aria-label="${days[i]} details"><select id="pK${i}" aria-label="${days[i]} kind">${["strength","cardio","cross","rest"].map(k=>`<option ${p.kind===k?"selected":""}>${k}</option>`).join("")}</select></div>`).join("")}
+    ${s.plan.map((p,i)=>`<div class="planedit"><b class="small">${days[i]}</b><input id="pT${i}" value="${esc(p.title)}" aria-label="${days[i]} session"><input id="pD${i}" value="${esc(p.detail)}" aria-label="${days[i]} details"><select id="pK${i}" aria-label="${days[i]} kind">${["strength","cardio","cross","rest"].map(k=>`<option ${p.kind===k?"selected":""}>${k}</option>`).join("")}</select><select id="pF${i}" aria-label="${days[i]} fuel">${Object.entries(FUEL).map(([k,l])=>`<option value="${k}" ${((s.fuelDays||[])[i]||defaultFuel(p))===k?"selected":""}>${l}</option>`).join("")}</select></div>`).join("")}
     <div class="f" style="margin-top:6px"><button class="btn" type="submit">Save</button></div>
     <div class="f"><button type="button" class="btn sm line" data-act="waterHelp">💧 Log water from Siri / Home Screen</button></div>
     <div class="f"><button type="button" class="btn sm line" data-act="healthHelp">Apple Health sync setup</button><span class="hint">${(()=>{const ks=Object.keys(col.health||{}).sort();const l=ks.length?col.health[ks[ks.length-1]]:null;return l?.syncedAt?"Last synced "+new Date(l.syncedAt).toLocaleString("en-CA",{timeZone:HOME_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"Not synced yet"})()}</span></div>
@@ -1558,7 +1570,8 @@ function settingsSheet(){
     el.querySelector("#setForm").onsubmit=async e=>{e.preventDefault();
       const g=(id,dflt)=>num(fv(id))??dflt;
       const data={...(col.settings.main||{}),kcal:g("sKcal",s.kcal),waterMl:g("sWater",s.waterMl),proteinMin:g("sPmin",s.proteinMin),proteinMax:g("sPmax",s.proteinMax),fatMin:g("sFmin",s.fatMin),fatMax:g("sFmax",s.fatMax),weightLo:g("sWlo",s.weightLo),weightHi:g("sWhi",s.weightHi),weighDays:[0,1,2,3,4,5,6].filter(i=>document.getElementById("wd"+i)?.checked),open:fv("sOpen")||s.open,close:fv("sClose")||s.close,flexDow:+fv("sFlex"),about:fv("sAbout").trim(),profile:"",coachStyle:fv("sStyle").trim(),quickPrompts:fv("sQP").split("\n").map(x=>x.trim()).filter(Boolean).slice(0,12),
-        plan:[0,1,2,3,4,5,6].map(i=>({title:fv("pT"+i).trim()||"Session",detail:fv("pD"+i).trim(),kind:fv("pK"+i)}))};
+        plan:[0,1,2,3,4,5,6].map(i=>({title:fv("pT"+i).trim()||"Session",detail:fv("pD"+i).trim(),kind:fv("pK"+i)})),
+        fuelDays:[0,1,2,3,4,5,6].map(i=>fv("pF"+i)||"normal"),fuelUp:g("sFup",s.fuelUp==null?300:s.fuelUp),fuelDown:g("sFdn",s.fuelDown==null?0:s.fuelDown),bigBurn:g("sBig",s.bigBurn||700)};
       closeSheet();await safe(store.set("settings","main",data),"Targets saved")};
   });
 }
@@ -1575,7 +1588,7 @@ function buildContext(){
   const sc=weekScore(ws);const mon=H().monthly||{};
   const chat=(chatTurns||[]).slice(-8).map(x=>(x.role==="user"?"Them: ":"You: ")+(x.quote?"(replying to \""+x.quote+"\") ":"")+x.content.replace(/\s+/g," ").slice(0,300)+(x.react?" [they reacted "+x.react+"]":"")).join("\n");
   return`NOW: ${longD(t)}, ${fmtT(now)} Vancouver time (date ${t}, time ${now}). All dates and times in the log and in your tool calls are Vancouver time, even when they travel. If they give a time in another zone (e.g. Seattle or a trip abroad), convert it to Vancouver time before logging.
-TARGETS: ${s.kcal} kcal/day (±200 counts as on target); protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g; carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except one weekend flex night (Saturday or Sunday). Weeks run Sunday to Saturday. One flex night per week (not scored, no kitchen close): this week's is ${DOW[dow(flexDayForWeek(weekStart(t)))]} ${flexDayForWeek(weekStart(t))}${flexPicked(weekStart(t))?" (chosen)":" (weekend default; they can move it to any night this week with set_flex_night)"}. A day counts in the weekly score once the kitchen closes.
+TARGETS: base ${s.kcal} kcal/day (±200 counts as on target), adjusted by day type: big days (${(()=>{const dd=[0,1,2,3,4,5,6].map(i=>addDays(ws,i));const b=dd.filter(x=>dayFuel(x).tier==="hard").map(x=>DOW[dow(x)]),l=dd.filter(x=>dayFuel(x).tier==="light").map(x=>DOW[dow(x)]);return(b.join(", ")||"none")+`) ${n0(s.kcal+(s.fuelUp==null?300:+s.fuelUp))} kcal; rest days (${l.join(", ")||"none"}) ${n0(s.kcal-(s.fuelDown==null?0:+s.fuelDown))} kcal`})()}; any day with ${n0(+s.bigBurn||700)}+ kcal of logged workouts becomes a big day. The extra calories go to carbs; protein and fat targets don't change. Meals after a big session should carry the extra. TODAY is a ${dayFuel(t).label.toLowerCase()}: ${n0(dayKcal(t))} kcal, carbs ${carbRangeFor(t).join("-")} g; protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g, on a normal day carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except on the week's flex night. Weeks run Sunday to Saturday. One flex night per week (not scored, no kitchen close): this week's is ${DOW[dow(flexDayForWeek(weekStart(t)))]} ${flexDayForWeek(weekStart(t))}${flexPicked(weekStart(t))?" (chosen)":" (weekend default; they can move it to any night this week with set_flex_night)"}. A day counts in the weekly score once the kitchen closes.
 ${(s.about||s.profile)?"ABOUT THEM (in their words):\n"+(s.about||s.profile)+"\n":""}${s.coachStyle?"THEIR COACHING STYLE INSTRUCTIONS (follow these): "+s.coachStyle+"\n":""}${notes().length?"LEARNED IN PAST CHATS:\n"+notes().map(n=>"- "+n.text).join("\n")+"\n":""}WEEK-OVER-WEEK FLAGS (this week vs last): ${(()=>{const ws0=weekStart(t);const f=weekFlags(weekStats(ws0),weekStats(addDays(ws0,-7)));return f.length?f.map(x=>x.level.toUpperCase()+": "+x.txt).join(" | "):"none"})()}\nPATTERNS FROM THEIR LOG (last 8 weeks):\n${insights().map(x=>"- "+x.text).join("\n")}\n${coachPatterns().length?"PATTERNS FROM WEEKLY CHECK-INS:\n"+coachPatterns().map(x=>"- "+x.text).join("\n")+"\n":""}
 ${Object.keys(S().travel||{}).length?"TRAVEL DAYS (recent): "+Object.keys(S().travel||{}).filter(x=>x>=addDays(t,-30)).sort().join(", ")+". On travel days, estimate restaurant portions generously (bigger plates, more oil and sauce) and read their numbers in that context.\n":""}TODAY: ${dayDigest(t)}
 TODAY'S MEALS (id | time | name | kcal P/C/F):${today.length?today.map(m=>`\n- ${m.id} | ${m.time} | ${m.name} | ${m.kcal} ${m.protein}/${m.carbs}/${m.fat}${m.est?" | your estimate, not yet checked: "+(m.est.note||"portions"):m.adjusted?" | they corrected your estimate":""}`).join(""):" none yet"}${(()=>{const ad=Object.values(col.meals).filter(m=>m.adjusted&&m.date>=addDays(t,-30));return ad.length?`\nTHEIR CORRECTIONS TO YOUR ESTIMATES (last 30 days, learn their real portions from these): ${ad.slice(-8).map(m=>m.name+" → "+m.kcal+" kcal").join("; ")}`:""})()}
@@ -1592,7 +1605,7 @@ const okDate=v=>/^\d{4}-\d\d-\d\d$/.test(v||"")?v:todayStr();
 const okTime=(v,d)=>/^\d\d:\d\d$/.test(v||"")?v:(d&&d!==todayStr()?"12:00":nowHM());
 function dayTag(d){return d&&d!==todayStr()?` · ${d===addDays(todayStr(),-1)?"yesterday":DOW[dow(d)]+" "+short(d)}`:""}
 function dayLine(d){if(!d||d===todayStr())return todayLine();const t=totals(d);return{date:d,day_kcal:t.kcal,day_protein:t.protein,day_carbs:t.carbs,day_fat:t.fat,entries:mealsOn(d).length}}
-function todayLine(){const t=totals(todayStr());const s=S();return{today_kcal:t.kcal,today_protein:t.protein,kcal_left:s.kcal-t.kcal,protein_to_floor:Math.max(0,s.proteinMin-t.protein)}}
+function todayLine(){const t=totals(todayStr());const s=S();return{today_kcal:t.kcal,today_protein:t.protein,kcal_left:dayKcal(todayStr())-t.kcal,protein_to_floor:Math.max(0,s.proteinMin-t.protein)}}
 function clientTools(){return{
   log_meal:async p=>{const d={name:String(p.name||"Meal").slice(0,140),kcal:Math.round(+p.kcal||0),protein:Math.round(+p.protein||0),carbs:Math.round(+p.carbs||0),fat:Math.round(+p.fat||0),date:okDate(p.date),time:okTime(p.time,okDate(p.date)),created:Date.now()};
     const en=String(p.estimated||"").trim().slice(0,160),cf=["high","medium","low"].includes(p.confidence)?p.confidence:"";if(en||cf)d.est={note:en,conf:cf||"medium"};
@@ -1928,7 +1941,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-13f"; /* bump on every change so phones reload */
+const BUILD="2026-11-14a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
