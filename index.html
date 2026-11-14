@@ -771,7 +771,7 @@ async function processInbox(){
         if(d&&ml>=50&&ml<=3000){const cur=col.water[d]||{};const seen=Array.isArray(cur.inbox)?cur.inbox:[];if(!seen.includes(f.name))await store.set("water",d,{...cur,ml:(+cur.ml||0)+ml,inbox:[...seen,f.name].slice(-40)})}
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
     for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
-      try{const raw=await getRaw("inbox/"+f.name);const j=JSON.parse(raw.text||"{}");const d=/^\d{4}-\d\d-\d\d$/.test(j.date||"")?j.date:null;
+      try{const raw=await getRaw("inbox/"+f.name);const j=JSON.parse(raw.text||"{}");const d=toDay(j.date)||todayStr();
         if(d){const ak=Math.round(num(j.activeKcal)||0),st=Math.round(num(j.steps)||0);const prev=col.health[d]||{};const rec={...prev,activeKcal:ak||prev.activeKcal||0,steps:st||prev.steps||0,syncedAt:new Date().toISOString()};
           const sl=j.sleep!=null&&String(j.sleep).includes("~")?parseSleep(j.sleep):(sleepNum(j.sleep)?{sleepMin:sleepNum(j.sleep)}:null);if(sl)Object.assign(rec,sl);
           if(j.sleep!=null&&String(j.sleep).trim()&&!/^\[.*\]$/.test(String(j.sleep).trim()))rec.sleepRaw=String(j.sleep).slice(0,1500);
@@ -786,12 +786,15 @@ const healthOn=d=>col.health[d]||null;
 /* Sleep from a Shortcut: "Value~StartISO~EndISO;..." (Core/Deep/REM/Asleep/Awake/In Bed). Overlaps (Watch + iPhone) are merged. */
 function parseSleep(txt){const segs=[];const st={deep:0,rem:0,core:0};
   for(const part of String(txt||"").split(/[;\n]+/)){const [v,a,b]=part.split("~").map(x=>(x||"").trim());if(!v||!a||!b)continue;
-    if(/awake|in\s*bed|inbed/i.test(v))continue;const t0=Date.parse(a.replace(" at "," ")),t1=Date.parse(b.replace(" at "," "));if(!(t1>t0)||t1-t0>16*36e5)continue;
+    if(/awake|in\s*bed|inbed/i.test(v))continue;const t0=anyDate(a),t1=anyDate(b);if(!(t1>t0)||t1-t0>16*36e5)continue;
     segs.push([t0,t1]);const m=(t1-t0)/6e4;if(/deep/i.test(v))st.deep+=m;else if(/rem/i.test(v))st.rem+=m;else if(/core/i.test(v))st.core+=m}
   if(!segs.length)return null;segs.sort((x,y)=>x[0]-y[0]);let tot=0,cs=segs[0][0],ce=segs[0][1];
   for(const [a,b] of segs.slice(1)){if(a<=ce)ce=Math.max(ce,b);else{tot+=ce-cs;cs=a;ce=b}}tot+=ce-cs;
   const hmL=t=>new Date(t).toLocaleTimeString("en-CA",{timeZone:HOME_TZ,hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
   return{sleepMin:Math.round(tot/6e4),bed:hmL(segs[0][0]),wake:hmL(Math.max(...segs.map(x=>x[1]))),stages:{deep:Math.round(st.deep),rem:Math.round(st.rem),core:Math.round(st.core)}}}
+function normSp(v){return String(v||"").replace(/[   ]/g," ").trim()}
+function anyDate(v){v=normSp(v);if(!v)return NaN;if(/^\d{4}-\d\d-\d\dT/.test(v))return Date.parse(v);return Date.parse(v.replace(/\s+at\s+/i," "))}
+function toDay(v){v=normSp(v);if(/^\d{4}-\d\d-\d\d$/.test(v))return v;const t=anyDate(v);if(isNaN(t))return null;return new Intl.DateTimeFormat("en-CA",{timeZone:HOME_TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(t)}
 function sleepNum(v){const n=num(v);if(!n)return null;return Math.round(n>1000?n/60:n>24?n:n*60)}
 const fmtHM=m=>m==null?"—":Math.floor(m/60)+"h "+pad(Math.round(m%60))+"m";
 function setStatus(){
@@ -1088,7 +1091,7 @@ function vToday(){
     </section>
     <section class="card balance"><div class="eyebrow">Energy balance</div>
       <div class="mid" style="margin-top:10px">${n0(net)}<small>kcal net</small></div>
-      <div class="sub">${hl?`Food in minus Apple Watch active calories (${n0(hl.activeKcal)}); workouts logged ${n0(wburn)}. ${hl.steps?n0(hl.steps)+" steps.":""}`:"Net = food in minus workout burn. Excludes everyday metabolism."}</div>
+      <div class="sub">${hl?.activeKcal?`Food in minus Apple Watch active calories (${n0(hl.activeKcal)}); workouts logged ${n0(wburn)}. ${hl.steps?n0(hl.steps)+" steps.":""}`:"Net = food in minus workout burn. Excludes everyday metabolism."}</div>
       <div class="ln"><span class="small muted">In</span>${meter(t.kcal,null,null,Math.max(K,t.kcal)*1.05,"")}<span class="num small">${n0(t.kcal)}</span></div>
       <div class="ln"><span class="small muted">Out</span>${meter(burn,null,null,Math.max(K,t.kcal)*1.05,"good")}<span class="num small">${n0(burn)}</span></div>
     </section>
@@ -1967,7 +1970,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14b"; /* bump on every change so phones reload */
+const BUILD="2026-11-14c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
