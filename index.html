@@ -785,8 +785,9 @@ async function processInbox(){
 const healthOn=d=>col.health[d]||null;
 /* Sleep from a Shortcut: "Value~StartISO~EndISO;..." (Core/Deep/REM/Asleep/Awake/In Bed). Overlaps (Watch + iPhone) are merged. */
 function parseSleep(txt){const segs=[];const st={deep:0,rem:0,core:0};
-  for(const part of String(txt||"").split(/[;\n]+/)){const [v,a,b]=part.split("~").map(x=>(x||"").trim());if(!v||!a||!b)continue;
-    if(/awake|in\s*bed|inbed/i.test(v))continue;const t0=anyDate(a),t1=anyDate(b);if(!(t1>t0)||t1-t0>16*36e5)continue;
+  for(const part of String(txt||"").split(/[;\n]+/)){const f=part.split("~").map(x=>normSp(x));if(f.length<2)continue;
+    const ds=f.map(x=>anyDate(x)).map((t,i)=>[t,i]).filter(([t])=>!isNaN(t));if(ds.length<2)continue;const v=f.filter((x,i)=>!ds.some(([,j])=>j===i)).join(" ");
+    if(/awake|in\s*bed|inbed/i.test(v))continue;const t0=ds[0][0],t1=ds[ds.length-1][0];if(!(t1>t0)||t1-t0>16*36e5)continue;
     segs.push([t0,t1]);const m=(t1-t0)/6e4;if(/deep/i.test(v))st.deep+=m;else if(/rem/i.test(v))st.rem+=m;else if(/core/i.test(v))st.core+=m}
   if(!segs.length)return null;segs.sort((x,y)=>x[0]-y[0]);let tot=0,cs=segs[0][0],ce=segs[0][1];
   for(const [a,b] of segs.slice(1)){if(a<=ce)ce=Math.max(ce,b);else{tot+=ce-cs;cs=a;ce=b}}tot+=ce-cs;
@@ -1540,9 +1541,11 @@ function healthSheet(){
     Workouts: ${L.workoutsRaw?"received (raw below)":"not sent"}</div>
     ${L.sleepRaw&&!L.sleepMin?`<div class="f"><label>Sleep raw</label><textarea readonly rows="3">${esc(L.sleepRaw)}</textarea></div>`:""}
     ${L.workoutsRaw?`<div class="f"><label>Workouts raw (test: tell the Coach or Claude what you see)</label><textarea readonly rows="4">${esc(L.workoutsRaw)}</textarea></div>`:""}</div>`:"";
+  let lr=null;try{lr=JSON.parse(localStorage.getItem("tf-sleep-last-raw")||"null")}catch{}
+  const lrBox=lr?`<div class="f" style="margin:10px 0"><label>Last sleep link received (${esc(new Date(lr.at).toLocaleString("en-CA",{timeZone:HOME_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}) · ${lr.raw.split(/[;\n]+/).filter(Boolean).length} pieces</label><textarea readonly rows="6">${esc(lr.raw.slice(0,1200)||"(empty)")}</textarea></div>`:"";
   openSheet(`<div class="head"><h3>Apple Health sync</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
   <p class="sub">An iPhone Shortcut sends today's Apple Watch active calories, steps, latest weight and last night's sleep to your log. Workouts are a test for now: the app records what arrives but doesn't log it yet.</p>
-  ${diag}
+  ${lrBox}${diag}
   <ol class="small" style="padding-left:18px;line-height:1.65">
    <li>Shortcuts app → open <b>Train & Fuel Sync</b> (or <b>+</b> → name it that).</li>
    <li><b>Find Health Samples</b> → Type <b>Active Energy</b>, filter Start Date <b>is today</b>. Then <b>Get Details of Health Samples</b> → <b>Value</b>. Then <b>Calculate Statistics</b> → <b>Sum</b>. Then <b>Set Variable</b> → <b>Active</b>.</li>
@@ -1970,7 +1973,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14d"; /* bump on every change so phones reload */
+const BUILD="2026-11-14e"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
@@ -1978,7 +1981,8 @@ if(cfg&&loadCache())reapplyPending();
 /* Sleep handed over by the iPhone Shortcut: …/train-and-fuel/?sleep=Value~Start~End;… */
 var pendingSleep=(()=>{try{const q=new URLSearchParams(location.search);const v=q.get("sleep");if(v!=null){history.replaceState(null,"",location.pathname+location.hash);try{localStorage.setItem("tf-pending-sleep",v)}catch{}return v}return localStorage.getItem("tf-pending-sleep")}catch{return null}})();
 async function applyPendingSleep(){if(pendingSleep==null||!cfg)return;const raw=pendingSleep;pendingSleep=null;try{localStorage.removeItem("tf-pending-sleep")}catch{}
-  const sl=parseSleep(raw);if(!sl){toast("No sleep found from last night");return}
+  try{localStorage.setItem("tf-sleep-last-raw",JSON.stringify({at:new Date().toISOString(),raw:raw.slice(0,4000)}))}catch{}
+  const sl=parseSleep(raw);if(!sl){toast("Couldn't read the sleep data. Open Settings → Apple Health sync setup.",6000);return}
   const d=toDay(new Date(sl.wakeTs).toISOString())||todayStr();const{wakeTs,...rest}=sl;
   await store.set("health",d,{...(col.health[d]||{}),...rest,sleepRaw:raw.slice(0,1500),sleepSyncedAt:new Date().toISOString()});
   toast(`Sleep synced: ${fmtHM(sl.sleepMin)}`);render()}
