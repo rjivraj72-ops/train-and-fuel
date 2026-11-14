@@ -784,17 +784,25 @@ async function processInbox(){
 }
 const healthOn=d=>col.health[d]||null;
 /* Sleep from a Shortcut: "Value~StartISO~EndISO;..." (Core/Deep/REM/Asleep/Awake/In Bed). Overlaps (Watch + iPhone) are merged. */
-function parseSleep(txt){const segs=[];const st={deep:0,rem:0,core:0};
+function parseSleep(txt){const nights=parseSleepNights(txt);return nights.length?nights[nights.length-1]:null}
+/* Groups samples into nights (a gap of 4h+ starts a new night). Returns one summary per night, oldest first. */
+function parseSleepNights(txt){const segs=[];
   for(const part of String(txt||"").split(/[;\n]+/)){const f=part.split("~").map(x=>normSp(x));if(f.length<2)continue;
     const ds=f.map(x=>anyDate(x)).map((t,i)=>[t,i]).filter(([t])=>!isNaN(t));if(ds.length<2)continue;const v=f.filter((x,i)=>!ds.some(([,j])=>j===i)).join(" ");
-    if(/awake|in\s*bed|inbed/i.test(v))continue;const t0=ds[0][0],t1=ds[ds.length-1][0];if(!(t1>t0)||t1-t0>16*36e5)continue;
-    segs.push([t0,t1]);const m=(t1-t0)/6e4;if(/deep/i.test(v))st.deep+=m;else if(/rem/i.test(v))st.rem+=m;else if(/core/i.test(v))st.core+=m}
-  if(!segs.length)return null;segs.sort((x,y)=>x[0]-y[0]);let tot=0,cs=segs[0][0],ce=segs[0][1];
-  for(const [a,b] of segs.slice(1)){if(a<=ce)ce=Math.max(ce,b);else{tot+=ce-cs;cs=a;ce=b}}tot+=ce-cs;
+    if(/awake|in\s*bed|inbed/i.test(v))continue;const t0=ds[0][0],t1=ds[ds.length-1][0];if(!(t1>t0)||t1-t0>16*36e5)continue;segs.push([t0,t1,v])}
+  if(!segs.length)return[];segs.sort((x,y)=>x[0]-y[0]);
+  const groups=[];let cur=[segs[0]],end=segs[0][1];for(const g of segs.slice(1)){if(g[0]-end>4*36e5){groups.push(cur);cur=[]}cur.push(g);end=Math.max(end,g[1])}groups.push(cur);
   const hmL=t=>new Date(t).toLocaleTimeString("en-CA",{timeZone:HOME_TZ,hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
-  return{wakeTs:Math.max(...segs.map(x=>x[1])),sleepMin:Math.round(tot/6e4),bed:hmL(segs[0][0]),wake:hmL(Math.max(...segs.map(x=>x[1]))),stages:{deep:Math.round(st.deep),rem:Math.round(st.rem),core:Math.round(st.core)}}}
+  return groups.map(gs=>{const st={deep:0,rem:0,core:0};for(const [a,b,v] of gs){const m=(b-a)/6e4;if(/deep/i.test(v))st.deep+=m;else if(/rem/i.test(v))st.rem+=m;else if(/core/i.test(v))st.core+=m}
+    let tot=0,cs=gs[0][0],ce=gs[0][1];for(const [a,b] of gs.slice(1)){if(a<=ce)ce=Math.max(ce,b);else{tot+=ce-cs;cs=a;ce=b}}tot+=ce-cs;const wk=Math.max(...gs.map(x=>x[1]));
+    return{wakeTs:wk,sleepMin:Math.round(tot/6e4),bed:hmL(gs[0][0]),wake:hmL(wk),stages:{deep:Math.round(st.deep),rem:Math.round(st.rem),core:Math.round(st.core)}}}).filter(n=>n.sleepMin>=60)}
 function normSp(v){return String(v||"").replace(/[   ]/g," ").trim()}
-function anyDate(v){v=normSp(v);if(!v)return NaN;if(/^\d{4}-\d\d-\d\dT/.test(v))return Date.parse(v);return Date.parse(v.replace(/\s+at\s+/i," "))}
+function wallTs(y,mo,d,h,mi,se){let t=Date.UTC(y,mo-1,d,h,mi,se||0);for(let k=0;k<2;k++){const p=Object.fromEntries(new Intl.DateTimeFormat("en-US",{timeZone:HOME_TZ,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(t).map(x=>[x.type,x.value]));
+  const seen=Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second);t+=Date.UTC(y,mo-1,d,h,mi,se||0)-seen}return t}
+function anyDate(v){v=normSp(v);if(!v)return NaN;if(/^\d{4}-\d\d-\d\dT/.test(v))return Date.parse(v);
+  const m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[,\s]+(?:at\s+)?(\d{1,2}):(\d\d)(?::(\d\d))?\s*([AaPp][Mm])?$/);
+  if(m){let h=+m[4];if(m[7]){const pm=/p/i.test(m[7]);if(h===12)h=pm?12:0;else if(pm)h+=12}return wallTs(+m[1],+m[2],+m[3],h,+m[5],+(m[6]||0))}
+  const t=Date.parse(v.replace(/\s+at\s+/i," "));return t}
 function toDay(v){v=normSp(v);if(/^\d{4}-\d\d-\d\d$/.test(v))return v;const t=anyDate(v);if(isNaN(t))return null;return new Intl.DateTimeFormat("en-CA",{timeZone:HOME_TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(t)}
 function sleepNum(v){const n=num(v);if(!n)return null;return Math.round(n>1000?n/60:n>24?n:n*60)}
 const fmtHM=m=>m==null?"—":Math.floor(m/60)+"h "+pad(Math.round(m%60))+"m";
@@ -1973,7 +1981,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14e"; /* bump on every change so phones reload */
+const BUILD="2026-11-14f"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
@@ -1982,10 +1990,10 @@ if(cfg&&loadCache())reapplyPending();
 var pendingSleep=(()=>{try{const q=new URLSearchParams(location.search);const v=q.get("sleep");if(v!=null){history.replaceState(null,"",location.pathname+location.hash);try{localStorage.setItem("tf-pending-sleep",v)}catch{}return v}return localStorage.getItem("tf-pending-sleep")}catch{return null}})();
 async function applyPendingSleep(){if(pendingSleep==null||!cfg)return;const raw=pendingSleep;pendingSleep=null;try{localStorage.removeItem("tf-pending-sleep")}catch{}
   try{localStorage.setItem("tf-sleep-last-raw",JSON.stringify({at:new Date().toISOString(),raw:raw.slice(0,4000)}))}catch{}
-  const sl=parseSleep(raw);if(!sl){toast("Couldn't read the sleep data. Open Settings → Apple Health sync setup.",6000);return}
-  const d=toDay(new Date(sl.wakeTs).toISOString())||todayStr();const{wakeTs,...rest}=sl;
-  await store.set("health",d,{...(col.health[d]||{}),...rest,sleepRaw:raw.slice(0,1500),sleepSyncedAt:new Date().toISOString()});
-  toast(`Sleep synced: ${fmtHM(sl.sleepMin)}`);render()}
+  const ns=parseSleepNights(raw);if(!ns.length){toast("Couldn't read the sleep data. Open Settings → Apple Health sync setup.",6000);return}
+  for(const n of ns){const d=toDay(new Date(n.wakeTs).toISOString())||todayStr();const{wakeTs,...rest}=n;
+    await store.set("health",d,{...(col.health[d]||{}),...rest,sleepSyncedAt:new Date().toISOString()})}
+  const last=ns[ns.length-1];toast(`Sleep synced: ${fmtHM(last.sleepMin)} last night${ns.length>1?` (+${ns.length-1} earlier)`:""}`);render()}
 route();setStatus();if(cfg)loadAll();
 </script>
 </body>
