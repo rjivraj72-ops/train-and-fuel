@@ -567,6 +567,23 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 .fxp{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px;padding:9px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);font:inherit;font-weight:700;font-size:15px;border:1.5px solid var(--line);cursor:pointer;line-height:1.1}
 .fxp i{font-style:normal;font-size:12px;font-weight:700;opacity:.8}
 .fxp[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+
+/* Phone in landscape: side rail for tabs, full-width content in two columns. */
+@media (orientation:landscape) and (max-height:520px){
+  body:not(.wide) .tabs{top:0;bottom:0;right:auto;width:calc(76px + env(safe-area-inset-left,0px));padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);border-top:0;border-right:1px solid var(--line)}
+  body:not(.wide) .tabs .in{display:flex;flex-direction:column;justify-content:center;height:100%;max-width:none;gap:2px}
+  body:not(.wide) .tabs a{padding:7px 0;font-size:12px}
+  body:not(.wide) .app{max-width:none;margin:0 0 0 calc(76px + env(safe-area-inset-left,0px));padding-left:18px;padding-right:max(18px,env(safe-area-inset-right,0px));padding-bottom:24px}
+  body:not(.wide) .top{padding-block:8px 8px}
+  body:not(.wide) .composer{bottom:0}
+  body:not(.wide) .toast{bottom:20px}
+  body:not(.wide)[data-view="today"] #main>.view,body:not(.wide)[data-view="food"] #main>.view,body:not(.wide)[data-view="train"] #main>.view,body:not(.wide)[data-view="trends"] #main>.view{display:block;columns:2;column-gap:16px}
+  body:not(.wide)[data-view] #main>.view>*{break-inside:avoid;-webkit-column-break-inside:avoid;width:100%;margin-top:0;margin-bottom:14px}
+  body:not(.wide)[data-view="coach"] #main{max-width:760px;margin-inline:auto}
+  body:not(.wide) .grid2.stack{grid-template-columns:1fr}
+  body:not(.wide) .overnight .on-chart{grid-template-columns:repeat(7,1fr)}body:not(.wide) .overnight .on-col:nth-child(-n+7){display:none}
+  body:not(.wide) .overnight .v{font-size:20px}body:not(.wide) .overnight .l{font-size:12px;letter-spacing:.03em}body:not(.wide) .overnight .on-stats>div{padding:10px 6px}body:not(.wide) .overnight .s{font-size:12px}
+}
 </style>
 </head>
 <body>
@@ -2024,7 +2041,7 @@ let quickWater=null;{const m=location.hash.match(/^#water=(\d{2,4})$/);if(m){qui
 async function applyQuickWater(){if(!quickWater||!lastLoad)return;const ml=quickWater;quickWater=null;if(ml<50||ml>3000)return;const t=todayStr();waterUndo.push({d:t,ml});
   if(await safe(store.set("water",t,{...(col.water[t]||{}),ml:waterOn(t)+ml})))toast(`+${ml} ml water · ${n0(waterOn(t))} of ${n0(S().waterMl)} ml today`);render()}
 function route(){{const m=location.hash.match(/^#water=(\d{2,4})$/);if(m){quickWater=+m[1];history.replaceState(null,"",location.pathname+location.search+"#today");applyQuickWater()}}
-  const h=location.hash.slice(1);let nv=VIEWS.includes(h)?h:"today";if(nv==="coach"&&isWide()){nv=view==="coach"?"today":view;history.replaceState(null,"",location.pathname+location.search+"#"+nv);setTimeout(()=>$("#chatIn")?.focus(),50)}if(nv!==view){view=nv;$("#main").innerHTML="";window.scrollTo(0,0)}render()}
+  const h=location.hash.slice(1);let nv=VIEWS.includes(h)?h:"today";if(nv==="coach"&&isWide()){nv=view==="coach"?"today":view;history.replaceState(null,"",location.pathname+location.search+"#"+nv);setTimeout(()=>$("#chatIn")?.focus(),50)}if(nv!==view){view=nv;document.body.dataset.view=nv;$("#main").innerHTML="";window.scrollTo(0,0)}render()}
 window.addEventListener("hashchange",route);
 let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(date===lastDay)date=t;lastDay=t}if(view==="today"&&!sheetEl)render()},60000);
 
@@ -2041,7 +2058,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14r"; /* bump on every change so phones reload */
+const BUILD="2026-11-15b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
@@ -2053,7 +2070,7 @@ async function applyPendingSleep(){if(pendingSleep==null||!cfg)return;const raw=
   const by=sleepByDay(raw);const ks=Object.keys(by).sort();if(!ks.length){toast("Couldn't read the sleep data. Open Settings → Apple Health sync setup.",6000);return}
   for(const d of ks){if(d!==ks[ks.length-1]&&col.health[d]?.sleepMin>=by[d].sleepMin)continue;await store.set("health",d,{...(col.health[d]||{}),...by[d],sleepSyncedAt:new Date().toISOString()})}
   const last=by[ks[ks.length-1]];toast(`😴 Sleep synced: ${fmtHM(last.sleepMin)} last night (${fmtT(last.bed)} to ${fmtT(last.wake)})`,6000);render()}
-route();setStatus();if(cfg)loadAll();
+route();document.body.dataset.view=view;setStatus();if(cfg)loadAll();
 </script>
 </body>
 </html>
