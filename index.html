@@ -577,9 +577,12 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
   body:not(.wide) .top{padding-block:8px 8px}
   body:not(.wide) .composer{bottom:0}
   body:not(.wide) .toast{bottom:20px}
-  body:not(.wide)[data-view="today"] #main>.view,body:not(.wide)[data-view="food"] #main>.view,body:not(.wide)[data-view="train"] #main>.view,body:not(.wide)[data-view="trends"] #main>.view{display:block;columns:2;column-gap:16px}
+  body:not(.wide)[data-view="today"] #main>.view,body:not(.wide)[data-view="train"] #main>.view,body:not(.wide)[data-view="trends"] #main>.view{display:block;columns:2;column-gap:16px}
   body:not(.wide)[data-view] #main>.view>*{break-inside:avoid;-webkit-column-break-inside:avoid;width:100%;margin-top:0;margin-bottom:14px}
   body:not(.wide)[data-view="coach"] #main{max-width:760px;margin-inline:auto}
+  body:not(.wide)[data-view="food"] .head{flex-wrap:wrap;row-gap:10px}body:not(.wide)[data-view="food"] .head h2{font-size:26px}
+  body:not(.wide)[data-view="food"] #main>.view{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  body:not(.wide)[data-view="food"] #main>.view>section:last-child{position:sticky;top:calc(64px + env(safe-area-inset-top,0px));max-height:calc(100vh - 80px - env(safe-area-inset-top,0px));overflow-y:auto}
   body:not(.wide) .grid2.stack{grid-template-columns:1fr}
   body:not(.wide) .overnight .on-chart{grid-template-columns:repeat(7,1fr)}body:not(.wide) .overnight .on-col:nth-child(-n+7){display:none}
   body:not(.wide) .overnight .v{font-size:20px}body:not(.wide) .overnight .l{font-size:12px;letter-spacing:.03em}body:not(.wide) .overnight .on-stats>div{padding:10px 6px}body:not(.wide) .overnight .s{font-size:12px}
@@ -2058,7 +2061,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-15b"; /* bump on every change so phones reload */
+const BUILD="2026-11-15c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
