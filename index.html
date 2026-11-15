@@ -823,6 +823,11 @@ function anyDate(v){v=normSp(v);if(!v)return NaN;if(/^\d{4}-\d\d-\d\dT/.test(v))
   const t=Date.parse(v.replace(/\s+at\s+/i," "));return t}
 function toDay(v){v=normSp(v);if(/^\d{4}-\d\d-\d\d$/.test(v))return v;const t=anyDate(v);if(isNaN(t))return null;return new Intl.DateTimeFormat("en-CA",{timeZone:HOME_TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(t)}
 function sleepNum(v){const n=num(v);if(!n)return null;return Math.round(n>1000?n/60:n>24?n:n*60)}
+/* 4-week training block: weeks 1-3 build, the lighter week (default 4) eases volume by about a third. */
+function blockInfo(d){const b=S().block;if(!b||b.off||!b.start)return null;const ws=weekStart(d),st=weekStart(b.start);if(ws<st)return null;
+  const len=+b.weeks||4,light=+b.light||len;const idx=Math.round((parse(ws)-parse(st))/(7*864e5));const wk=idx%len+1,n=Math.floor(idx/len)+1;
+  return{wk,len,n,light:wk===light,label:wk===light?`Block ${n} · week ${wk} of ${len} · lighter week`:`Block ${n} · week ${wk} of ${len} · build`}}
+function blockPill(d){const b=blockInfo(d);return b?`<span class="pill ${b.light?"cool":"acc"}" style="margin-top:6px;display:inline-block">${b.light?"🌙 Lighter week · ":"Build · "}week ${b.wk} of ${b.len}</span>`:""}
 function sleepTarget(d){const s=S();return Math.round(60*(dow(d)===0?(+s.sleepTargetSun||7.5):(+s.sleepTarget||6)))}
 const shortHM=m=>m<60?Math.round(m)+"m":fmtHM(m);
 const goalT=m=>m%60?fmtHM(m):(m/60)+"h";
@@ -1009,7 +1014,8 @@ function recordsCard(){let rc;try{rc=records()}catch{return""}let seen={};try{se
   const f=rc.fresh.filter(x=>!seen[x.key]);if(!f.length)return"";
   return`<section class="card recs"><div class="eyebrow">🏆 New record${f.length>1?"s":""}</div>${f.map(x=>`<div class="rec"><span class="ri">${x.icon}</span><span>${x.text}</span></div>`).join("")}<button type="button" class="btn sm ghost" data-act="recSeen" data-k="${esc(f.map(x=>x.key).join("|"))}" style="margin-top:8px">Nice 🙌</button></section>`}
 function recordsLine(){let rc;try{rc=records()}catch{return""}const s=S();
-  return`SLEEP (Apple Watch): ${(()=>{const t=todayStr();const L=[0,1,2,3,4,5,6].map(i=>addDays(t,-i)).map(d=>[d,healthOn(d)]).filter(([,h])=>h?.sleepMin);if(!L.length)return"no data yet";const a=L.reduce((x,[,h])=>x+h.sleepMin,0)/L.length;return`last 7 nights avg ${fmtHM(Math.round(a))}, ${L.filter(([d,h])=>h.sleepMin>=sleepTarget(d)).length} of ${L.length} at goal (goal ${fmtHM(sleepTarget(t))} tonight; 6h most nights, 7.5h into Sunday). Mention sleep only when it bears on training, recovery or food, or when asked.`})()}
+  return`TRAINING BLOCK: ${(()=>{const b=blockInfo(todayStr());return b?`${b.label}. ${b.light?"This is the lighter week: same sessions, about a third less volume (shorter classes or fewer sets, easier intervals, no maxing). If they ask about pushing harder, remind them once that easing off this week is the plan, and that next week starts a new build.":"Build week: progress gradually (a little more weight, reps or interval time than last week); week "+(b.len)+" is the lighter week."}`:"not set up"})()}
+SLEEP (Apple Watch): ${(()=>{const t=todayStr();const L=[0,1,2,3,4,5,6].map(i=>addDays(t,-i)).map(d=>[d,healthOn(d)]).filter(([,h])=>h?.sleepMin);if(!L.length)return"no data yet";const a=L.reduce((x,[,h])=>x+h.sleepMin,0)/L.length;return`last 7 nights avg ${fmtHM(Math.round(a))}, ${L.filter(([d,h])=>h.sleepMin>=sleepTarget(d)).length} of ${L.length} at goal (goal ${fmtHM(sleepTarget(t))} tonight; 6h most nights, 7.5h into Sunday). Mention sleep only when it bears on training, recovery or food, or when asked.`})()}
 RECORDS: biggest strength session ${rc.vol?n0(rc.vol.value)+" lb ("+rc.vol.name+", "+rc.vol.date+")":"none yet"}; longest run ${rc.longRun?n1(rc.longRun.value)+" km ("+rc.longRun.date+")":"none yet"}; clean-night streak now ${rc.clean.cur} (best ${rc.clean.best}); ${s.proteinMin} g+ protein streak now ${rc.protein.cur} (best ${rc.protein.best}).${rc.fresh.length?" NEW IN THE LAST 2 DAYS (celebrate each once, in one specific line, unless you already did in the recent chat): "+rc.fresh.map(x=>x.text.replace(/<[^>]+>/g,"")).join("; ")+".":""}\n`}
 function challengeStatus(){const ch=kickoff?.challenge;if(!ch||!Array.isArray(ch.days)||!ch.days.length)return null;const t=todayStr(),s=S();
   if(!kickoff.date||addDays(kickoff.date,7)<=t||kickoff.date>t)return null;
@@ -1197,7 +1203,7 @@ function vTrain(){
   const vol=ww.filter(w=>w.type==="strength").reduce((a,w)=>a+(+w.volumeKg||0),0),km=ww.filter(w=>w.type==="run").reduce((a,w)=>a+(+w.distanceKm||0),0);
   const pr=prs(),rec=allWorkouts().slice(0,10);
   return`<div class="view">
-  <section class="card"><div class="head"><div><div class="eyebrow">Week of Sun, ${short(ws)}</div><h2>This week</h2><p class="sub">${done} of ${planned} planned sessions complete${s.profile?" · "+esc(s.profile):""}</p></div><button class="btn line sm" data-act="settings">Edit routine</button></div>
+  <section class="card"><div class="head"><div><div class="eyebrow">Week of Sun, ${short(ws)}</div><h2>This week</h2><p class="sub">${done} of ${planned} planned sessions complete${s.profile?" · "+esc(s.profile):""}</p>${(()=>{const b=blockInfo(ws);return b?`<div style="margin-top:6px">${blockPill(ws)}</div>${b.light?`<p class="small" style="margin-top:6px">Lighter week: same sessions, about a third less work. Shorter classes or fewer sets, easier intervals, nothing to max.</p>`:""}`:""})()}</div><button class="btn line sm" data-act="settings">Edit routine</button></div>
     <div class="plan" style="margin-top:10px">${rows}</div>
     <div class="row" style="gap:8px;margin-top:12px"><button class="btn line" style="flex:1" data-act="addWorkout">Log workout</button><button class="btn" style="flex:1" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Photo</button></div></section>
   <section class="card"><div class="stats"><div class="stat"><div class="l">Sessions</div><div class="mid">${ww.length}</div></div><div class="stat"><div class="l">Volume</div><div class="mid">${vol>=10000?n1(vol/1000)+"<small>k lb</small>":n0(vol)+"<small>lb</small>"}</div></div><div class="stat"><div class="l">Run</div><div class="mid">${n1(km)}<small>km</small></div></div></div></section>
@@ -1457,8 +1463,8 @@ function vTrends(){
   ${sleepTrendCard()}
   <section class="card"><div class="eyebrow">Adherence</div><h2>Weekly scores</h2><p class="sub">Calories within ±200, protein at the floor, and planned sessions done. Faded bar is this week, still in progress.</p>
     ${chartBars({labels:weeks.map(short),dates:weeks,values:scores,colors:scoreCol,hatchLast:true})}</section>
-  <section class="card"><div class="eyebrow">Training</div><h2>Weekly strength volume</h2>
-    ${chartBars({labels:weeks.map(short),dates:weeks,values:vols,color:"var(--t-str)",fmt:v=>(v>=10000?Math.round(v/1000):(v/1000).toFixed(1))+"k",hatchLast:true})}</section>
+  <section class="card"><div class="eyebrow">Training</div><h2>Weekly strength volume</h2>${weeks.some(w=>blockInfo(w)?.light)?`<p class="sub">Paler bars are lighter weeks in your 4-week block.</p>`:""}
+    ${chartBars({labels:weeks.map(short),dates:weeks,values:vols,colors:weeks.map(w=>blockInfo(w)?.light?"var(--cool)":"var(--t-str)"),fmt:v=>(v>=10000?Math.round(v/1000):(v/1000).toFixed(1))+"k",hatchLast:true})}</section>
   ${monKeys.length?`<section class="card"><div class="eyebrow">Monthly reports</div>${monKeys.map(k=>{const m=mon[k];return`<h2 style="margin-top:6px">${esc(m.label||k)}</h2><div class="stats" style="margin-top:10px"><div class="stat"><div class="l">Workouts</div><div class="mid">${n0(m.workouts)}</div></div><div class="stat"><div class="l">Volume</div><div class="mid">${n0((m.volumeKg||0)/1000)}<small>k lb</small></div></div><div class="stat"><div class="l">Run</div><div class="mid">${n1(m.runKm)}<small>km</small></div></div></div><p class="sub">${esc(m.note||"")}</p>`}).join("")}</section>`:""}
   </div>`;
 }
@@ -1641,6 +1647,9 @@ function settingsSheet(){
     <div class="f"><label for="sAbout">About me (the Coach reads this every time)</label><textarea id="sAbout" rows="7" placeholder="Age, height, sport and training history, goals, schedule, foods you love or avoid, injuries, what motivates you, what usually derails you…">${esc(s.about||s.profile)}</textarea></div>
     <div class="f"><label for="sStyle">How the Coach should talk to you</label><textarea id="sStyle" placeholder="e.g. Be blunt. Call out late-night snacks. Keep replies under 4 lines. Remind me I'm gluten-free.">${esc(s.coachStyle)}</textarea></div>
     <div class="f"><label for="sQP">Quick prompts (one per line)</label><textarea id="sQP" rows="5">${esc((s.quickPrompts||[]).join("\n"))}</textarea><span class="hint">These appear as one-tap buttons in the Coach.</span></div>
+    <div class="f h"><label for="sBlk">4-week block starts (Sunday)</label><input id="sBlk" type="date" value="${esc(s.block?.start||"")}"></div>
+    <div class="f q"><label for="sBlkL">Lighter week</label><select id="sBlkL">${[1,2,3,4].map(i=>`<option value="${i}" ${(+(s.block?.light)||4)===i?"selected":""}>Week ${i}</option>`).join("")}</select></div>
+    <div class="f q"><label for="sBlkOn">Block</label><select id="sBlkOn"><option value="on" ${s.block&&!s.block.off?"selected":""}>On</option><option value="off" ${!s.block||s.block.off?"selected":""}>Off</option></select></div>
     <div class="f q"><label for="sSlp">Sleep goal (h)</label><input id="sSlp" inputmode="decimal" value="${s.sleepTarget||6}"></div>
     <div class="f q"><label for="sSlpS">Into Sunday (h)</label><input id="sSlpS" inputmode="decimal" value="${s.sleepTargetSun||7.5}"></div>
     <div class="f"><label>Fuel by day type</label><span class="hint">Big days get extra calories (all from carbs). Rest days can drop a little. Each routine day below has a fuel setting.</span></div>
@@ -1662,7 +1671,7 @@ function settingsSheet(){
       const g=(id,dflt)=>num(fv(id))??dflt;
       const data={...(col.settings.main||{}),kcal:g("sKcal",s.kcal),waterMl:g("sWater",s.waterMl),proteinMin:g("sPmin",s.proteinMin),proteinMax:g("sPmax",s.proteinMax),fatMin:g("sFmin",s.fatMin),fatMax:g("sFmax",s.fatMax),weightLo:g("sWlo",s.weightLo),weightHi:g("sWhi",s.weightHi),weighDays:[0,1,2,3,4,5,6].filter(i=>document.getElementById("wd"+i)?.checked),open:fv("sOpen")||s.open,close:fv("sClose")||s.close,flexDow:+fv("sFlex"),about:fv("sAbout").trim(),profile:"",coachStyle:fv("sStyle").trim(),quickPrompts:fv("sQP").split("\n").map(x=>x.trim()).filter(Boolean).slice(0,12),
         plan:[0,1,2,3,4,5,6].map(i=>({title:fv("pT"+i).trim()||"Session",detail:fv("pD"+i).trim(),kind:fv("pK"+i)})),
-        fuelDays:[0,1,2,3,4,5,6].map(i=>fv("pF"+i)||"normal"),fuelUp:g("sFup",s.fuelUp==null?300:s.fuelUp),fuelDown:g("sFdn",s.fuelDown==null?0:s.fuelDown),bigBurn:g("sBig",s.bigBurn||700),sleepTarget:g("sSlp",s.sleepTarget||6),sleepTargetSun:g("sSlpS",s.sleepTargetSun||7.5)};
+        fuelDays:[0,1,2,3,4,5,6].map(i=>fv("pF"+i)||"normal"),fuelUp:g("sFup",s.fuelUp==null?300:s.fuelUp),fuelDown:g("sFdn",s.fuelDown==null?0:s.fuelDown),bigBurn:g("sBig",s.bigBurn||700),sleepTarget:g("sSlp",s.sleepTarget||6),block:{start:fv("sBlk")?weekStart(fv("sBlk")):(s.block?.start||""),weeks:4,light:+fv("sBlkL")||4,off:fv("sBlkOn")==="off"},sleepTargetSun:g("sSlpS",s.sleepTargetSun||7.5)};
       closeSheet();await safe(store.set("settings","main",data),"Targets saved")};
   });
 }
@@ -2032,7 +2041,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14q"; /* bump on every change so phones reload */
+const BUILD="2026-11-14r"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
