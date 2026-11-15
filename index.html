@@ -1019,14 +1019,19 @@ function challengeStatus(){const ch=kickoff?.challenge;if(!ch||!Array.isArray(ch
     case"kitchen":{const ms=mealsOn(d);return{v:ms.length?fmtT(ms[ms.length-1].time):"—",ok:ms.length>0&&!ms.some(isLate),u:""}}
     case"session":{const x=sessionState(d);return{v:x.label,ok:x.st==="done",u:""}}
     case"water":{const w=waterOn(d);return{v:w,ok:w>=(min||s.waterMl),u:"ml"}}
+    case"sleep":{const h=healthOn(addDays(d,1));const goal=min||sleepTarget(addDays(d,1));return{v:h?.sleepMin?fmtHM(h.sleepMin):"—",ok:!!h?.sleepMin&&h.sleepMin>=goal,u:"",pending:!h?.sleepMin}}
+    case"bedtime":{const h=healthOn(addDays(d,1));const by=ch.by||"22:00";const m=x=>{const[a,b]=x.split(":").map(Number);return(a<12?a+24:a)*60+b};return{v:h?.bed?fmtT(h.bed):"—",ok:!!h?.bed&&m(h.bed)<=m(by),u:"",pending:!h?.bed}}
     default:return{v:"",ok:false,u:""}}};
-  const items=ch.days.slice(0,7).map(d=>{const x=val(d);const st=d>t?"up":d===t?(x.ok?"done":dayDone(d)?"miss":"now"):(x.ok?"done":"miss");return{d,st,...x}});
+  const night=ch.metric==="sleep"||ch.metric==="bedtime";
+  const items=ch.days.slice(0,7).map(d=>{const x=val(d);let st;
+    if(night){const w=addDays(d,1);st=x.ok?"done":d>t?"up":(w>=t&&x.pending)?"now":"miss"}
+    else st=d>t?"up":d===t?(x.ok?"done":dayDone(d)?"miss":"now"):(x.ok?"done":"miss");return{d,st,night,...x}});
   return{label:ch.label||"This week's challenge",metric:ch.metric,min,items,done:items.filter(x=>x.st==="done").length}}
 function challengeCard(){const c=challengeStatus();if(!c)return"";
   const fmtV=x=>typeof x.v==="number"?n0(x.v)+(x.u?" "+x.u:""):esc(String(x.v||""));
   return`<section class="card chal"><div class="head"><div><div class="eyebrow">This week's challenge</div><h2>${esc(c.label)}</h2></div><div class="chal-n">${c.done}/${c.items.length}</div></div>
-  <div class="chal-days">${c.items.map(x=>`<div class="cd ${x.st}"><div class="dw">${DOW[dow(x.d)]}</div><div class="ic">${x.st==="done"?"✓":x.st==="miss"?"✗":x.st==="now"?"●":"○"}</div><div class="vv">${x.st==="up"?"to come":x.st==="now"?fmtV(x)+" so far":fmtV(x)}</div></div>`).join("")}</div></section>`}
-function challengeLine(){const c=challengeStatus();if(!c)return"";return`THIS WEEK'S CHALLENGE (from the Sunday kickoff): ${c.label}. Progress: ${c.items.map(x=>`${DOW[dow(x.d)]} ${x.d} ${x.st==="done"?"DONE":x.st==="miss"?"missed":x.st==="now"?"TODAY, "+(typeof x.v==="number"?n0(x.v)+" "+x.u:x.v)+" so far":"upcoming"}`).join("; ")}. On a challenge day, mention progress when it's useful (e.g. how much is left and the time to close); celebrate when it's done.\n`}
+  <div class="chal-days">${c.items.map(x=>`<div class="cd ${x.st}"><div class="dw">${DOW[dow(x.d)]}</div><div class="ic">${x.st==="done"?"✓":x.st==="miss"?"✗":x.st==="now"?"●":"○"}</div><div class="vv">${x.st==="up"?"to come":x.st==="now"?(x.night?(x.d===todayStr()?"tonight":"syncing"):fmtV(x)+" so far"):fmtV(x)}</div></div>`).join("")}</div></section>`}
+function challengeLine(){const c=challengeStatus();if(!c)return"";return`THIS WEEK'S CHALLENGE (from the Sunday kickoff): ${c.label}.${c.metric==="sleep"||c.metric==="bedtime"?" (Sleep challenges count the night that starts on each listed date; the result arrives with the next morning's sleep sync.)":""} Progress: ${c.items.map(x=>`${DOW[dow(x.d)]} ${x.d} ${x.st==="done"?"DONE":x.st==="miss"?"missed":x.st==="now"?(x.night?(x.d===todayStr()?"TONIGHT (counts the night that starts this evening)":"waiting for the sleep sync")+"":"TODAY, "+(typeof x.v==="number"?n0(x.v)+" "+x.u:x.v))+" so far":"upcoming"}`).join("; ")}. On a challenge day, mention progress when it's useful (e.g. how much is left and the time to close); celebrate when it's done.\n`}
 function mealIdeasLine(){const s=S(),t=todayStr(),tt=totals(t);
   const sv=savedList().slice(0,15).map(m=>`${m.name}: ${n0(m.kcal)} kcal ${n0(m.protein)}/${n0(m.carbs)}/${n0(m.fat)}`).join("; ");
   const fq={};for(const m of Object.values(col.meals)){if(!m.date||m.date<addDays(t,-30))continue;const k=normName(m.name);if(!k)continue;(fq[k]=fq[k]||{n:0,name:m.name,k:0,p:0,c:0,f:0});const q=fq[k];q.n++;q.k+=+m.kcal||0;q.p+=+m.protein||0;q.c+=+m.carbs||0;q.f+=+m.fat||0;q.name=m.name}
@@ -2027,7 +2032,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-14p"; /* bump on every change so phones reload */
+const BUILD="2026-11-14q"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
