@@ -872,7 +872,9 @@ function setStatus(){
 }
 window.addEventListener("online",()=>{if(hasPending())flush();else loadAll()});
 setInterval(()=>{if(cfg&&hasPending()&&!flushing)flush()},60000);
-document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&cfg&&Date.now()-lastLoad>60000&&!hasPending()&&!conv)loadAll()});
+let lastInbox=0;async function quickInbox(){if(!cfg||conv||Date.now()-lastInbox<4000)return;lastInbox=Date.now();const before=JSON.stringify([col.water,col.health]);try{await processInbox()}catch{}if(JSON.stringify([col.water,col.health])!==before){saveCache();render()}}
+function onResume(){if(document.visibilityState!=="visible"||!cfg||conv)return;if(Date.now()-lastLoad>60000&&!hasPending())loadAll();else quickInbox()}
+document.addEventListener("visibilitychange",onResume);window.addEventListener("pageshow",e=>{if(e.persisted)onResume()});window.addEventListener("focus",onResume);
 
 function importCard(){
   if(!needsImport)return"";
@@ -2061,7 +2063,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-16a"; /* bump on every change so phones reload */
+const BUILD="2026-11-16b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
