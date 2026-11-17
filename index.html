@@ -777,7 +777,8 @@ async function loadAll(){
     for(const c of PROFILE_COLS)col[c]=p.data[c]||{};
     col.chat=ch.data.chat||{};
     col.patterns=pt.data.patterns||{};
-    if(!chatBusy)chatTurns=Array.isArray(col.chat.log?.turns)?col.chat.log.turns.slice():[];
+    {const srv=Array.isArray(col.chat.log?.turns)?col.chat.log.turns:[];const lastAt=a=>(a&&a.length?+a[a.length-1].at||0:0);
+     if(!chatTurns||(!chatBusy&&!awaiting&&lastAt(srv)>lastAt(chatTurns)))chatTurns=srv.slice();}
     loadedMonths.clear();await Promise.all(monthsBack(3).map(loadMonth));
     kickoff=parseKickoff(kickoffRaw?.text);
     checkin=null;if(ci&&ci.text){const m=ci.text.match(/<!--\s*date:\s*(\d{4}-\d\d-\d\d)\s*-->/);checkin={date:m?m[1]:null,text:ci.text.replace(/<!--[\s\S]*?-->/g,"").trim()}}
@@ -1819,8 +1820,8 @@ async function startConv(mode,extraOv){
 async function endConv(){const c=conv;conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;clearTimeout(idleTimer);try{await c?.endSession()}catch{}updateMic()}
 function touchIdle(){clearTimeout(idleTimer);idleTimer=setTimeout(()=>{if(convMode==="text")endConv()},4*60000)}
 function addTurn(role,content){chatTurns=chatTurns||[];const t={role,content:String(content),at:Date.now()};if(role==="assistant"&&pendingActions.length)t.actions=pendingActions.splice(0);chatTurns.push(t);saveChatSoon();renderChat()}
-function saveChatSoon(){clearTimeout(saveChatT);saveChatT=setTimeout(()=>{chatTurns=(chatTurns||[]).slice(-60);store.set("chat","log",{turns:chatTurns.map(({img,imgs,...r})=>r)})},1500)}
-async function saveChat(){chatTurns=(chatTurns||[]).slice(-60);await store.set("chat","log",{turns:chatTurns.map(({img,imgs,...r})=>r)})}
+function saveChatSoon(){clearTimeout(saveChatT);saveChatT=setTimeout(()=>{store.set("chat","log",{turns:(chatTurns||[]).slice(-60).map(({img,imgs,...r})=>r)})},1500)}
+async function saveChat(){await store.set("chat","log",{turns:(chatTurns||[]).slice(-60).map(({img,imgs,...r})=>r)})}
 function snippet(s){s=String(s).replace(/\s+/g," ").trim();return s.length>140?s.slice(0,137)+"…":s}
 function setReply(i){const t=(chatTurns||[])[i];if(!t){replyTarget=null}else replyTarget={text:snippet(t.content),role:t.role};const rb=$("#replyBar");if(!rb)return;
   if(!replyTarget){rb.hidden=true;rb.innerHTML="";return}
@@ -1847,11 +1848,12 @@ const REACTS=["👍","❤️","💪","😂","👎"];
 const REACT_SHORT={"👍":"Helpful","❤️":"Hit home","💪":"Fired up","😂":"Funny","👎":"Missed"};
 const REACT_MEAN={"👍":"Helpful","❤️":"Hit home","💪":"Fired me up","😂":"Made me laugh","👎":"Missed the mark"};
 function closeReactBar(){const o=document.getElementById("rxsheet");if(o){o.classList.add("out");setTimeout(()=>o.remove(),140)}document.querySelectorAll(".mwrap.held").forEach(x=>x.classList.remove("held"))}
+function turnIdx(el){const i=+el.dataset.i;const at=+(el.dataset.at||el.closest?.("[data-at]")?.dataset.at||0);const ts=chatTurns||[];if(at&&ts[i]?.at!==at){const j=ts.findIndex(x=>x.at===at);if(j>=0)return j}return i}
 function openReactBar(i){closeReactBar();const t=(chatTurns||[])[i];if(!t)return;const u=t.role==="user";
   const src=document.querySelector(`.mwrap[data-i="${i}"] .msg`);
   const o=document.createElement("div");o.id="rxsheet";o.className="rxsheet";o.setAttribute("role","dialog");o.setAttribute("aria-label","Message actions");
   const canShare=!!navigator.share;
-  o.innerHTML=`<div class="rxs-col">${u?"":`<div class="rxs-pill">${REACTS.map(e=>`<button type="button" class="rxs-e${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-label="${REACT_MEAN[e]}" aria-pressed="${t.react===e}"><span>${e}</span><small>${REACT_SHORT[e]}</small></button>`).join("")}</div>`}
+  o.innerHTML=`<div class="rxs-col">${u?"":`<div class="rxs-pill">${REACTS.map(e=>`<button type="button" class="rxs-e${t.react===e?" on":""}" data-act="react" data-i="${i}" data-at="${t.at||""}" data-e="${e}" aria-label="${REACT_MEAN[e]}" aria-pressed="${t.react===e}"><span>${e}</span><small>${REACT_SHORT[e]}</small></button>`).join("")}</div>`}
   <div class="rxs-msg ${u?"u":"a"}">${src?src.innerHTML:md(t.content)}</div>
   <div class="rxs-menu">${u?"":`<button type="button" data-act="listenMsg" data-i="${i}"><span class="ic">🔊</span>Listen</button>`}<button type="button" data-act="replyTo" data-i="${i}"><span class="ic">↩︎</span>Reply</button><button type="button" data-act="copyMsg" data-i="${i}"><span class="ic">⧉</span>Copy</button>${canShare?`<button type="button" data-act="shareMsg" data-i="${i}"><span class="ic">⇪</span>Share</button>`:""}</div></div>`;
   o.addEventListener("click",e=>{if(e.target===o||e.target.classList.contains("rxs-col"))closeReactBar()});
@@ -1968,7 +1970,7 @@ function renderChat(){
     if(t.at){const d=homeParts(t.at).date;if(d!==lastDay){lastDay=d;sep=`<div class="daysep"><span>${esc(dayName(d))}</span></div>`}}
     const tm=t.at?fmtT(homeParts(t.at).time):"";
     const bar=`<div class="tapbar" role="toolbar" aria-label="React or reply">${u?"":REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}" aria-label="${REACT_MEAN[e]}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join("")}<button type="button" class="rx rp" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="e">↩</span><span class="lbl">Reply</span></button>${tm?`<span class="tbtime">${tm}</span>`:""}</div>`;
-    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}"><div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div>${!u&&!t.react&&i===lastA&&!awaiting?`<div class="rxq" role="toolbar" aria-label="React to this reply">${REACTS.map(e=>`<button type="button" data-act="react" data-i="${i}" data-e="${e}" aria-label="${REACT_MEAN[e]}">${e}</button>`).join("")}</div>`:""}</div>`}).join("")
+    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}" data-at="${t.at||""}"><div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div>${!u&&!t.react&&i===lastA&&!awaiting?`<div class="rxq" role="toolbar" aria-label="React to this reply">${REACTS.map(e=>`<button type="button" data-act="react" data-i="${i}" data-at="${t.at||""}" data-e="${e}" aria-label="${REACT_MEAN[e]}">${e}</button>`).join("")}</div>`:""}</div>`}).join("")
     +(awaiting?`<div class="msg a think" aria-label="Coach is typing"><span class="dots"><i></i><i></i><i></i></span></div>`:"")
     +(turns.length&&!S().reactHintSeen&&!turns.some(x=>x.react)?`<p class="hint" style="align-self:center;text-align:center;margin:4px 0 0">Tip: press and hold a message to react ${REACTS.slice(0,3).join(" ")}, reply or copy.</p>`:"");
   const all=el.querySelectorAll(".msg");all.length&&all[all.length-1].scrollIntoView({block:"nearest"});
@@ -2013,13 +2015,13 @@ function bindComposer(){
   const endSwipe=()=>{if(!sw)return;const {w,dx,lock}=sw;sw=null;w.style.transition="";w.style.transform="";w.style.setProperty("--sw",0);
     if(lock==="h"&&Math.abs(dx)>=60){setReply(+w.dataset.i)}};
   let lp=null,lpFired=false;
-  log.addEventListener("touchstart",e=>{const m=e.target.closest(".msg[data-tap]");if(!m||e.touches.length>1||e.target.closest("button,a,.actbtn"))return;if(document.activeElement===ta)ta.blur();const t0=e.touches[0];lpFired=false;clearTimeout(lp?.tm);try{getSelection()?.removeAllRanges()}catch{}lp={x:t0.clientX,y:t0.clientY,t:Date.now(),i:+m.dataset.tap,tm:setTimeout(()=>{lpFired=true;const w=m.closest(".mwrap");w&&w.classList.add("held");openReactBar(+m.dataset.tap)},420)}},{passive:true});
+  log.addEventListener("touchstart",e=>{const m=e.target.closest(".msg[data-tap]");if(!m||e.touches.length>1||e.target.closest("button,a,.actbtn"))return;if(document.activeElement===ta)ta.blur();const t0=e.touches[0];lpFired=false;clearTimeout(lp?.tm);try{getSelection()?.removeAllRanges()}catch{}lp={x:t0.clientX,y:t0.clientY,t:Date.now(),i:turnIdx(m.closest(".mwrap")||m),tm:setTimeout(()=>{lpFired=true;const w=m.closest(".mwrap");w&&w.classList.add("held");openReactBar(turnIdx(m.closest(".mwrap")||m))},420)}},{passive:true});
   const lpCancel=()=>{if(lp){clearTimeout(lp.tm);lp=null}};
   log.addEventListener("touchmove",e=>{if(!lp)return;const t0=e.touches[0];if(Math.abs(t0.clientX-lp.x)>8||Math.abs(t0.clientY-lp.y)>8)lpCancel()},{passive:true});
   log.addEventListener("touchend",e=>{if(lpFired){e.preventDefault();lpFired=false}lpCancel()},{passive:false});
   log.addEventListener("touchcancel",()=>{if(lp&&!lpFired&&Date.now()-lp.t>=350){const i=lp.i;lpCancel();lpFired=true;openReactBar(i)}else lpCancel()});
-  log.addEventListener("contextmenu",e=>{const m=e.target.closest(".msg[data-tap]");if(m){e.preventDefault();openReactBar(+m.dataset.tap)}});
-  log.addEventListener("click",e=>{if(e.target.closest("button,a,img,.actbtn"))return;if(matchMedia("(pointer:coarse)").matches)return;if(String(getSelection?.()||"").trim())return;const m=e.target.closest(".msg[data-tap]");if(m)openReactBar(+m.dataset.tap)});
+  log.addEventListener("contextmenu",e=>{const m=e.target.closest(".msg[data-tap]");if(m){e.preventDefault();openReactBar(turnIdx(m.closest(".mwrap")||m))}});
+  log.addEventListener("click",e=>{if(e.target.closest("button,a,img,.actbtn"))return;if(matchMedia("(pointer:coarse)").matches)return;if(String(getSelection?.()||"").trim())return;const m=e.target.closest(".msg[data-tap]");if(m)openReactBar(turnIdx(m.closest(".mwrap")||m))});
   log.addEventListener("touchend",endSwipe);log.addEventListener("touchcancel",endSwipe);
 }
 
@@ -2052,7 +2054,7 @@ document.addEventListener("click",async e=>{
   else if(a==="shareMsg"){const t=chatTurns&&chatTurns[+b.dataset.i];closeReactBar();if(t){try{await navigator.share({text:t.content})}catch{}}}
   else if(a==="closeReact"){closeReactBar()}
   else if(a==="replyTo"){closeReactBar();setReply(+b.dataset.i)}
-  else if(a==="react"){const i=+b.dataset.i,t=chatTurns&&chatTurns[i];closeReactBar();if(t){const e=t.react===b.dataset.e?null:b.dataset.e;if(e)t.react=e;else delete t.react;saveChatSoon();recordFeedback(t,e);renderChat();
+  else if(a==="react"){const i=turnIdx(b),t=chatTurns&&chatTurns[i];closeReactBar();if(t){const e=t.react===b.dataset.e?null:b.dataset.e;if(e)t.react=e;else delete t.react;saveChatSoon();recordFeedback(t,e);renderChat();
     if(e){toast(e+" "+REACT_MEAN[e]+": the Coach will learn from this");try{if(conv&&convStatus==="connected")conv.sendContextualUpdate?.(`Rahim reacted ${e} (${REACT_MEAN[e]}) to your message: "${snippet(t.content)}". Note it silently; don't reply to the reaction.`)}catch{}
       if(e==="👎"){setReply(i);const ta=$("#chatIn");if(ta)ta.placeholder="What missed the mark? (optional)"}}}}
   else if(a==="cancelReply"){setReply(-1)}
@@ -2110,7 +2112,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-16f"; /* bump on every change so phones reload */
+const BUILD="2026-11-17a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
