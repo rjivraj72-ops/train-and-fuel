@@ -564,6 +564,7 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 @media (prefers-reduced-motion:reduce){.rxsheet,.rxs-pill,.rxs-msg,.rxs-menu{animation:none}}
 
 .slp{margin:14px 0 4px;padding-top:12px;border-top:1px solid var(--line)}.slp-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.slp-h .l{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.slp-h .v{font-family:var(--f-display);font-size:34px;font-weight:800;line-height:1.1}.slp-h .v span{font-size:inherit}
+.vlist{display:flex;flex-direction:column;gap:8px}.vrow{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:14px;padding:8px 10px;background:var(--surface-2)}.vrow.on{border-color:var(--accent);background:var(--accent-soft)}.vplay{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);font-size:16px;font-weight:800;cursor:pointer}.vpick{flex:1;min-width:0;text-align:left;background:none;border:0;color:var(--fg);font:inherit;cursor:pointer;padding:2px 0;display:flex;flex-direction:column;gap:2px}.vpick b{font-size:17px}.vpick span{font-size:14px;color:var(--muted)}.vchk{color:var(--accent);font-weight:800;font-size:20px}
 .fxp{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px;padding:9px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);font:inherit;font-weight:700;font-size:15px;border:1.5px solid var(--line);cursor:pointer;line-height:1.1}
 .fxp i{font-style:normal;font-size:12px;font-weight:700;opacity:.8}
 .fxp[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
@@ -848,6 +849,21 @@ function blockInfo(d){const b=S().block;if(!b||b.off||!b.start)return null;const
   const len=+b.weeks||4,light=+b.light||len;const idx=Math.round((parse(ws)-parse(st))/(7*864e5));const wk=idx%len+1,n=Math.floor(idx/len)+1;
   return{wk,len,n,light:wk===light,label:wk===light?`Block ${n} · week ${wk} of ${len} · lighter week`:`Block ${n} · week ${wk} of ${len} · build`}}
 function blockPill(d){const b=blockInfo(d);return b?`<span class="pill ${b.light?"cool":"acc"}" style="margin-top:6px;display:inline-block">${b.light?"🌙 Lighter week · ":"Build · "}week ${b.wk} of ${b.len}</span>`:""}
+const DEFAULT_VOICE="MP7UPhn7eVWqCGJGIh6Q";
+const COACH_VOICES=[
+ ["MP7UPhn7eVWqCGJGIh6Q","Aaron Patrick","Upbeat and inviting · American","https://storage.googleapis.com/eleven-public-prod/database/workspace/e9f5485839c749cdae7fddf080cda345/voices/MP7UPhn7eVWqCGJGIh6Q/9PRlKN7ZOHwLiAdMzmqg.mp3"],
+ ["fqC6xtOMah88mCmagyZC","Ian","Calm, direct, no fluff · Canadian","https://api.us.elevenlabs.io/v1/voices/fqC6xtOMah88mCmagyZC/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJjdXN0b20iLCJ3b3Jrc3BhY2VfaWQiOiIyMjlmM2Q2MWVhYzU0N2M0OGY5ZmY5Y2IyY2NmMGU2YyIsImZpbGVuYW1lIjoiZGU3MjdlZDYtNDhmOS00NTY5LTkzMGMtOWQ4ZGExNGEzYTM2Lm1wMyIsInRpbWVzdGFtcCI6MTc5NDg3NzIwMDAwMDAwMH0%3D"],
+ ["jJvIIsFGSxzXLCRjq5Xf","Deep Lax","Deep, friendly and motivational · American","https://storage.googleapis.com/eleven-public-prod/custom/voices/jJvIIsFGSxzXLCRjq5Xf/sU1bU7K3IgH5fodyMPiL.mp3"],
+ ["Ju11pvP16gqGLgngLJKV","Your hype coach","Your custom voice: big-brother energy, playful","https://storage.googleapis.com/eleven-public-prod/database/workspace/88ab9c702dfe4867942a807f4146a3c0/voices/Ju11pvP16gqGLgngLJKV/241aff09-e5ba-4342-b018-aa93d2b50e7e.mp3"],
+ ["Hi6tnmUNNYzDCgW5eJyH","Jett","Fast-paced and sharp · American","https://storage.googleapis.com/eleven-public-prod/database/workspace/daa7325984ba48eda5b6c7314b44a445/voices/Hi6tnmUNNYzDCgW5eJyH/ZBeA2nrYU4B7tAmgYjTt.mp3"],
+ ["TX3LPaxmHKxFdv7VOQHJ","Liam","Energetic and warm · American","https://storage.googleapis.com/eleven-public-prod/premade/voices/TX3LPaxmHKxFdv7VOQHJ/63148076-6363-42db-aea8-31424308b92c.mp3"],
+ ["iP95p4xoKVk53GoZ742B","Chris","Charming, down-to-earth · American","https://storage.googleapis.com/eleven-public-prod/premade/voices/iP95p4xoKVk53GoZ742B/3f4bde72-cc48-40dd-829f-57fbf906f4d7.mp3"],
+ ["IKne3meq5aSn9XLyUdCD","Charlie","Confident and energetic · Australian","https://api.us.elevenlabs.io/v1/voices/IKne3meq5aSn9XLyUdCD/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJwcmVtYWRlIiwiZmlsZW5hbWUiOiIxMDJkZTZmMi0yMmVkLTQzZTAtYTFmMS0xMTFmYTc1YzU0ODEubXAzIiwidGltZXN0YW1wIjoxNzk0ODc3MjAwMDAwMDAwfQ%3D%3D"],
+ ["EXAVITQu4vr4xnSDxMaL","Sarah","Confident, warm, reassuring · American","https://storage.googleapis.com/eleven-public-prod/premade/voices/EXAVITQu4vr4xnSDxMaL/01a3e33c-6e99-4ee7-8543-ff2216a32186.mp3"],
+ ["XrExE9yKIg1WjnnlVkGX","Matilda","Upbeat and professional · American","https://storage.googleapis.com/eleven-public-prod/premade/voices/XrExE9yKIg1WjnnlVkGX/b930e18d-6b4d-466e-bab2-0ae97c6d8535.mp3"]];
+let previewAudio=null;
+function voicePickerHTML(){const cur=S().coachVoice||DEFAULT_VOICE;return`<label>Coach voice <span class="muted" style="font-weight:600">(used for voice chats, Listen and the Sunday kickoff)</span></label>
+  <div class="vlist">${COACH_VOICES.map(([id,nm,ds])=>`<div class="vrow ${id===cur?"on":""}"><button type="button" class="vplay" data-act="voicePrev" data-id="${id}" aria-label="Preview ${esc(nm)}">▶</button><button type="button" class="vpick" data-act="voicePick" data-id="${id}" aria-pressed="${id===cur}"><b>${esc(nm)}</b><span>${esc(ds)}</span></button>${id===cur?'<span class="vchk">✓</span>':""}</div>`).join("")}</div>`}
 function sleepTarget(d){const s=S();return Math.round(60*(dow(d)===0?(+s.sleepTargetSun||7.5):(+s.sleepTarget||6)))}
 const shortHM=m=>m<60?Math.round(m)+"m":fmtHM(m);
 const goalT=m=>m%60?fmtHM(m):(m/60)+"h";
@@ -1667,6 +1683,7 @@ function settingsSheet(){
     <div class="f" id="flexBox">${flexPickerHTML()}</div>
     <div class="f h"><label for="sFlex">Weekend default (when not moved)</label><select id="sFlex">${[6,0].map(i=>`<option value="${i}" ${s.flexDow===i?"selected":""}>${DOW[i]}</option>`).join("")}</select></div>
     <div class="f"><label for="sAbout">About me (the Coach reads this every time)</label><textarea id="sAbout" rows="7" placeholder="Age, height, sport and training history, goals, schedule, foods you love or avoid, injuries, what motivates you, what usually derails you…">${esc(s.about||s.profile)}</textarea></div>
+    <div class="f" id="voiceBox">${voicePickerHTML()}</div>
     <div class="f"><label for="sStyle">How the Coach should talk to you</label><textarea id="sStyle" placeholder="e.g. Be blunt. Call out late-night snacks. Keep replies under 4 lines. Remind me I'm gluten-free.">${esc(s.coachStyle)}</textarea></div>
     <div class="f"><label for="sQP">Quick prompts (one per line)</label><textarea id="sQP" rows="5">${esc((s.quickPrompts||[]).join("\n"))}</textarea><span class="hint">These appear as one-tap buttons in the Coach.</span></div>
     <div class="f h"><label for="sBlk">4-week block starts (Sunday)</label><input id="sBlk" type="date" value="${esc(s.block?.start||"")}"></div>
@@ -1775,6 +1792,7 @@ async function startConv(mode,extraOv){
     onError:msg=>{console.warn("coach error",msg);if(convMode==="voice")toast("Voice error: "+String(msg).slice(0,80))}};
   if(mode==="text"){opts.textOnly=true;opts.overrides={conversation:{textOnly:true},agent:{firstMessage:""}}}
   if(extraOv)opts.overrides={...(opts.overrides||{}),...extraOv};
+  if(mode!=="text"){const vid=S().coachVoice;if(vid&&vid!==DEFAULT_VOICE)opts.overrides={...(opts.overrides||{}),tts:{voiceId:vid}}}
   conv=await ElevenLabsClient.Conversation.startSession(opts);convFiles=0;if(mode==="voice"){try{conv.setVolume({volume:0.8})}catch{}}convStatus="connected";updateMic();touchIdle();return conv;
 }
 async function endConv(){const c=conv;conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;clearTimeout(idleTimer);try{await c?.endSession()}catch{}updateMic()}
@@ -2013,6 +2031,8 @@ document.addEventListener("click",async e=>{
   else if(a==="cancelReply"){setReply(-1)}
   else if(a==="unstage"){staged.splice(+b.dataset.i,1);renderTray();syncSendMic();if(!staged.length){const ta=$("#chatIn");if(ta)ta.placeholder="Message your Coach"}}
   else if(a==="unstageAll"){staged=[];renderTray();syncSendMic();const ta=$("#chatIn");if(ta)ta.placeholder="Message your Coach"}
+  else if(a==="voicePrev"){const v=COACH_VOICES.find(x=>x[0]===b.dataset.id);if(!v)return;try{if(previewAudio){previewAudio.pause()}previewAudio=new Audio(v[3]);previewAudio.play().catch(()=>toast("Couldn't play the preview"))}catch{}}
+  else if(a==="voicePick"){const id=b.dataset.id,v=COACH_VOICES.find(x=>x[0]===id);if(previewAudio)previewAudio.pause();await safe(store.set("settings","main",{...(col.settings.main||{}),coachVoice:id}),`Coach voice: ${v?v[1]:"updated"}`);if(conv)await endConv();const box=document.getElementById("voiceBox");if(box)box.innerHTML=voicePickerHTML()}
   else if(a==="flexPick"){const ws=b.dataset.ws,d=b.dataset.d;const st=S();const fp={...(st.flexPick||{})};if(d)fp[ws]=d;else delete fp[ws];const fn={...(st.flexNights||{})};for(const[k,v]of Object.entries(fn))if(v>=ws&&v<=addDays(ws,6))delete fn[k];
     await safe(store.set("settings","main",{...(col.settings.main||{}),flexPick:fp,flexNights:fn}),d?`Flex night: ${DOW[dow(d)]} ${short(d)}`:"Flex night back to the weekend default");const box=document.getElementById("flexBox");if(box)box.innerHTML=flexPickerHTML()}
   else if(a==="retrySync"){setSync("saving");flush()}
@@ -2063,7 +2083,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-16b"; /* bump on every change so phones reload */
+const BUILD="2026-11-16c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
