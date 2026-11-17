@@ -799,7 +799,7 @@ async function processInbox(){const imported=[];
         if(d&&ml>=50&&ml<=3000){const cur=col.water[d]||{};const seen=Array.isArray(cur.inbox)?cur.inbox:[];if(!seen.includes(f.name))await store.set("water",d,{...cur,ml:(+cur.ml||0)+ml,inbox:[...seen,f.name].slice(-40)})}
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
     for(const f of list.filter(x=>x.type==="file"&&/^workouts?-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
-      try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const got=importWatchWorkouts(j.workouts??raw.text);for(const w of got){const id=await store.add("workouts",w);imported.push(w)}
+      try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const got=importWatchWorkouts(j?.workouts??raw.text);for(const w of got){const id=await store.add("workouts",w);imported.push(w)}
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
     if(imported.length)toast(`⌚ Added from Watch: ${imported.map(w=>w.name).join(", ")}`,6000);
     for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
@@ -2137,7 +2137,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-17b"; /* bump on every change so phones reload */
+const BUILD="2026-11-17c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
