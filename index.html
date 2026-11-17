@@ -564,6 +564,7 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 @media (prefers-reduced-motion:reduce){.rxsheet,.rxs-pill,.rxs-msg,.rxs-menu{animation:none}}
 
 .slp{margin:14px 0 4px;padding-top:12px;border-top:1px solid var(--line)}.slp-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.slp-h .l{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.slp-h .v{font-family:var(--f-display);font-size:34px;font-weight:800;line-height:1.1}.slp-h .v span{font-size:inherit}
+.chat{padding-bottom:12px}.rxq{display:flex;gap:6px;margin:6px 0 2px 4px}.rxq button{border:1px solid var(--line);background:var(--surface);border-radius:999px;font-size:20px;line-height:1;padding:7px 10px;min-width:44px;min-height:40px;cursor:pointer}.rxq button:active{transform:scale(.92);background:var(--accent-soft)}
 .vlist{display:flex;flex-direction:column;gap:8px}.vrow{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:14px;padding:8px 10px;background:var(--surface-2)}.vrow.on{border-color:var(--accent);background:var(--accent-soft)}.vplay{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);font-size:16px;font-weight:800;cursor:pointer}.vpick{flex:1;min-width:0;text-align:left;background:none;border:0;color:var(--fg);font:inherit;cursor:pointer;padding:2px 0;display:flex;flex-direction:column;gap:2px}.vpick b{font-size:17px}.vpick span{font-size:14px;color:var(--muted)}.vchk{color:var(--accent);font-weight:800;font-size:20px}
 .fxp{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;min-width:52px;padding:9px 10px;border-radius:999px;background:var(--surface-2);color:var(--muted);font:inherit;font-weight:700;font-size:15px;border:1.5px solid var(--line);cursor:pointer;line-height:1.1}
 .fxp i{font-style:normal;font-size:12px;font-weight:700;opacity:.8}
@@ -1941,17 +1942,23 @@ function renderChat(){
   const qp=$("#qp");if(qp)qp.innerHTML=(S().quickPrompts||[]).map(x=>`<button type="button" data-sugg="${esc(x)}">${esc(x)}</button>`).join("");
   const turns=chatTurns||[];
   if(!turns.length&&!awaiting){el.innerHTML=`<div class="card"><h2>Ask about your day, or just tell me what you ate</h2><p class="sub">Try “two boiled eggs and GF toast at 8:30”, “drank a bottle of water”, or “did the 45 min upper body”. I'll log it and give you the numbers.</p></div>`;return}
-  const base=Math.max(0,turns.length-40);let lastDay="";
+  const base=Math.max(0,turns.length-40);let lastDay="";let lastA=-1;for(let j=turns.length-1;j>=0;j--)if(turns[j].role!=="user"){lastA=j;break}
   const dayName=d=>{const t=todayStr();return d===t?"Today":d===addDays(t,-1)?"Yesterday":longD(d)};
   el.innerHTML=turns.slice(-40).map((t,k)=>{const i=base+k,u=t.role==="user";let sep="";
     if(t.at){const d=homeParts(t.at).date;if(d!==lastDay){lastDay=d;sep=`<div class="daysep"><span>${esc(dayName(d))}</span></div>`}}
     const tm=t.at?fmtT(homeParts(t.at).time):"";
     const bar=`<div class="tapbar" role="toolbar" aria-label="React or reply">${u?"":REACTS.map(e=>`<button type="button" class="rx${t.react===e?" on":""}" data-act="react" data-i="${i}" data-e="${e}" aria-pressed="${t.react===e}" aria-label="${REACT_MEAN[e]}"><span class="e">${e}</span><span class="lbl">${REACT_SHORT[e]}</span></button>`).join("")}<button type="button" class="rx rp" data-act="replyTo" data-i="${i}" aria-label="Reply to this message"><span class="e">↩</span><span class="lbl">Reply</span></button>${tm?`<span class="tbtime">${tm}</span>`:""}</div>`;
-    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}"><div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div></div>`}).join("")
+    return`${sep}<div class="mwrap ${u?"u":"a"}${t.react?" reacted":""}" data-i="${i}"><div class="msg ${u?"u":"a"}" data-tap="${i}">${t.quote?`<div class="quote">${esc(t.quote)}</div>`:""}${md(t.content)}${(t.imgs||(t.img?[t.img]:[])).length?`<div class="thumbs">${(t.imgs||[t.img]).map(x=>`<img src="${x}" alt="Photo you sent">`).join("")}</div>`:""}${t.actions?.length?`<div class="acts">${t.actions.map(actChip).join("")}</div>`:""}${t.react?`<span class="rxbadge" title="You: ${esc(REACT_MEAN[t.react]||"")}">${t.react}</span>`:""}</div>${!u&&!t.react&&i===lastA&&!awaiting?`<div class="rxq" role="toolbar" aria-label="React to this reply">${REACTS.map(e=>`<button type="button" data-act="react" data-i="${i}" data-e="${e}" aria-label="${REACT_MEAN[e]}">${e}</button>`).join("")}</div>`:""}</div>`}).join("")
     +(awaiting?`<div class="msg a think" aria-label="Coach is typing"><span class="dots"><i></i><i></i><i></i></span></div>`:"")
     +(turns.length&&!S().reactHintSeen&&!turns.some(x=>x.react)?`<p class="hint" style="align-self:center;text-align:center;margin:4px 0 0">Tip: press and hold a message to react ${REACTS.slice(0,3).join(" ")}, reply or copy.</p>`:"");
   const all=el.querySelectorAll(".msg");all.length&&all[all.length-1].scrollIntoView({block:"nearest"});
+  clearLastMsg();
 }
+/* Keep the newest message (and its quick reactions) fully above the sticky message box. */
+function clearLastMsg(){const run=()=>{const el=$("#chatLog"),comp=$("#composer");if(!el||!comp)return;const last=el.lastElementChild;if(!last)return;
+    const lb=last.getBoundingClientRect().bottom,ct=comp.getBoundingClientRect().top,gap=lb-(ct-12);if(gap<=0)return;
+    const pane=el.closest("#coachPane");if(pane&&isWide())pane.scrollBy(0,gap);else window.scrollBy(0,gap)};
+  requestAnimationFrame(run);setTimeout(run,180);setTimeout(run,450)}
 function actChip(a){if(typeof a==="string")return`<span>✓ ${esc(a)}</span>`;
   const m=a.meal&&col.meals[a.meal];if(!m)return`<span>✓ ${esc(a.text)}</span>`;
   const txt=`Logged ${m.name} · ${n0(m.kcal)} kcal, ${n0(m.protein)} g protein`;
@@ -1986,11 +1993,11 @@ function bindComposer(){
   const endSwipe=()=>{if(!sw)return;const {w,dx,lock}=sw;sw=null;w.style.transition="";w.style.transform="";w.style.setProperty("--sw",0);
     if(lock==="h"&&Math.abs(dx)>=60){setReply(+w.dataset.i)}};
   let lp=null,lpFired=false;
-  log.addEventListener("touchstart",e=>{const m=e.target.closest(".msg[data-tap]");if(!m||e.touches.length>1||e.target.closest("button,a,.actbtn"))return;if(document.activeElement===ta)ta.blur();const t0=e.touches[0];lpFired=false;clearTimeout(lp?.tm);lp={x:t0.clientX,y:t0.clientY,tm:setTimeout(()=>{lpFired=true;const w=m.closest(".mwrap");w&&w.classList.add("held");openReactBar(+m.dataset.tap)},420)}},{passive:true});
+  log.addEventListener("touchstart",e=>{const m=e.target.closest(".msg[data-tap]");if(!m||e.touches.length>1||e.target.closest("button,a,.actbtn"))return;if(document.activeElement===ta)ta.blur();const t0=e.touches[0];lpFired=false;clearTimeout(lp?.tm);try{getSelection()?.removeAllRanges()}catch{}lp={x:t0.clientX,y:t0.clientY,t:Date.now(),i:+m.dataset.tap,tm:setTimeout(()=>{lpFired=true;const w=m.closest(".mwrap");w&&w.classList.add("held");openReactBar(+m.dataset.tap)},420)}},{passive:true});
   const lpCancel=()=>{if(lp){clearTimeout(lp.tm);lp=null}};
   log.addEventListener("touchmove",e=>{if(!lp)return;const t0=e.touches[0];if(Math.abs(t0.clientX-lp.x)>8||Math.abs(t0.clientY-lp.y)>8)lpCancel()},{passive:true});
   log.addEventListener("touchend",e=>{if(lpFired){e.preventDefault();lpFired=false}lpCancel()},{passive:false});
-  log.addEventListener("touchcancel",lpCancel);
+  log.addEventListener("touchcancel",()=>{if(lp&&!lpFired&&Date.now()-lp.t>=350){const i=lp.i;lpCancel();lpFired=true;openReactBar(i)}else lpCancel()});
   log.addEventListener("contextmenu",e=>{const m=e.target.closest(".msg[data-tap]");if(m){e.preventDefault();openReactBar(+m.dataset.tap)}});
   log.addEventListener("click",e=>{if(e.target.closest("button,a,img,.actbtn"))return;if(matchMedia("(pointer:coarse)").matches)return;if(String(getSelection?.()||"").trim())return;const m=e.target.closest(".msg[data-tap]");if(m)openReactBar(+m.dataset.tap)});
   log.addEventListener("touchend",endSwipe);log.addEventListener("touchcancel",endSwipe);
@@ -2083,7 +2090,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-16c"; /* bump on every change so phones reload */
+const BUILD="2026-11-16e"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
