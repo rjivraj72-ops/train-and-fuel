@@ -675,7 +675,7 @@ const allWorkouts=()=>Object.entries(col.workouts).map(([id,w])=>({id,...w})).so
 const weights=()=>Object.values(col.weights).filter(w=>w.date&&w.lb).sort((a,b)=>a.date.localeCompare(b.date));
 const savedList=()=>Object.entries(col.saved).map(([id,m])=>({id,...m})).sort((a,b)=>(a.order??99)-(b.order??99));
 function totals(d){const t={kcal:0,protein:0,carbs:0,fat:0,n:0};for(const m of mealsOn(d)){t.kcal+=+m.kcal||0;t.protein+=+m.protein||0;t.carbs+=+m.carbs||0;t.fat+=+m.fat||0;t.n++}return t}
-const isTrain=w=>!w.walkDay;/* Walks with Drake: calories count, training stats don't */
+const isWalk=w=>!!(w.walkDay||(w.source==="Apple Watch sync"&&/walk/i.test(w.name||"")));const isTrain=w=>!isWalk(w);/* Walks with Drake: calories count, training stats don't */
 const burnOn=d=>workoutsOn(d).reduce((s,w)=>s+(+w.kcal||0),0);
 const waterOn=d=>+(col.water[d]?.ml)||0;
 function waterPace(){const s=S(),n=hm2min(nowHM()),o=hm2min(s.open),c=hm2min(s.close);if(!(c>o))return null;const f=Math.max(0,Math.min(1,(n-o)/(c-o)));return Math.round(s.waterMl*f/50)*50}
@@ -1228,9 +1228,9 @@ function durMin(v){v=normSp(v);if(!v)return null;const c=v.match(/^(\d+):(\d\d)(
 function distKm(v){v=normSp(v);if(!v)return null;const n=numU(v);if(n==null||n<=0)return null;if(/mi\b|mile/i.test(v))return n*1.609344;if(/\bkm\b|kilomet/i.test(v))return n;if(/\bm\b|meter|metre/i.test(v))return n/1000;return n>100?n/1000:n}
 function importWatchWorkouts(txt){const out=[];const have=Object.values(col.workouts||{});const seen=new Set(have.flatMap(w=>[w.hk,...(w.hks||[])]).filter(Boolean));const cut=addDays(todayStr(),-14);
   for(const part of String(txt||"").split(/;(?=[^~;]*~)|\n/)){const f=part.split("~").map(normSp);if(f.length<4)continue;const [hk,type,start,dur,kc,dist,hr,src,indoor]=f;
-    if(hk&&seen.has(hk))continue;if(WATCH_SKIP.test(type||""))continue;const ts=anyDate(start);if(isNaN(ts))continue;
+    if(hk&&seen.has(hk))continue;const isStr=WATCH_SKIP.test(type||"");const ts=anyDate(start);if(isNaN(ts))continue;
     const d=toDay(new Date(ts).toISOString());if(!d||d<cut)continue;const time=new Date(ts).toLocaleTimeString("en-CA",{timeZone:HOME_TZ,hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
-    const minutes=durMin(dur);if(!minutes||minutes<3)continue;const tp=wType(type);
+    const minutes=durMin(dur);if(!minutes||minutes<3)continue;const tp=isStr?"strength":wType(type);
     const tmin=hm2min(time);const kmx=distKm(dist);
     if(/walk/i.test(type||"")){const isDay=w=>w.date===d&&(w.walkDay||(w.source==="Apple Watch sync"&&/walk/i.test(w.name||"")));
       let e=out.find(isDay);if(!e){const hit=Object.entries(col.workouts||{}).find(([,w])=>isDay(w));if(hit){e={...hit[1],id:hit[0]};if(!e.walkDay){e.walkDay=true;e.n=1;e.hks=e.hk?[e.hk]:[];delete e.hk}out.push(e)}}
@@ -1239,6 +1239,12 @@ function importWatchWorkouts(txt){const out=[];const have=Object.values(col.work
         if(hrN)e.avgHr=e.avgHr?Math.round((e.avgHr*m0+hrN*minutes)/(m0+minutes)):Math.round(hrN);if(hm2min(time)<hm2min(e.time||"23:59"))e.time=time;if(hk)e.hks=[...(e.hks||[]),hk]}
       else out.push(e={type:"cardio",name:"Walks with Drake",minutes:Math.round(minutes*100)/100,kcal:kc0?Math.round(kc0):null,distanceKm:kmx?Math.round(kmx*100)/100:null,avgHr:hrN?Math.round(hrN):null,date:d,time,source:"Apple Watch sync",walkDay:true,n:1,hks:hk?[hk]:[],created:Date.now()});
       e.name="Walks with Drake";e.note=e.n+(e.n===1?" walk":" walks");if(hk)seen.add(hk);continue}
+    if(isStr){const hrN=numU(hr),kc0=numU(kc);const tm=hm2min(time);
+      const near=w=>w.date===d&&w.type==="strength"&&!w.hk&&!w.walkDay&&((w.time&&Math.abs(hm2min(w.time)-tm)<=120)||(+w.minutes&&Math.abs(+w.minutes-minutes)<=Math.max(4,minutes*.15)));
+      const hit=Object.entries(col.workouts||{}).find(([,w])=>near(w))||out.filter(w=>w.id).map(w=>[w.id,w]).find(([,w])=>near(w));
+      if(hit){const e={...hit[1],id:hit[0],hk};if(!+e.avgHr&&hrN)e.avgHr=Math.round(hrN);if(!+e.kcal&&kc0)e.kcal=Math.round(kc0);if(!+e.minutes)e.minutes=Math.round(minutes*100)/100;out.push(e)}
+      else out.push({type:"strength",name:(/strength|peloton/i.test(src||"")?"Strength+ session":String(type).replace(/([a-z])([A-Z])/g,"$1 $2"))+" (Apple Watch)",minutes:Math.round(minutes*100)/100,kcal:kc0?Math.round(kc0):null,avgHr:hrN?Math.round(hrN):null,date:d,time,note:"",hk:hk||null,source:"Apple Watch sync",needsVol:true,created:Date.now()});
+      if(hk)seen.add(hk);continue}
     if(have.concat(out).some(w=>{if(w.date!==d||w.hk||w.source==="Apple Watch sync")return false;const sameT=w.type===tp||tp==="other"||w.type==="other"||(tp!=="run"&&w.type==="cardio"&&tp==="cardio");if(!sameT)return false;
       if(w.time&&Math.abs(hm2min(w.time)-tmin)<=30)return true;const wm=+w.minutes||0;if(wm&&Math.abs(wm-minutes)<=Math.max(3,minutes*.1))return true;const wk=+w.distanceKm||0;if(wk&&kmx&&Math.abs(wk-kmx)<=.3)return true;return false}))continue;
     const km=distKm(dist);const isIn=/true|yes|1/i.test(indoor||"");const label=String(type||"Workout").replace(/^HKWorkoutActivityType/,"").replace(/([a-z])([A-Z])/g,"$1 $2").trim();
@@ -1249,7 +1255,7 @@ function importWatchWorkouts(txt){const out=[];const have=Object.values(col.work
 function wKey(w){return new Set(String(w.name||"").toLowerCase().replace(/\(.*?\)/g," ").replace(/peloton|apple watch|watch|strength\+|class|workout|session|min(ute)?s?\b|\d+/g," ").replace(/[^a-z ]+/g," ").split(/\s+/).filter(x=>x.length>2&&!/^(body|strength|training|just|the|and|with|for)$/.test(x)))}
 function simScore(a,b){const A=wKey(a),B=wKey(b);if(!A.size||!B.size)return a.type===b.type?0.4:0;let n=0;for(const x of A)if(B.has(x))n++;return n/Math.max(A.size,B.size)}
 function similarWorkouts(w,limit=4){const key=(w.date||"")+(w.time||"");const from=addDays(w.date,-56);
-  if(w.walkDay)return[];return allWorkouts().filter(x=>isTrain(x)&&x.id!==w.id&&x.type===w.type&&x.date>=from&&(x.date+(x.time||""))<key&&simScore(w,x)>=0.5).slice(0,limit)}
+  if(isWalk(w))return[];return allWorkouts().filter(x=>isTrain(x)&&x.id!==w.id&&x.type===w.type&&x.date>=from&&(x.date+(x.time||""))<key&&simScore(w,x)>=0.5).slice(0,limit)}
 const paceOf=w=>+w.distanceKm>0&&+w.minutes>0?(+w.minutes)/(+w.distanceKm):null;
 function compareWorkout(w){const prev=similarWorkouts(w);if(!prev.length)return null;const p=prev[0];const pct=(a,b)=>b?Math.round((a-b)/b*100):null;const out={vs:{date:p.date,name:p.name},sessions_compared:prev.length,items:[]};
   const add=(label,cur,old,unit,better)=>{if(!(+cur)||!(+old))return;out.items.push({metric:label,now:+cur,last:+old,change:Math.round((+cur-+old)*10)/10,pct:pct(+cur,+old),unit,better})};
@@ -1264,7 +1270,7 @@ function cmpLine(w){const c=compareWorkout(w);if(!c)return"";const it=c.items.fi
   const txt=it.metric==="pace"?`${Math.abs(it.change)} s/km ${it.change<0?"faster":"slower"}`:it.metric==="volume"?`${it.change>=0?"+":"−"}${n0(Math.abs(it.change))} lb volume${it.pct!=null?` (${it.pct>=0?"+":""}${it.pct}%)`:""}`:`${it.change>=0?"+":"−"}${n1(Math.abs(it.change))} ${it.unit}`;
   return`<div class="cmp ${good===true?"up":good===false?"down":""}">${good===true?"▲":good===false?"▼":"•"} ${esc(txt)} vs ${esc(short(c.vs.date))}</div>`}
 function wItem(w){const bits=[TYPES[w.type]||w.type];if(+w.minutes)bits.push(n0(w.minutes)+" min");if(+w.distanceKm)bits.push(n1(w.distanceKm)+" km");if(+w.volumeKg)bits.push(n0(w.volumeKg)+" lb volume");if(+w.avgHr)bits.push("♥ "+n0(w.avgHr)+" bpm");
-  return`<button class="item" data-act="editWorkout" data-id="${esc(w.id)}"><span class="t" style="border-left:3px solid ${typeColor(w.type)};padding-left:6px">${short(w.date)}<br>${fmtT(w.time)}</span><span class="n">${esc(w.name)}<div class="m">${esc(bits.join(" · "))}${w.note?" · "+esc(w.note):""}</div>${cmpLine(w)}</span><span class="k">${+w.kcal?n0(w.kcal)+"<small>kcal</small>":""}</span></button>`}
+  return`<button class="item" data-act="editWorkout" data-id="${esc(w.id)}"><span class="t" style="border-left:3px solid ${typeColor(w.type)};padding-left:6px">${short(w.date)}<br>${fmtT(w.time)}</span><span class="n">${esc(w.name)}<div class="m">${esc(bits.join(" · "))}${w.note?" · "+esc(w.note):""}</div>${w.needsVol&&!+w.volumeKg?`<div class="cmp down">＋ Tap to add volume (lb)</div>`:""}${cmpLine(w)}</span><span class="k">${+w.kcal?n0(w.kcal)+"<small>kcal</small>":""}</span></button>`}
 function normName(n){return String(n||"").toLowerCase().replace(/\(.*?\)/g," ").replace(/^(breakfast|lunch|dinner|snack|treat)\s*[:\-]\s*/,"").replace(/[^a-z ]+/g," ").replace(/\b(a|an|the|of|with|and|about|small|large|half|cup|bowl|plate|g|ml)\b/g," ").replace(/\s+/g," ").trim().split(" ").slice(0,5).join(" ")}
 function usualCandidates(){
   const t=todayStr(),since=addDays(t,-30),s=S(),dis=new Set(s.usualDismissed||[]);
@@ -1773,7 +1779,7 @@ function settingsSheet(){
 
 /* ---------- coach (ElevenLabs agent: voice + text) ---------- */
 let conv=null,convMode=null,convStatus="disconnected",agentSpeaking=false,idleTimer=null,pendingActions=[],awaiting=false,saveChatT=null;
-function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?.sleepMin?` [Sleep: ${fmtHM(hl.sleepMin)}${hl.bed?`, ${hl.bed}-${hl.wake}`:""}${hl.stages?.deep?`, deep ${fmtHM(hl.stages.deep)}, REM ${fmtHM(hl.stages.rem)}`:""}${hl.napMin?`, plus a ${fmtHM(hl.napMin)} nap`:""}]`:""}${hl?.activeKcal?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${w.walkDay?"daily activity, not training":w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.avgHr?", avg HR "+w.avgHr+" bpm":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
+function dayDigest(d){const t=totals(d);const ws=workoutsOn(d);const hl=healthOn(d);return`${d} (${DOW[dow(d)]})${isTravel(d)?" [TRAVEL DAY]":""}${hl?.sleepMin?` [Sleep: ${fmtHM(hl.sleepMin)}${hl.bed?`, ${hl.bed}-${hl.wake}`:""}${hl.stages?.deep?`, deep ${fmtHM(hl.stages.deep)}, REM ${fmtHM(hl.stages.rem)}`:""}${hl.napMin?`, plus a ${fmtHM(hl.napMin)} nap`:""}]`:""}${hl?.activeKcal?` [Watch: ${n0(hl.activeKcal)} active kcal, ${n0(hl.steps)} steps]`:""}: ${t.n?`${n0(t.kcal)} kcal, P${n0(t.protein)} C${n0(t.carbs)} F${n0(t.fat)}`:"no food logged"}; water ${n0(waterOn(d))} ml; workouts: ${ws.length?ws.map(w=>`${w.name} (${isWalk(w)?"daily activity, not training":w.type}${w.minutes?", "+w.minutes+" min":""}${w.distanceKm?", "+w.distanceKm+" km":""}${w.volumeKg?", "+w.volumeKg+" lb vol":""}${w.avgHr?", avg HR "+w.avgHr+" bpm":""}${w.kcal?", "+w.kcal+" kcal":""})`).join("; "):"none"}`}
 function buildContext(){
   const s=S(),t=todayStr(),now=nowHM(),ws=weekStart(t),[cLo,cHi]=carbRange(s);
   const today=mealsOn(t);
@@ -1806,6 +1812,9 @@ function clientTools(){return{
     const en=String(p.estimated||"").trim().slice(0,160),cf=["high","medium","low"].includes(p.confidence)?p.confidence:"";if(en||cf)d.est={note:en,conf:cf||"medium"};
     const id=await store.add("meals",d);pendingActions.push({text:`Logged ${d.name} · ${d.kcal} kcal, ${d.protein} g protein${dayTag(d.date)}`,meal:id});return JSON.stringify({id,...d,...dayLine(d.date)})},
   log_workout:async p=>{const d={type:TYPES[p.type]?p.type:"other",name:String(p.name||"Workout").slice(0,120),minutes:num(p.minutes),kcal:num(p.kcal),distanceKm:num(p.distance_km),volumeKg:num(p.volume_lb??p.volume_kg),avgHr:num(p.avg_hr),date:okDate(p.date),time:okTime(p.time),note:"",created:Date.now()};
+    if(d.type==="strength"){const tm=hm2min(d.time);const hit=Object.entries(col.workouts).find(([,w])=>w.date===d.date&&w.needsVol&&!+w.volumeKg&&((tm!=null&&w.time&&Math.abs(hm2min(w.time)-tm)<=120)||(+d.minutes&&+w.minutes&&Math.abs(+d.minutes - +w.minutes)<=Math.max(4,+w.minutes*.15))||!d.time));
+      if(hit){const [hid,w]=hit;const m={...w,name:d.name||w.name,volumeKg:d.volumeKg||w.volumeKg,avgHr:w.avgHr||d.avgHr,kcal:w.kcal||d.kcal,minutes:w.minutes||d.minutes,needsVol:!(d.volumeKg||w.volumeKg)};await store.set("workouts",hid,m);pendingActions.push(`Added volume to Apple Watch session: ${m.name}${dayTag(m.date)}`);
+        return JSON.stringify({id:hid,...m,merged_into_apple_watch_entry:true,compare_to_similar:compareWorkout({id:hid,...m})||"no similar session in the last 8 weeks"})}}
     const id=await store.add("workouts",d);pendingActions.push(`Logged workout: ${d.name}${dayTag(d.date)}`);const cmp=compareWorkout({id,...d});const bi=blockInfo(d.date);
     return JSON.stringify({id,...d,compare_to_similar:cmp||"no similar session in the last 8 weeks",training_block:bi?bi.label:null})},
   log_water:async p=>{const t=okDate(p.date);await ensureRange(t,t);const set=p.set_total_ml!=null&&p.set_total_ml!==""?Math.max(0,Math.round(+p.set_total_ml)):null;const ml=Math.round(+p.ml||0);if(set==null&&!ml)return"Error: give ml to add, or set_total_ml";
@@ -1827,7 +1836,7 @@ function clientTools(){return{
   get_days:async p=>{const from=okDate(p.from),to=okDate(p.to);await ensureRange(from,to);let d=from,out=[];for(let k=0;k<31&&d<=to;k++){const ms=mealsOn(d),t=totals(d),x=sessionState(d);out.push({date:d,weekday:DOW[dow(d)],planned_session:x.p.title+" ("+x.p.kind+")",session_status:x.label,flex_night:isFlex(d),travel_day:isTravel(d),
       totals:{kcal:t.kcal,protein:t.protein,carbs:t.carbs,fat:t.fat},water_ml:waterOn(d),last_food:ms.length?ms[ms.length-1].time:null,after_close:ms.filter(isLate).map(m=>m.time+" "+m.name),
       meals:ms.map(m=>({id:m.id,time:m.time,name:m.name,kcal:m.kcal,protein:m.protein,carbs:m.carbs,fat:m.fat,...(m.est?{estimate_unchecked:m.est.note}:{}),...(m.adjusted?{corrected_by_user:true}:{})})),
-      workouts:workoutsOn(d).map(w=>({id:w.id,time:w.time,name:w.name,type:w.walkDay?"daily_activity_not_training":w.type,minutes:w.minutes,km:w.distanceKm,volume_lb:w.volumeKg,avg_hr:w.avgHr,kcal:w.kcal})),watch:healthOn(d)});d=addDays(d,1)}return JSON.stringify(out)}
+      workouts:workoutsOn(d).map(w=>({id:w.id,time:w.time,name:w.name,type:isWalk(w)?"daily_activity_not_training":w.type,minutes:w.minutes,km:w.distanceKm,volume_lb:w.volumeKg,avg_hr:w.avgHr,kcal:w.kcal})),watch:healthOn(d)});d=addDays(d,1)}return JSON.stringify(out)}
 }}
 function setCoachStatus(text){const el=$("#coachStatus");if(!el)return;el.textContent=text||"";el.hidden=!text}
 function updateMic(){const b=$("#micBtn");if(!b)return;const on=convMode==="voice"&&convStatus!=="disconnected";b.classList.toggle("live",on);b.classList.toggle("speaking",on&&agentSpeaking);b.setAttribute("aria-pressed",on);b.setAttribute("aria-label",on?"End voice conversation":"Start voice conversation");
@@ -2147,7 +2156,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-17g"; /* bump on every change so phones reload */
+const BUILD="2026-11-17h"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
