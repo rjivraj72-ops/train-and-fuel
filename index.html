@@ -1230,7 +1230,8 @@ function importWatchWorkouts(txt){const out=[];const have=Object.values(col.work
     if(hk&&seen.has(hk))continue;if(WATCH_SKIP.test(type||""))continue;const ts=anyDate(start);if(isNaN(ts))continue;
     const d=toDay(new Date(ts).toISOString());if(!d||d<cut)continue;const time=new Date(ts).toLocaleTimeString("en-CA",{timeZone:HOME_TZ,hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
     const minutes=durMin(dur);if(!minutes||minutes<3)continue;const tp=wType(type);
-    const tmin=hm2min(time);if(have.concat(out).some(w=>w.date===d&&w.time&&Math.abs(hm2min(w.time)-tmin)<=30&&(w.type===tp||tp==="other"||w.type==="other")))continue;
+    const tmin=hm2min(time);const kmx=distKm(dist);if(have.concat(out).some(w=>{if(w.date!==d)return false;const sameT=w.type===tp||tp==="other"||w.type==="other"||(tp!=="run"&&w.type==="cardio"&&tp==="cardio");if(!sameT)return false;
+      if(w.time&&Math.abs(hm2min(w.time)-tmin)<=30)return true;const wm=+w.minutes||0;if(wm&&Math.abs(wm-minutes)<=Math.max(3,minutes*.1))return true;const wk=+w.distanceKm||0;if(wk&&kmx&&Math.abs(wk-kmx)<=.3)return true;return false}))continue;
     const km=distKm(dist);const isIn=/true|yes|1/i.test(indoor||"");const label=String(type||"Workout").replace(/^HKWorkoutActivityType/,"").replace(/([a-z])([A-Z])/g,"$1 $2").trim();
     const nm=`${Math.round(minutes)} min ${tp==="run"?(isIn?"Indoor Run":"Outdoor Run"):label} (Apple Watch)`;
     out.push({type:tp,name:nm,minutes:Math.round(minutes*100)/100,kcal:numU(kc)?Math.round(numU(kc)):null,distanceKm:km?Math.round(km*100)/100:null,avgHr:numU(hr)?Math.round(numU(hr)):null,date:d,time,note:"",hk:hk||null,source:"Apple Watch sync",created:Date.now()});
@@ -2137,7 +2138,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-17c"; /* bump on every change so phones reload */
+const BUILD="2026-11-17d"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
