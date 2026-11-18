@@ -947,10 +947,19 @@ document.addEventListener("submit",async e=>{
 /* ---------- derived ---------- */
 const FUEL={hard:"Big day",normal:"Normal day",light:"Rest day"};
 function defaultFuel(p){if(!p)return"normal";if(p.kind==="rest")return"light";if(/zone\s*4|interval|long run|race|tempo/i.test((p.title||"")+" "+(p.detail||"")))return"hard";return"normal"}
-function dayFuel(d){const s=S(),i=(dow(d)+6)%7,p=s.plan[i];let tier=(s.fuelDays||[])[i]||defaultFuel(p),auto=false;
-  if(tier!=="hard"&&burnOn(d)>=(+s.bigBurn||700)){tier="hard";auto=true}
+/* Training load = minutes x intensity. Intensity comes from average heart rate as a share of max HR
+   (easy <70% = 1, moderate <80% = 2, hard <87% = 3, very hard = 4); without HR, a typical value per type.
+   Walks with Drake are not training, so they add no load (their calories still count toward the 700 kcal trigger). */
+const LOAD_NOHR={run:2,strength:2,cardio:2,cross:2.5,yoga:.5,other:1.5};
+function wIntensity(w){const mx=+S().maxHr||200,hr=+w.avgHr;let k;if(hr>0){const pc=hr/mx;k=pc<.7?1:pc<.8?2:pc<.87?3:4}else k=LOAD_NOHR[w.type]??1.5;return w.type==="yoga"?Math.min(k,1):k}
+function dayLoad(d){return workoutsOn(d).filter(isTrain).reduce((a,w)=>a+(+w.minutes||0)*wIntensity(w),0)}
+const r50=x=>Math.round(x/50)*50;
+function dayFuel(d){const s=S(),i=(dow(d)+6)%7,p=s.plan[i];let tier=(s.fuelDays||[])[i]||defaultFuel(p),auto=false;const load=dayLoad(d);
+  if(tier!=="hard"&&(load>=120||burnOn(d)>=(+s.bigBurn||700))){tier="hard";auto=true}
   const up=s.fuelUp==null?300:+s.fuelUp,down=s.fuelDown==null?0:+s.fuelDown;
-  return{tier,auto,label:FUEL[tier],kcal:Math.round(s.kcal+(tier==="hard"?up:tier==="light"?-down:0))}}
+  let extra=tier==="hard"?up:tier==="light"?-down:0,scaled=false;
+  if(tier==="hard"&&s.fuelScale!==false&&load>0){extra=Math.min(600,Math.max(150,r50(load*2.5)));scaled=true}
+  return{tier,auto,load:Math.round(load),extra,scaled,label:FUEL[tier],kcal:Math.round(s.kcal+extra)}}
 function dayKcal(d){return dayFuel(d).kcal}
 function carbRangeFor(d){return carbRange({...S(),kcal:dayKcal(d)})}
 function carbRange(s){return[Math.max(0,Math.round((s.kcal-s.proteinMax*4-s.fatMax*9)/4/5)*5),Math.max(0,Math.round((s.kcal-s.proteinMin*4-s.fatMin*9)/4/5)*5)]}
@@ -1176,7 +1185,7 @@ function vToday(){
   ${isT&&weighToday()?`<button class="note weighnote" data-act="addWeight"><b>⚖ Weigh-in day</b> · ${(S().weighDays||[]).map(i=>DOW[i]).join(" & ")} · last ${(()=>{const l=weights().slice(-1)[0];return l?n1(l.lb)+" lb, "+short(l.date):"none yet"})()} <span class="pill acc">Weigh in</span></button>`:""}
   <div class="row wrap">${kitchen}${isTravel(d)?`<span class="pill acc">✈ Travel day</span>`:""}<button type="button" class="btn sm ghost" data-act="travelDay" data-d="${d}" data-on="${isTravel(d)?0:1}" style="margin-left:auto">${isTravel(d)?"Not a travel day":"✈ Travel day"}</button></div>
   <section class="card">
-    <div class="head"><div><div class="eyebrow">${flex?"Flex day · no calorie flag":"Calories · "+n0(K)+" target"+(fu.tier!=="normal"?" · "+fu.label+(fu.auto?" (big session logged)":""):"")}</div>
+    <div class="head"><div><div class="eyebrow">${flex?"Flex day · no calorie flag":"Calories · "+n0(K)+" target"+(fu.tier!=="normal"?" · "+fu.label+(fu.tier==="hard"?` +${n0(fu.extra)}`+(fu.scaled?" (from your session intensity)":" (planned, sharpens once you log)"):"")+(fu.auto?" · big session logged":""):"")}</div>
       <div class="big" style="margin-top:8px">${n0(t.kcal)}<small>kcal</small></div></div>
       <div style="text-align:right"><div class="eyebrow">${left>=0?"Left":"Over"}</div><div class="mid" style="margin-top:6px;color:${left>=0?"var(--fg)":"var(--bad)"}">${n0(Math.abs(left))}</div></div></div>
     ${meter(t.kcal,K-200,K+200,K*1.25,kcalCls)}
@@ -1757,6 +1766,8 @@ function settingsSheet(){
     <div class="f q"><label for="sFup">Big day: extra kcal</label><input id="sFup" inputmode="decimal" value="${s.fuelUp==null?300:s.fuelUp}"></div>
     <div class="f q"><label for="sFdn">Rest day: fewer kcal</label><input id="sFdn" inputmode="decimal" value="${s.fuelDown==null?0:s.fuelDown}"></div>
     <div class="f"><label for="sBig">Auto big day when logged workouts burn at least (kcal)</label><input id="sBig" inputmode="decimal" value="${s.bigBurn||700}"></div>
+    <div class="f"><label for="sMaxHr">Max heart rate (sets workout intensity)</label><input id="sMaxHr" inputmode="numeric" value="${s.maxHr||200}"></div>
+    <div class="f"><label for="sFScale">Big-day boost</label><select id="sFScale"><option value="on" ${s.fuelScale!==false?"selected":""}>Scale with session intensity (+150 to +600)</option><option value="off" ${s.fuelScale===false?"selected":""}>Flat amount</option></select></div>
     <div class="f"><label>Weekly routine</label></div>
     ${s.plan.map((p,i)=>`<div class="planedit"><b class="small">${days[i]}</b><input id="pT${i}" value="${esc(p.title)}" aria-label="${days[i]} session"><input id="pD${i}" value="${esc(p.detail)}" aria-label="${days[i]} details"><select id="pK${i}" aria-label="${days[i]} kind">${["strength","cardio","cross","rest"].map(k=>`<option ${p.kind===k?"selected":""}>${k}</option>`).join("")}</select><select id="pF${i}" aria-label="${days[i]} fuel">${Object.entries(FUEL).map(([k,l])=>`<option value="${k}" ${((s.fuelDays||[])[i]||defaultFuel(p))===k?"selected":""}>${l}</option>`).join("")}</select></div>`).join("")}
     <div class="f" style="margin-top:6px"><button class="btn" type="submit">Save</button></div>
@@ -1772,7 +1783,7 @@ function settingsSheet(){
       const g=(id,dflt)=>num(fv(id))??dflt;
       const data={...(col.settings.main||{}),kcal:g("sKcal",s.kcal),waterMl:g("sWater",s.waterMl),proteinMin:g("sPmin",s.proteinMin),proteinMax:g("sPmax",s.proteinMax),fatMin:g("sFmin",s.fatMin),fatMax:g("sFmax",s.fatMax),weightLo:g("sWlo",s.weightLo),weightHi:g("sWhi",s.weightHi),weighDays:[0,1,2,3,4,5,6].filter(i=>document.getElementById("wd"+i)?.checked),open:fv("sOpen")||s.open,close:fv("sClose")||s.close,flexDow:+fv("sFlex"),about:fv("sAbout").trim(),profile:"",coachStyle:fv("sStyle").trim(),quickPrompts:fv("sQP").split("\n").map(x=>x.trim()).filter(Boolean).slice(0,12),
         plan:[0,1,2,3,4,5,6].map(i=>({title:fv("pT"+i).trim()||"Session",detail:fv("pD"+i).trim(),kind:fv("pK"+i)})),
-        fuelDays:[0,1,2,3,4,5,6].map(i=>fv("pF"+i)||"normal"),fuelUp:g("sFup",s.fuelUp==null?300:s.fuelUp),fuelDown:g("sFdn",s.fuelDown==null?0:s.fuelDown),bigBurn:g("sBig",s.bigBurn||700),sleepTarget:g("sSlp",s.sleepTarget||6),block:{start:fv("sBlk")?weekStart(fv("sBlk")):(s.block?.start||""),weeks:4,light:+fv("sBlkL")||4,off:fv("sBlkOn")==="off"},sleepTargetSun:g("sSlpS",s.sleepTargetSun||7.5)};
+        fuelDays:[0,1,2,3,4,5,6].map(i=>fv("pF"+i)||"normal"),fuelUp:g("sFup",s.fuelUp==null?300:s.fuelUp),fuelDown:g("sFdn",s.fuelDown==null?0:s.fuelDown),bigBurn:g("sBig",s.bigBurn||700),maxHr:g("sMaxHr",s.maxHr||200),fuelScale:fv("sFScale")!=="off",sleepTarget:g("sSlp",s.sleepTarget||6),block:{start:fv("sBlk")?weekStart(fv("sBlk")):(s.block?.start||""),weeks:4,light:+fv("sBlkL")||4,off:fv("sBlkOn")==="off"},sleepTargetSun:g("sSlpS",s.sleepTargetSun||7.5)};
       closeSheet();await safe(store.set("settings","main",data),"Targets saved")};
   });
 }
@@ -1789,7 +1800,7 @@ function buildContext(){
   const sc=weekScore(ws);const mon=H().monthly||{};
   const chat=(chatTurns||[]).slice(-8).map(x=>(x.role==="user"?"Them: ":"You: ")+(x.quote?"(replying to \""+x.quote+"\") ":"")+x.content.replace(/\s+/g," ").slice(0,300)+(x.react?" [they reacted "+x.react+"]":"")).join("\n");
   return`NOW: ${longD(t)}, ${fmtT(now)} Vancouver time (date ${t}, time ${now}). All dates and times in the log and in your tool calls are Vancouver time, even when they travel. If they give a time in another zone (e.g. Seattle or a trip abroad), convert it to Vancouver time before logging.
-TARGETS: base ${s.kcal} kcal/day (±200 counts as on target), adjusted by day type: big days (${(()=>{const dd=[0,1,2,3,4,5,6].map(i=>addDays(ws,i));const b=dd.filter(x=>dayFuel(x).tier==="hard").map(x=>DOW[dow(x)]),l=dd.filter(x=>dayFuel(x).tier==="light").map(x=>DOW[dow(x)]);return(b.join(", ")||"none")+`) ${n0(s.kcal+(s.fuelUp==null?300:+s.fuelUp))} kcal; rest days (${l.join(", ")||"none"}) ${n0(s.kcal-(s.fuelDown==null?0:+s.fuelDown))} kcal`})()}; any day with ${n0(+s.bigBurn||700)}+ kcal of logged workouts becomes a big day. The extra calories go to carbs; protein and fat targets don't change. Meals after a big session should carry the extra. TODAY is a ${dayFuel(t).label.toLowerCase()}: ${n0(dayKcal(t))} kcal, carbs ${carbRangeFor(t).join("-")} g; protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g, on a normal day carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except on the week's flex night. Weeks run Sunday to Saturday. One flex night per week (not scored, no kitchen close): this week's is ${DOW[dow(flexDayForWeek(weekStart(t)))]} ${flexDayForWeek(weekStart(t))}${flexPicked(weekStart(t))?" (chosen)":" (weekend default; they can move it to any night this week with set_flex_night)"}. A day counts in the weekly score once the kitchen closes.
+TARGETS: base ${s.kcal} kcal/day (±200 counts as on target), adjusted by day type: big days (${(()=>{const dd=[0,1,2,3,4,5,6].map(i=>addDays(ws,i));const b=dd.filter(x=>dayFuel(x).tier==="hard").map(x=>DOW[dow(x)]),l=dd.filter(x=>dayFuel(x).tier==="light").map(x=>DOW[dow(x)]);return(b.join(", ")||"none")+`) ${s.fuelScale!==false?`base +150 to +600 kcal, scaled by logged training load (minutes x heart-rate intensity vs max HR ${s.maxHr||200}); planned +${s.fuelUp==null?300:+s.fuelUp} until the session is logged`:n0(s.kcal+(s.fuelUp==null?300:+s.fuelUp))+" kcal"}; rest days (${l.join(", ")||"none"}) ${n0(s.kcal-(s.fuelDown==null?0:+s.fuelDown))} kcal`})()}; any day with ${n0(+s.bigBurn||700)}+ kcal of logged workouts becomes a big day. The extra calories go to carbs; protein and fat targets don't change. Meals after a big session should carry the extra. TODAY is a ${dayFuel(t).label.toLowerCase()}: ${n0(dayKcal(t))} kcal, carbs ${carbRangeFor(t).join("-")} g; protein ${s.proteinMin}-${s.proteinMax} g; fat ${s.fatMin}-${s.fatMax} g, on a normal day carbs ${cLo}-${cHi} g; water ${s.waterMl} ml; weight range ${s.weightLo}-${s.weightHi} lb. Kitchen open ${fmtT(s.open)}-${fmtT(s.close)}. No eating after ${fmtT(s.close)}, except on the week's flex night. Weeks run Sunday to Saturday. One flex night per week (not scored, no kitchen close): this week's is ${DOW[dow(flexDayForWeek(weekStart(t)))]} ${flexDayForWeek(weekStart(t))}${flexPicked(weekStart(t))?" (chosen)":" (weekend default; they can move it to any night this week with set_flex_night)"}. A day counts in the weekly score once the kitchen closes.
 ${(s.about||s.profile)?"ABOUT THEM (in their words):\n"+(s.about||s.profile)+"\n":""}${s.coachStyle?"THEIR COACHING STYLE INSTRUCTIONS (follow these): "+s.coachStyle+"\n":""}${notes().length?"LEARNED IN PAST CHATS:\n"+notes().map(n=>"- "+n.text).join("\n")+"\n":""}WEEK-OVER-WEEK FLAGS (this week vs last): ${(()=>{const ws0=weekStart(t);const f=weekFlags(weekStats(ws0),weekStats(addDays(ws0,-7)));return f.length?f.map(x=>x.level.toUpperCase()+": "+x.txt).join(" | "):"none"})()}\nPATTERNS FROM THEIR LOG (last 8 weeks):\n${insights().map(x=>"- "+x.text).join("\n")}\n${coachPatterns().length?"PATTERNS FROM WEEKLY CHECK-INS:\n"+coachPatterns().map(x=>"- "+x.text).join("\n")+"\n":""}
 ${Object.keys(S().travel||{}).length?"TRAVEL DAYS (recent): "+Object.keys(S().travel||{}).filter(x=>x>=addDays(t,-30)).sort().join(", ")+". On travel days, estimate restaurant portions generously (bigger plates, more oil and sauce) and read their numbers in that context.\n":""}TODAY: ${dayDigest(t)}
 TODAY'S MEALS (id | time | name | kcal P/C/F):${today.length?today.map(m=>`\n- ${m.id} | ${m.time} | ${m.name} | ${m.kcal} ${m.protein}/${m.carbs}/${m.fat}${m.est?" | your estimate, not yet checked: "+(m.est.note||"portions"):m.adjusted?" | they corrected your estimate":""}`).join(""):" none yet"}${(()=>{const ad=Object.values(col.meals).filter(m=>m.adjusted&&m.date>=addDays(t,-30));return ad.length?`\nTHEIR CORRECTIONS TO YOUR ESTIMATES (last 30 days, learn their real portions from these): ${ad.slice(-8).map(m=>m.name+" → "+m.kcal+" kcal").join("; ")}`:""})()}
@@ -2156,7 +2167,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-17h"; /* bump on every change so phones reload */
+const BUILD="2026-11-17i"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
