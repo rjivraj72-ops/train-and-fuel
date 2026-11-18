@@ -799,9 +799,9 @@ async function processInbox(){const imported=[];
         if(d&&ml>=50&&ml<=3000){const cur=col.water[d]||{};const seen=Array.isArray(cur.inbox)?cur.inbox:[];if(!seen.includes(f.name))await store.set("water",d,{...cur,ml:(+cur.ml||0)+ml,inbox:[...seen,f.name].slice(-40)})}
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
     for(const f of list.filter(x=>x.type==="file"&&/^workouts?-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
-      try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const got=importWatchWorkouts(j?.workouts??raw.text);for(const w of got){const id=await store.add("workouts",w);imported.push(w)}
+      try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const got=importWatchWorkouts(j?.workouts??raw.text);for(const w of got){if(w.id){const id=w.id;delete w.id;await store.set("workouts",id,w)}else await store.add("workouts",w);imported.push(w)}
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
-    if(imported.length)toast(`⌚ Added from Watch: ${imported.map(w=>w.name).join(", ")}`,6000);
+    if(imported.length)toast(`⌚ From Watch: ${imported.map(w=>w.walkDay?`${w.name} (${w.note})`:w.name).join(", ")}`,6000);
     for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
       try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const d=toDay(j.date)||todayStr();
         if(d){const hn=v=>Math.round(num(String(v??"").replace(/[,\s]/g,""))||0);const ak=hn(j.activeKcal),st=hn(j.steps);const prev=col.health[d]||{};const rec={...prev,activeKcal:Math.max(ak,prev.activeKcal||0),steps:Math.max(st,prev.steps||0),syncedAt:new Date().toISOString()};
@@ -1225,12 +1225,20 @@ function durMin(v){v=normSp(v);if(!v)return null;const c=v.match(/^(\d+):(\d\d)(
   let m=0,hit=false;for(const [,n,u] of v.matchAll(/(\d+(?:\.\d+)?)\s*(h|hr|hour|m|min|minute|s|sec|second)/gi)){hit=true;const x=+n;if(/^h/i.test(u))m+=x*60;else if(/^m/i.test(u))m+=x;else m+=x/60}
   if(hit)return m;const n=numU(v);return n==null?null:(n>300?n/60:n)}
 function distKm(v){v=normSp(v);if(!v)return null;const n=numU(v);if(n==null||n<=0)return null;if(/mi\b|mile/i.test(v))return n*1.609344;if(/\bkm\b|kilomet/i.test(v))return n;if(/\bm\b|meter|metre/i.test(v))return n/1000;return n>100?n/1000:n}
-function importWatchWorkouts(txt){const out=[];const have=Object.values(col.workouts||{});const seen=new Set(have.map(w=>w.hk).filter(Boolean));const cut=addDays(todayStr(),-14);
+function importWatchWorkouts(txt){const out=[];const have=Object.values(col.workouts||{});const seen=new Set(have.flatMap(w=>[w.hk,...(w.hks||[])]).filter(Boolean));const cut=addDays(todayStr(),-14);
   for(const part of String(txt||"").split(/;(?=[^~;]*~)|\n/)){const f=part.split("~").map(normSp);if(f.length<4)continue;const [hk,type,start,dur,kc,dist,hr,src,indoor]=f;
     if(hk&&seen.has(hk))continue;if(WATCH_SKIP.test(type||""))continue;const ts=anyDate(start);if(isNaN(ts))continue;
     const d=toDay(new Date(ts).toISOString());if(!d||d<cut)continue;const time=new Date(ts).toLocaleTimeString("en-CA",{timeZone:HOME_TZ,hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
     const minutes=durMin(dur);if(!minutes||minutes<3)continue;const tp=wType(type);
-    const tmin=hm2min(time);const kmx=distKm(dist);if(have.concat(out).some(w=>{if(w.date!==d||w.hk||w.source==="Apple Watch sync")return false;const sameT=w.type===tp||tp==="other"||w.type==="other"||(tp!=="run"&&w.type==="cardio"&&tp==="cardio");if(!sameT)return false;
+    const tmin=hm2min(time);const kmx=distKm(dist);
+    if(/walk/i.test(type||"")){const isDay=w=>w.date===d&&(w.walkDay||(w.source==="Apple Watch sync"&&/walk/i.test(w.name||"")));
+      let e=out.find(isDay);if(!e){const hit=Object.entries(col.workouts||{}).find(([,w])=>isDay(w));if(hit){e={...hit[1],id:hit[0]};if(!e.walkDay){e.walkDay=true;e.n=1;e.hks=e.hk?[e.hk]:[];delete e.hk}out.push(e)}}
+      const hrN=numU(hr),kc0=numU(kc);
+      if(e){const m0=+e.minutes||0;e.n=(e.n||1)+1;e.minutes=Math.round((m0+minutes)*100)/100;e.kcal=Math.round((+e.kcal||0)+(kc0||0));e.distanceKm=Math.round(((+e.distanceKm||0)+(kmx||0))*100)/100||null;
+        if(hrN)e.avgHr=e.avgHr?Math.round((e.avgHr*m0+hrN*minutes)/(m0+minutes)):Math.round(hrN);if(hm2min(time)<hm2min(e.time||"23:59"))e.time=time;if(hk)e.hks=[...(e.hks||[]),hk]}
+      else out.push(e={type:"cardio",name:"Walks with Drake",minutes:Math.round(minutes*100)/100,kcal:kc0?Math.round(kc0):null,distanceKm:kmx?Math.round(kmx*100)/100:null,avgHr:hrN?Math.round(hrN):null,date:d,time,source:"Apple Watch sync",walkDay:true,n:1,hks:hk?[hk]:[],created:Date.now()});
+      e.name="Walks with Drake";e.note=e.n+(e.n===1?" walk":" walks");if(hk)seen.add(hk);continue}
+    if(have.concat(out).some(w=>{if(w.date!==d||w.hk||w.source==="Apple Watch sync")return false;const sameT=w.type===tp||tp==="other"||w.type==="other"||(tp!=="run"&&w.type==="cardio"&&tp==="cardio");if(!sameT)return false;
       if(w.time&&Math.abs(hm2min(w.time)-tmin)<=30)return true;const wm=+w.minutes||0;if(wm&&Math.abs(wm-minutes)<=Math.max(3,minutes*.1))return true;const wk=+w.distanceKm||0;if(wk&&kmx&&Math.abs(wk-kmx)<=.3)return true;return false}))continue;
     const km=distKm(dist);const isIn=/true|yes|1/i.test(indoor||"");const label=String(type||"Workout").replace(/^HKWorkoutActivityType/,"").replace(/([a-z])([A-Z])/g,"$1 $2").trim();
     const nm=`${Math.round(minutes)} min ${tp==="run"?(isIn?"Indoor Run":"Outdoor Run"):label} (Apple Watch)`;
@@ -2138,7 +2146,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-17e"; /* bump on every change so phones reload */
+const BUILD="2026-11-17f"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
