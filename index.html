@@ -1233,7 +1233,7 @@ function mItem(m){return`<button class="item" data-act="editMeal" data-id="${esc
    Each piece: Identifier~Workout Type~Start Date~Duration~Active Calories~Total Distance~Average Heart Rate~Source Name~Is Indoor
    Strength is skipped on purpose: Peloton screenshots carry the volume. Anything already logged within 30 min is skipped. */
 const WATCH_SKIP=/strength|weight|core training/i,WATCH_IGNORE=/mind and body|mindful|breath/i;
-function wType(t){t=String(t||"").toLowerCase();if(/run/.test(t))return"run";if(/yoga|pilates|flexib|mind|cooldown|stretch|mobility/.test(t))return"yoga";if(/cross|hiit|functional|kickbox|boxing/.test(t))return"cross";if(/cycl|bike|ride|row|ellip|stair|swim|hik|walk|cardio|skat|ski/.test(t))return"cardio";return"other"}
+function wType(t){t=String(t||"").toLowerCase();if(/run/.test(t))return"run";if(/yoga|pilates|flexib|mind|cooldown|stretch|mobility|recover|preparation/.test(t))return"yoga";if(/cross|hiit|functional|kickbox|boxing/.test(t))return"cross";if(/cycl|bike|ride|row|ellip|stair|swim|hik|walk|cardio|skat|ski/.test(t))return"cardio";return"other"}
 function numU(v){const m=normSp(v).replace(/,/g,"").match(/-?\d+(\.\d+)?/);return m?+m[0]:null}
 function durMin(v){v=normSp(v).replace(/(\d),(\d{3})/g,"$1$2");if(!v)return null;const c=v.match(/^(\d+):(\d\d)(?::(\d\d))?$/);if(c)return c[3]!=null?(+c[1]*60+ +c[2]+ +c[3]/60):(+c[1]+ +c[2]/60);
   let m=0,hit=false;for(const [,n,u] of v.matchAll(/(\d+(?:\.\d+)?)\s*(h|hr|hour|m|min|minute|s|sec|second)/gi)){hit=true;const x=+n;if(/^h/i.test(u))m+=x*60;else if(/^m/i.test(u))m+=x;else m+=x/60}
@@ -1244,13 +1244,15 @@ function importWatchWorkouts(txt){const out=[];const have=Object.values(col.work
     if(hk&&seen.has(hk))continue;if(WATCH_IGNORE.test(type||""))continue;const isStr=WATCH_SKIP.test(type||"");const ts=anyDate(start);if(isNaN(ts))continue;
     const d=toDay(new Date(ts).toISOString());if(!d||d<cut)continue;const time=new Date(ts).toLocaleTimeString("en-CA",{timeZone:HOME_TZ,hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
     const minutes=durMin(dur);if(!minutes||minutes<3)continue;const tp=isStr?"strength":wType(type);
-    const tmin=hm2min(time);const kmx=distKm(dist);
+    const tmin=hm2min(time);const kmx=distKm(dist);const sig=time+"|"+Math.round(minutes*2);
+    const twin=w=>w.date===d&&((w.hk&&w.source==="Apple Watch sync"&&w.time&&Math.abs(hm2min(w.time)-hm2min(time))<=2&&Math.abs((+w.minutes||0)-minutes)<=.5)||(w.sigs||[]).includes(sig));
+    if(have.concat(out).some(twin)){if(hk)seen.add(hk);continue}
     if(/walk/i.test(type||"")){const isDay=w=>w.date===d&&(w.walkDay||(w.source==="Apple Watch sync"&&/walk/i.test(w.name||"")));
       let e=out.find(isDay);if(!e){const hit=Object.entries(col.workouts||{}).find(([,w])=>isDay(w));if(hit){e={...hit[1],id:hit[0]};if(!e.walkDay){e.walkDay=true;e.n=1;e.hks=e.hk?[e.hk]:[];delete e.hk}out.push(e)}}
       const hrN=numU(hr),kc0=numU(kc);
       if(e){const m0=+e.minutes||0;e.n=(e.n||1)+1;e.minutes=Math.round((m0+minutes)*100)/100;e.kcal=Math.round((+e.kcal||0)+(kc0||0));e.distanceKm=Math.round(((+e.distanceKm||0)+(kmx||0))*100)/100||null;
-        if(hrN)e.avgHr=e.avgHr?Math.round((e.avgHr*m0+hrN*minutes)/(m0+minutes)):Math.round(hrN);if(hm2min(time)<hm2min(e.time||"23:59"))e.time=time;if(hk)e.hks=[...(e.hks||[]),hk]}
-      else out.push(e={type:"cardio",name:"Walks with Drake",minutes:Math.round(minutes*100)/100,kcal:kc0?Math.round(kc0):null,distanceKm:kmx?Math.round(kmx*100)/100:null,avgHr:hrN?Math.round(hrN):null,date:d,time,source:"Apple Watch sync",walkDay:true,n:1,hks:hk?[hk]:[],created:Date.now()});
+        if(hrN)e.avgHr=e.avgHr?Math.round((e.avgHr*m0+hrN*minutes)/(m0+minutes)):Math.round(hrN);if(hm2min(time)<hm2min(e.time||"23:59"))e.time=time;if(hk)e.hks=[...(e.hks||[]),hk];e.sigs=[...(e.sigs||[]),sig]}
+      else out.push(e={type:"cardio",name:"Walks with Drake",minutes:Math.round(minutes*100)/100,kcal:kc0?Math.round(kc0):null,distanceKm:kmx?Math.round(kmx*100)/100:null,avgHr:hrN?Math.round(hrN):null,date:d,time,source:"Apple Watch sync",walkDay:true,n:1,hks:hk?[hk]:[],sigs:[sig],created:Date.now()});
       e.name="Walks with Drake";e.note=e.n+(e.n===1?" walk":" walks");if(hk)seen.add(hk);continue}
     if(isStr){const hrN=numU(hr),kc0=numU(kc);const tm=hm2min(time);
       const near=w=>w.date===d&&w.type==="strength"&&!w.hk&&!w.walkDay&&((w.time&&Math.abs(hm2min(w.time)-tm)<=120)||(+w.minutes&&Math.abs(+w.minutes-minutes)<=Math.max(4,minutes*.15)));
@@ -2172,7 +2174,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-18a"; /* bump on every change so phones reload */
+const BUILD="2026-11-19a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
