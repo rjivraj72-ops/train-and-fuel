@@ -566,6 +566,7 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 .slp{margin:14px 0 4px;padding-top:12px;border-top:1px solid var(--line)}.slp-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.slp-h .l{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.slp-h .v{font-family:var(--f-display);font-size:34px;font-weight:800;line-height:1.1}.slp-h .v span{font-size:inherit}
 .scanbox{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-top:4px}.scanbox video{width:100%;height:100%;object-fit:cover;display:block}.scanline{position:absolute;left:8%;right:8%;top:50%;height:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 10px var(--accent)}.gl{margin-top:12px;padding:12px 14px;border-radius:14px;font-weight:800;font-size:17px;border:1.5px solid var(--line);background:var(--surface-2)}.gl.bad{color:var(--bad);border-color:var(--bad)}.gl.warn{color:var(--warn)}.gl.good{color:var(--good)}.gl small{display:block;font-weight:500;font-size:14px;color:var(--muted);margin-top:3px}.bcam{display:flex;align-items:center;gap:10px;margin-top:14px}.bcam .v{font-size:22px;font-weight:800;min-width:110px;text-align:center}.bctot{margin-top:12px;font-size:17px}.bctot b{font-size:26px}
 .pat{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;margin-top:10px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);border-left-width:5px;background:var(--surface-2)}.pat.good{border-left-color:var(--good)}.pat.watch{border-left-color:var(--warn)}.pat-t{font-weight:800;font-size:17px}.pat.good .pat-t{color:var(--good)}.pat.watch .pat-t{color:var(--warn)}.pat-d{margin-top:4px;font-size:15.5px;line-height:1.45}
+.ctip{position:fixed;z-index:60;max-width:min(320px,calc(100vw - 20px));padding:10px 13px;border-radius:12px;background:var(--fg);color:var(--bg);font-size:15.5px;font-weight:700;line-height:1.35;box-shadow:0 6px 20px rgba(0,0,0,.25);pointer-events:none}svg.chart.ia .hit{cursor:pointer}svg.chart.has-sel [data-col]:not(.sel):not(.hit){opacity:.35}svg.chart [data-col]{transition:opacity .15s}.seg{display:flex;gap:6px;margin-top:12px}.seg button{flex:1;padding:9px 0;border-radius:10px;border:1.5px solid var(--line);background:transparent;color:var(--fg);font-weight:700;font-size:15px}.seg button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .rdy{margin-top:12px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface-2)}.rdy-h{font-size:19px;font-weight:800}.rdy.good .rdy-h{color:var(--good)}.rdy.warn .rdy-h{color:var(--warn)}.rdy.acc .rdy-h{color:var(--fg)}.rdy-w{margin-top:4px;font-size:15px;color:var(--muted);line-height:1.4}
 .chat{padding-bottom:12px}.cmp{font-size:14px;font-weight:700;margin-top:3px;color:var(--muted)}.cmp.up{color:var(--good)}.cmp.down{color:var(--warn)}
 .rxq{display:flex;gap:6px;margin:6px 0 2px 4px}.rxq button{border:1px solid var(--line);background:var(--surface);border-radius:999px;font-size:20px;line-height:1;padding:7px 10px;min-width:44px;min-height:40px;cursor:pointer}.rxq button:active{transform:scale(.92);background:var(--accent-soft)}
@@ -1152,7 +1153,7 @@ function macroStatus(val,lo,hi,d,kind){
   const o=hm2min(s.open),c=hm2min(s.close),n=hm2min(nowHM());const frac=Math.max(.15,Math.min(1,(n-o)/(c-o)));
   return val<lo*frac*0.8?["Pacing low","bad"]:["On pace","good"];
 }
-function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=n0,hatchLast,everyLabel,dates}){
+function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=n0,hatchLast,everyLabel,dates,tips,unit=""}){
   if(dates)h+=16;
   const W=340,top=14,bot=dates?38:22,left=34,iw=W-left-4,ih=h-top-bot;
   const vals=values.map(v=>v==null?0:v);const mx=Math.max(target||0,...vals)||1;
@@ -1161,14 +1162,19 @@ function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=
   let g="";for(const f of[0,.5,1]){const v=nice*f;g+=`<line class="grid" x1="${left}" x2="${W-4}" y1="${y(v)}" y2="${y(v)}"/><text x="${left-6}" y="${y(v)+3}" text-anchor="end">${v>=1000?(v/1000).toFixed(v%1000?1:0)+"k":Math.round(v)}</text>`}
   let b="";values.forEach((v,i)=>{const x=left+i*bw+bw*.18,w=bw*.64;const c=colors?colors[i]:color;
     if(v==null){b+=`<text x="${x+w/2}" y="${y(0)-4}" text-anchor="middle">–</text>`}
-    else{const hh=Math.max(1,ih*(v/nice));b+=`<rect x="${x}" y="${y(0)-hh}" width="${w}" height="${hh}" rx="3" fill="${c}" ${hatchLast&&i===values.length-1?'fill-opacity=".45"':""}/><text x="${x+w/2}" y="${y(0)-hh-4}" text-anchor="middle" class="halo" style="fill:var(--fg);font-weight:600">${fmt(v)}</text>`}
+    else{const hh=Math.max(1,ih*(v/nice));b+=`<rect data-col="${i}" x="${x}" y="${y(0)-hh}" width="${w}" height="${hh}" rx="3" fill="${c}" ${hatchLast&&i===values.length-1?'fill-opacity=".45"':""}/><text x="${x+w/2}" y="${y(0)-hh-4}" text-anchor="middle" class="halo" style="fill:var(--fg);font-weight:600">${fmt(v)}</text>`}
     if(dates){const d=parse(dates[i]),pm=i?parse(dates[i-1]).getMonth():-1,cx=x+w/2,cur=hatchLast&&i===values.length-1;
       b+=`<text x="${cx}" y="${h-22}" text-anchor="middle" style="font-size:14px;font-weight:700;fill:${cur?"var(--accent)":"var(--fg)"}">${d.getDate()}</text>`;
       if(d.getMonth()!==pm)b+=`<text x="${cx}" y="${h-7}" text-anchor="middle" style="font-size:12px">${MON[d.getMonth()]}</text>`;return}
     const every=everyLabel?1:Math.ceil(values.length/7);if(i%every===0||(!everyLabel&&i===values.length-1&&(values.length-1)%every>=every/2))b+=`<text x="${x+w/2}" y="${h-6}" text-anchor="middle">${esc(labels[i])}</text>`});
   if(target){b+=`<line x1="${left}" x2="${W-4}" y1="${y(target)}" y2="${y(target)}" stroke="var(--fg)" stroke-dasharray="4 4" stroke-width="1.2" opacity=".6"/>`}
-  return`<svg class="chart" viewBox="0 0 ${W} ${h}" role="img">${g}${b}</svg>`;
+  /* Tap targets: the whole column, so a thin bar is still easy to hit. */
+  values.forEach((v,i)=>{const when=dates?(hatchLast&&i===values.length-1?"This week (so far)":"Week of "+short(dates[i])):labels[i];
+    const tip=tips&&tips[i]!=null?tips[i]:v==null?`${when}: nothing logged`:`${when}: ${fmt(v)}${unit}${target?` · target ${fmt(target)}${unit}`:""}`;
+    b+=`<rect class="hit" data-col="${i}" data-tip="${esc(tip)}" x="${left+i*bw}" y="${top}" width="${bw}" height="${ih+bot-4}" fill="transparent"/>`});
+  return`<svg class="chart ia" viewBox="0 0 ${W} ${h}" role="img">${g}${b}</svg>`;
 }
+function wRange(){try{const v=localStorage.getItem("tf-wrange");if(v!=null)return +v}catch{}return 42}
 function chartWeight(pts,lo,hi){
   if(!pts.length)return`<div class="empty">No weigh-ins yet. Add your first one above.</div>`;
   const W=340,h=196,top=24,bot=46,left=34,right=14,iw=W-left-right,ih=h-top-bot;
@@ -1190,10 +1196,12 @@ function chartWeight(pts,lo,hi){
   ticks.forEach((k,n)=>{s+=tick(k,x(k),n===0?"start":"middle",false)});
   s+=tick(t1,lastX,"end",true);
   s+=`<path d="${pts.map((p,i)=>(i?"L":"M")+x(t[i]).toFixed(1)+" "+y(+p.lb).toFixed(1)).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
-  pts.forEach((p,i)=>{const last=i===pts.length-1;s+=`<circle cx="${x(t[i])}" cy="${y(+p.lb)}" r="${last?5:3.2}" fill="${last?"var(--accent)":"var(--surface)"}" stroke="var(--accent)" stroke-width="2"><title>${short(p.date)}: ${n1(p.lb)} lb</title></circle>`;
+  pts.forEach((p,i)=>{const last=i===pts.length-1;s+=`<circle data-col="${i}" cx="${x(t[i])}" cy="${y(+p.lb)}" r="${last?5:3.2}" fill="${last?"var(--accent)":"var(--surface)"}" stroke="var(--accent)" stroke-width="2"><title>${short(p.date)}: ${n1(p.lb)} lb</title></circle>`;
     if(i===0&&!last)s+=`<text x="${x(t[i])+8}" y="${y(+p.lb)-9}" text-anchor="start" class="halo" style="fill:var(--fg);font-weight:700">${n1(p.lb)}</text>`;
     if(last){const down=i>0&&+pts[i-1].lb>+p.lb;s+=`<text x="${x(t[i])-(down?13:10)}" y="${y(+p.lb)+(down?5:-11)}" text-anchor="end" class="halo" style="fill:var(--fg);font-weight:800;font-size:14px">${n1(p.lb)}</text>`}});
-  return`<svg class="chart" viewBox="0 0 ${W} ${h}" role="img" aria-label="Weight trend">${s}</svg>`;
+  pts.forEach((p,i)=>{const dlt=i?(+p.lb)-(+pts[i-1].lb):null;const tip=`${longD(p.date)}: ${n1(p.lb)} lb${dlt!=null?` (${dlt>0?"+":""}${n1(dlt)} vs ${short(pts[i-1].date)})`:""}`;
+    s+=`<circle class="hit" data-col="${i}" data-tip="${esc(tip)}" cx="${x(t[i])}" cy="${y(+p.lb)}" r="16" fill="transparent"/>`});
+  return`<svg class="chart ia" viewBox="0 0 ${W} ${h}" role="img" aria-label="Weight trend">${s}</svg>`;
 }
 
 /* ---------- views ---------- */
@@ -1570,9 +1578,11 @@ function sleepTrendCard(){const t=todayStr();const days=[];for(let i=13;i>=0;i--
   let g="";for(const hh of[0,4,6,8]){const m=hh*60;if(m>mx)continue;g+=`<line class="grid" x1="${left}" x2="${W-4}" y1="${y(m)}" y2="${y(m)}"/><text x="${left-5}" y="${y(m)+4}" text-anchor="end">${hh}h</text>`}
   days.forEach((d,i)=>{const h=hs[i],x=left+i*bw+bw*.16,w=bw*.68,cx=x+w/2,tg=sleepTarget(d);
     if(h?.sleepMin){const st=h.stages||{};const known=(st.deep||0)+(st.rem||0)+(st.core||0);const parts=known?[["var(--s-deep)",st.deep],["var(--s-core)",st.core+Math.max(0,h.sleepMin-known)],["var(--s-rem)",st.rem]]:[["var(--s-core)",h.sleepMin]];
-      let yy=y(0);for(const [c,m] of parts){if(!m)continue;const hh=m/mx*ih;yy-=hh;g+=`<rect x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" fill="${c}"/>`}
+      let yy=y(0);for(const [c,m] of parts){if(!m)continue;const hh=m/mx*ih;yy-=hh;g+=`<rect data-col="${i}" x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${w.toFixed(1)}" height="${hh.toFixed(1)}" fill="${c}"/>`}
       const ok=h.sleepMin>=tg;g+=`<text x="${cx}" y="${yy-4}" text-anchor="middle" class="halo" style="font-size:12px;font-weight:700;fill:${ok?"var(--good)":"var(--fg)"}">${(h.sleepMin/60).toFixed(1).replace(/\.0$/,"")}</text>`}
     g+=`<line ${h?.sleepMin?"":'opacity=".35" '}x1="${x-1}" x2="${x+w+1}" y1="${y(tg)}" y2="${y(tg)}" stroke="var(--fg)" stroke-width="1.6" stroke-dasharray="3 2" opacity=".7"/>`;
+    {const st=h?.stages||{};const tip=h?.sleepMin?`${longD(d)}: ${fmtHM(h.sleepMin)} asleep (goal ${fmtHM(tg)})${h.bed?` · ${fmtT(h.bed)} to ${fmtT(h.wake)}`:""}${st.deep?` · deep ${fmtHM(st.deep)}, REM ${fmtHM(st.rem||0)}`:""}`:`${longD(d)}: no sleep synced`;
+      g+=`<rect class="hit" data-col="${i}" data-tip="${esc(tip)}" x="${left+i*bw}" y="${top}" width="${bw}" height="${ih+bot-4}" fill="transparent"/>`}
     const dd=parse(d),pm=i?parse(days[i-1]).getMonth():-1;g+=`<text x="${cx}" y="${H-17}" text-anchor="middle" style="font-size:12px;font-weight:700;fill:${d===t?"var(--accent)":"var(--fg)"}">${dd.getDate()}</text>`;
     if(dd.getMonth()!==pm)g+=`<text x="${cx}" y="${H-4}" text-anchor="middle" style="font-size:12px">${MON[dd.getMonth()]}</text>`});
   const last7=days.slice(-7).map(d=>[d,healthOn(d)]).filter(([,h])=>h?.sleepMin);const avg=last7.length?last7.reduce((a,[,h])=>a+h.sleepMin,0)/last7.length:null;
@@ -1581,11 +1591,12 @@ function sleepTrendCard(){const t=todayStr();const days=[];for(let i=13;i>=0;i--
   const bf=m=>fmtT(pad(Math.floor(m/60)%24)+":"+pad(m%60));
   return`<section class="card"><div class="eyebrow">Recovery</div><h2>Sleep, last 14 nights</h2>
   <p class="sub">${avg!=null?`Last 7: average <b>${fmtHM(Math.round(avg))}</b>, ${met} of ${last7.length} nights at target${beds.length>1?`, asleep between ${bf(Math.min(...beds))} and ${bf(Math.max(...beds))}`:""}.`:""} Dashed line is the goal: ${goalT(sleepTarget("2026-11-16"))} most nights, ${goalT(sleepTarget("2026-11-15"))} into Sunday.</p>
-  <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sleep per night, last 14 nights">${g}</svg>${sleepLegend().replace(/<span><i style="background:var\(--s-awake\)"><\/i>Awake<\/span>/,"")}</section>`}
+  <svg class="chart ia" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sleep per night, last 14 nights">${g}</svg>${sleepLegend().replace(/<span><i style="background:var\(--s-awake\)"><\/i>Awake<\/span>/,"")}</section>`}
 function vTrends(){
   const s=S(),t=todayStr(),allW=weights(),lastW=allW[allW.length-1];
   /* Last 6 weeks only, so the chart and labels stay readable (at least 3 weigh-ins when older ones are all there is). */
-  let wts=lastW?allW.filter(w=>w.date>=addDays(lastW.date,-42)):[];if(wts.length<3)wts=allW.slice(-3);const last=wts[wts.length-1],first=wts[0];
+  const rg=wRange();let wts=lastW?(rg?allW.filter(w=>w.date>=addDays(lastW.date,-rg)):allW.slice()):[];if(wts.length<3)wts=allW.slice(-3);const last=wts[wts.length-1],first=wts[0];
+  const spanW=first&&last?Math.max(1,Math.round((parse(last.date)-parse(first.date))/6048e5)):0;
   const ws0=weekStart(t);const weeks=[];for(let i=7;i>=0;i--)weeks.push(addDays(ws0,-7*i));
   const hs=H().weeklyScores||{};
   const scores=weeks.map(w=>{const live=weekScore(w);const imp=hs[w]??hs[addDays(w,1)];return imp?.score??((live.counted||weekWorkouts(w).length)?live.score:null)});
@@ -1606,23 +1617,25 @@ function vTrends(){
   ${patternsCard()}
   <section class="card"><div class="head"><div><div class="eyebrow">Weight</div>
     <div class="big" style="margin-top:8px">${last?n1(last.lb):"—"}<small>lb</small></div>
-    ${last&&first&&last!==first?`<p class="sub">${short(last.date)} · ${(last.lb-first.lb>0?"+":"")+n1(last.lb-first.lb)} lb in 6 weeks<br>${last.lb<s.weightLo?'<b style="color:var(--warn)">Below</b>':last.lb>s.weightHi?'<b style="color:var(--warn)">Above</b>':'<b style="color:var(--good)">In</b>'} your ${s.weightLo}–${s.weightHi} lb target</p>`:""}</div>
+    ${last&&first&&last!==first?`<p class="sub">${short(last.date)} · ${(last.lb-first.lb>0?"+":"")+n1(last.lb-first.lb)} lb in ${spanW} ${spanW===1?"week":"weeks"}<br>${last.lb<s.weightLo?'<b style="color:var(--warn)">Below</b>':last.lb>s.weightHi?'<b style="color:var(--warn)">Above</b>':'<b style="color:var(--good)">In</b>'} your ${s.weightLo}–${s.weightHi} lb target</p>`:""}</div>
     <button class="btn sm" data-act="addWeight">Weigh in</button></div>
-    ${chartWeight(wts,s.weightLo,s.weightHi)}</section>
+    <div class="seg" role="group" aria-label="Weight chart range">${[[42,"6 wk"],[91,"3 mo"],[182,"6 mo"],[0,"All"]].map(([v,l])=>`<button type="button" class="${rg===v?"on":""}" data-act="wRange" data-r="${v}">${l}</button>`).join("")}</div>
+    ${chartWeight(wts,s.weightLo,s.weightHi)}
+    <p class="hint" style="margin-top:4px">Tap a point to see the exact weigh-in.</p></section>
   <section class="card"><div class="eyebrow">Last ${ND} days</div><h2>Calories vs ${n0(s.kcal)} target</h2><p class="sub">${avgK?`Average ${n0(avgK)} kcal over ${logged.length} finished days. Today (faded) is still in progress.`:"No food logged recently."}</p>
-    ${chartBars({labels:days.map(dayLab),values:kc,target:s.kcal,colors:kcCol,fmt:v=>(v/1000).toFixed(1)+(ND>7?"":"k"),hatchLast:true,everyLabel:true})}
+    ${chartBars({unit:" kcal",labels:days.map(dayLab),values:kc,target:s.kcal,colors:kcCol,fmt:v=>(v/1000).toFixed(1)+(ND>7?"":"k"),hatchLast:true,everyLabel:true})}
     <div class="legend"><span><i style="background:var(--good)"></i>Within ±200</span><span><i style="background:var(--warn)"></i>Over</span><span><i style="background:var(--t-mob)"></i>Under</span><span><i style="background:var(--cool)"></i>Flex day</span></div></section>
   <section class="card"><div class="eyebrow">Last ${ND} days</div><h2>Protein vs ${s.proteinMin} g floor</h2><p class="sub">Grams per day. Dashed line is the ${s.proteinMin} g floor; today (faded) is still in progress.</p>
-    ${chartBars({labels:days.map(dayLab),values:pr,hatchLast:true,everyLabel:true,target:s.proteinMin,colors:pr.map(v=>v==null?"var(--line)":v>=s.proteinMin?"var(--good)":"var(--accent)")})}</section>
+    ${chartBars({unit:" g protein",labels:days.map(dayLab),values:pr,hatchLast:true,everyLabel:true,target:s.proteinMin,colors:pr.map(v=>v==null?"var(--line)":v>=s.proteinMin?"var(--good)":"var(--accent)")})}</section>
   ${sleepTrendCard()}
   <section class="card"><div class="eyebrow">Adherence</div><h2>Weekly scores</h2><p class="sub">Calories within ±200, protein at the floor, and planned sessions done. Faded bar is this week, still in progress.</p>
-    ${chartBars({labels:weeks.map(short),dates:weeks,values:scores,colors:scoreCol,hatchLast:true})}</section>
+    ${chartBars({unit:" / 100",labels:weeks.map(short),dates:weeks,values:scores,colors:scoreCol,hatchLast:true})}</section>
   <section class="card"><div class="eyebrow">Training</div><h2>Weekly strength volume</h2>${weeks.some(w=>blockInfo(w)?.light)?`<p class="sub">Paler bars are lighter weeks in your 4-week block.</p>`:""}
-    ${chartBars({labels:weeks.map(short),dates:weeks,values:vols,colors:weeks.map(w=>blockInfo(w)?.light?"var(--cool)":"var(--t-str)"),fmt:v=>(v>=10000?Math.round(v/1000):(v/1000).toFixed(1))+"k",hatchLast:true})}</section>
+    ${chartBars({tips:weeks.map((w,i)=>vols[i]==null?null:`${i===weeks.length-1?"This week (so far)":"Week of "+short(w)}: ${n0(vols[i])} lb lifted${blockInfo(w)?.light?" · lighter week":""}`),labels:weeks.map(short),dates:weeks,values:vols,colors:weeks.map(w=>blockInfo(w)?.light?"var(--cool)":"var(--t-str)"),fmt:v=>(v>=10000?Math.round(v/1000):(v/1000).toFixed(1))+"k",hatchLast:true})}</section>
   ${(()=>{const ld=weeks.map(w=>{let a=0;for(let i=0;i<7;i++)a+=dayLoad(addDays(w,i));return Math.round(a)});if(!ld.some(v=>v))return"";
     const full=ld.slice(0,-1).filter(v=>v),avg=full.length?full.reduce((a,b)=>a+b,0)/full.length:0;
     return`<section class="card"><div class="eyebrow">Training</div><h2>Weekly training load</h2><p class="sub">Minutes × heart-rate zone (Z1 ×1 up to Z5 ×4), all sessions except walks.${weeks.some(w=>blockInfo(w)?.light)?" Paler bars are lighter weeks: they should dip.":""}${avg?` Average of full weeks: ${n0(avg)}.`:""}</p>
-    ${chartBars({labels:weeks.map(short),dates:weeks,values:ld.map(v=>v||null),colors:weeks.map(w=>blockInfo(w)?.light?"var(--cool)":"var(--accent)"),hatchLast:true})}</section>`})()}
+    ${chartBars({tips:weeks.map((w,i)=>`${i===weeks.length-1?"This week (so far)":"Week of "+short(w)}: load ${n0(ld[i])}${avg?` (your average ${n0(avg)})`:""}${blockInfo(w)?.light?" · lighter week":""}`),labels:weeks.map(short),dates:weeks,values:ld.map(v=>v||null),colors:weeks.map(w=>blockInfo(w)?.light?"var(--cool)":"var(--accent)"),hatchLast:true})}</section>`})()}
   ${monKeys.length?`<section class="card"><div class="eyebrow">Monthly reports</div>${monKeys.map(k=>{const m=mon[k];return`<h2 style="margin-top:6px">${esc(m.label||k)}</h2><div class="stats" style="margin-top:10px"><div class="stat"><div class="l">Workouts</div><div class="mid">${n0(m.workouts)}</div></div><div class="stat"><div class="l">Volume</div><div class="mid">${n0((m.volumeKg||0)/1000)}<small>k lb</small></div></div><div class="stat"><div class="l">Run</div><div class="mid">${n1(m.runKm)}<small>km</small></div></div></div><p class="sub">${esc(m.note||"")}</p>`}).join("")}</section>`:""}
   </div>`;
 }
@@ -2021,6 +2034,17 @@ async function endConv(){const c=conv;conv=null;convMode=null;convStatus="discon
 function touchIdle(){clearTimeout(idleTimer);idleTimer=setTimeout(()=>{if(convMode==="text")endConv()},4*60000)}
 /* Light haptic tap. Android: vibrate. iPhone (iOS 18+): toggling a hidden switch control gives a system tap; ignored where unsupported. */
 let hapEl=null;
+/* Chart taps: show the exact value in a bubble and highlight that bar or point. */
+let tipEl=null;
+function hideTip(){tipEl?.remove();tipEl=null;document.querySelectorAll("svg.chart.has-sel").forEach(sv=>{sv.classList.remove("has-sel");sv.querySelectorAll(".sel").forEach(e=>e.classList.remove("sel"))})}
+function showTip(hit){const sv=hit.ownerSVGElement;const same=tipEl&&tipEl._hit===hit;hideTip();if(same)return;
+  const c=hit.dataset.col;sv.classList.add("has-sel");sv.querySelectorAll(`[data-col="${c}"]`).forEach(e=>e.classList.add("sel"));
+  tipEl=document.createElement("div");tipEl.className="ctip";tipEl.textContent=hit.dataset.tip;tipEl._hit=hit;document.body.appendChild(tipEl);
+  const r=hit.getBoundingClientRect(),tw=tipEl.offsetWidth,th=tipEl.offsetHeight;let x=r.left+r.width/2-tw/2;x=Math.max(10,Math.min(innerWidth-tw-10,x));
+  let yTop=r.top-th-8;if(hit.tagName==="rect"){const bars=[...sv.querySelectorAll(`[data-col="${c}"]:not(.hit)`)];const top=bars.length?Math.min(...bars.map(e=>e.getBoundingClientRect().top)):r.top+r.height/2;yTop=top-th-10}
+  if(yTop<8)yTop=r.bottom+8;tipEl.style.left=x+"px";tipEl.style.top=yTop+"px";haptic()}
+document.addEventListener("click",e=>{const hit=e.target.closest&&e.target.closest("svg.chart [data-tip]");if(hit){showTip(hit);return}if(tipEl&&!e.target.closest(".ctip"))hideTip()},true);
+addEventListener("scroll",()=>tipEl&&hideTip(),{passive:true,capture:true});
 function haptic(){try{if(navigator.vibrate&&navigator.vibrate(12))return}catch{}
   try{if(!hapEl){hapEl=document.createElement("label");hapEl.setAttribute("aria-hidden","true");hapEl.style.cssText="position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none";const i=document.createElement("input");i.type="checkbox";i.setAttribute("switch","");i.tabIndex=-1;hapEl.appendChild(i);document.body.appendChild(hapEl)}hapEl.click()}catch{}}
 function addTurn(role,content){chatTurns=chatTurns||[];if(role==="assistant"&&String(content).trim())haptic();const t={role,content:String(content),at:Date.now()};if(role==="assistant"&&pendingActions.length)t.actions=pendingActions.splice(0);chatTurns.push(t);saveChatSoon();renderChat()}
@@ -2242,6 +2266,7 @@ document.addEventListener("click",async e=>{
   else if(a==="settings")settingsSheet();
   else if(a==="addSaved")savedSheet();
   else if(a==="scan")scanSheet();
+  else if(a==="wRange"){try{localStorage.setItem("tf-wrange",b.dataset.r)}catch{}render()}
   else if(a==="editSaved")savedSheet({id,...col.saved[id]});
   else if(a==="logSaved"){const m=col.saved[id];b.disabled=true;await safe(store.add("meals",{name:m.name,kcal:m.kcal,protein:m.protein,carbs:m.carbs,fat:m.fat,date,time:date===todayStr()?nowHM():"12:00",created:Date.now()}),"Logged "+m.name);b.disabled=false}
   else if(a==="moveSaved"){const sv=savedList();const i=sv.findIndex(x=>x.id===id),j=i+(+b.dataset.dir);if(j<0||j>=sv.length)return;
@@ -2317,7 +2342,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21i"; /* bump on every change so phones reload */
+const BUILD="2026-11-21j"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
