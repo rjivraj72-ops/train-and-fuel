@@ -2167,9 +2167,9 @@ function showTip(hit){const sv=hit.ownerSVGElement;const same=tipEl&&tipEl._hit=
   tipEl=document.createElement("div");tipEl.className="ctip";tipEl.textContent=hit.dataset.tip;tipEl._hit=hit;document.body.appendChild(tipEl);
   const r=hit.getBoundingClientRect(),tw=tipEl.offsetWidth,th=tipEl.offsetHeight;let x=r.left+r.width/2-tw/2;x=Math.max(10,Math.min(innerWidth-tw-10,x));
   let yTop=r.top-th-8;if(hit.tagName==="rect"){const bars=[...sv.querySelectorAll(`[data-col="${c}"]:not(.hit)`)];const top=bars.length?Math.min(...bars.map(e=>e.getBoundingClientRect().top)):r.top+r.height/2;yTop=top-th-10}
-  if(yTop<8)yTop=r.bottom+8;tipEl.style.left=x+"px";tipEl.style.top=yTop+"px";haptic()}
-document.addEventListener("click",e=>{const hit=e.target.closest&&e.target.closest("svg.chart [data-tip]");if(hit){showTip(hit);return}if(tipEl&&!e.target.closest(".ctip"))hideTip()},true);
-addEventListener("scroll",()=>tipEl&&hideTip(),{passive:true,capture:true});
+  if(yTop<8)yTop=r.bottom+8;tipEl.style.left=x+"px";tipEl.style.top=yTop+"px";tipAt=Date.now();haptic()}
+document.addEventListener("click",e=>{if(hapEl&&hapEl.contains(e.target))return;/* the haptic tap's own synthetic click must not close the bubble */const hit=e.target.closest&&e.target.closest("svg.chart [data-tip]");if(hit){showTip(hit);return}if(tipEl&&!e.target.closest(".ctip"))hideTip()},true);
+let tipAt=0;addEventListener("scroll",()=>{if(tipEl&&Date.now()-tipAt>350)hideTip()},{passive:true,capture:true});
 function haptic(){try{if(navigator.vibrate&&navigator.vibrate(12))return}catch{}
   try{if(!hapEl){hapEl=document.createElement("label");hapEl.setAttribute("aria-hidden","true");hapEl.style.cssText="position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none";const i=document.createElement("input");i.type="checkbox";i.setAttribute("switch","");i.tabIndex=-1;hapEl.appendChild(i);document.body.appendChild(hapEl)}hapEl.click()}catch{}}
 function addTurn(role,content){chatTurns=chatTurns||[];if(role==="assistant"&&String(content).trim())haptic();const t={role,content:String(content),at:Date.now()};if(role==="assistant"&&pendingActions.length)t.actions=pendingActions.splice(0);chatTurns.push(t);saveChatSoon();renderChat()}
@@ -2468,7 +2468,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21t"; /* bump on every change so phones reload */
+const BUILD="2026-11-21u"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
