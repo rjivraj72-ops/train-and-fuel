@@ -564,6 +564,7 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 @media (prefers-reduced-motion:reduce){.rxsheet,.rxs-pill,.rxs-msg,.rxs-menu{animation:none}}
 
 .slp{margin:14px 0 4px;padding-top:12px;border-top:1px solid var(--line)}.slp-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.slp-h .l{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.slp-h .v{font-family:var(--f-display);font-size:34px;font-weight:800;line-height:1.1}.slp-h .v span{font-size:inherit}
+.scanbox{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-top:4px}.scanbox video{width:100%;height:100%;object-fit:cover;display:block}.scanline{position:absolute;left:8%;right:8%;top:50%;height:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 10px var(--accent)}.gl{margin-top:12px;padding:12px 14px;border-radius:14px;font-weight:800;font-size:17px;border:1.5px solid var(--line);background:var(--surface-2)}.gl.bad{color:var(--bad);border-color:var(--bad)}.gl.warn{color:var(--warn)}.gl.good{color:var(--good)}.gl small{display:block;font-weight:500;font-size:14px;color:var(--muted);margin-top:3px}.bcam{display:flex;align-items:center;gap:10px;margin-top:14px}.bcam .v{font-size:22px;font-weight:800;min-width:110px;text-align:center}.bctot{margin-top:12px;font-size:17px}.bctot b{font-size:26px}
 .rdy{margin-top:12px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface-2)}.rdy-h{font-size:19px;font-weight:800}.rdy.good .rdy-h{color:var(--good)}.rdy.warn .rdy-h{color:var(--warn)}.rdy.acc .rdy-h{color:var(--fg)}.rdy-w{margin-top:4px;font-size:15px;color:var(--muted);line-height:1.4}
 .chat{padding-bottom:12px}.cmp{font-size:14px;font-weight:700;margin-top:3px;color:var(--muted)}.cmp.up{color:var(--good)}.cmp.down{color:var(--warn)}
 .rxq{display:flex;gap:6px;margin:6px 0 2px 4px}.rxq button{border:1px solid var(--line);background:var(--surface);border-radius:999px;font-size:20px;line-height:1;padding:7px 10px;min-width:44px;min-height:40px;cursor:pointer}.rxq button:active{transform:scale(.92);background:var(--accent-soft)}
@@ -1225,7 +1226,7 @@ function vToday(){
     ${meter(t.kcal,K-200,K+200,K*1.25,kcalCls)}
     <p class="sub">${t.n} ${t.n===1?"entry":"entries"} · green band is ±200 kcal of target</p>
     <div style="margin-top:8px">${mrow("Protein",t.protein,s.proteinMin,s.proteinMax,"protein")}${mrow("Fat",t.fat,s.fatMin,s.fatMax,"fat")}${mrow("Carbs",t.carbs,cLo,cHi,"carbs")}</div>
-    <div class="row" style="gap:8px;margin-top:6px"><button class="btn line" style="flex:1" data-act="addMeal">Add meal</button><button class="btn" style="flex:1" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Photo</button></div>
+    <div class="row" style="gap:8px;margin-top:6px"><button class="btn line" style="flex:1" data-act="addMeal">Add meal</button><button class="btn line" style="flex:1" data-act="scan"><svg width="20" height="18" viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v14M6.5 3v14M10 3v14M13 3v14M17 3v14M21 3v14"/></svg> Scan</button><button class="btn" style="flex:1" data-act="photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Photo</button></div>
   </section>
   <div class="grid2 stack">
     <section class="card"><div class="eyebrow">Hydration</div>
@@ -1331,7 +1332,7 @@ function usualCard(){const c=usualCandidates();if(!c.length)return"";
 function vFood(){
   const d=date,ms=mealsOn(d),t=totals(d),sv=savedList();
   return`<div class="view">
-  <section class="card"><div class="head"><div><div class="eyebrow">Food log · ${longD(d)}</div><h2>${ms.length} ${ms.length===1?"entry":"entries"} · ${n0(t.kcal)} kcal</h2><p class="sub">${n0(t.protein)} g protein · ${n0(t.carbs)} g carbs · ${n0(t.fat)} g fat</p></div><div class="row"><button class="btn ghost" data-act="photo" aria-label="Log from a photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><button class="btn" data-act="addMeal">Add meal</button></div></div>
+  <section class="card"><div class="head"><div><div class="eyebrow">Food log · ${longD(d)}</div><h2>${ms.length} ${ms.length===1?"entry":"entries"} · ${n0(t.kcal)} kcal</h2><p class="sub">${n0(t.protein)} g protein · ${n0(t.carbs)} g carbs · ${n0(t.fat)} g fat</p></div><div class="row"><button class="btn ghost" data-act="scan" aria-label="Scan a barcode"><svg width="20" height="18" viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v14M6.5 3v14M10 3v14M13 3v14M17 3v14M21 3v14"/></svg></button><button class="btn ghost" data-act="photo" aria-label="Log from a photo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button><button class="btn" data-act="addMeal">Add meal</button></div></div>
     <div class="list" style="margin-top:8px">${ms.length?ms.slice().reverse().map(mItem).join(""):`<div class="empty">Nothing logged for this day. Tap <b>Add meal</b>, log a usual below, or tell the Coach what you ate.</div>`}</div></section>
   ${usualCard()}
   <section class="card"><div class="head"><div><div class="eyebrow">Saved meals</div><h2>Your usuals, one tap to log</h2><p class="sub">Logs the full meal as stored, at the current time on ${d===todayStr()?"today":short(d)}.</p></div><button class="btn line sm" data-act="addSaved">Add</button></div>
@@ -1648,13 +1649,73 @@ function render(){
 let sheetEl=null;
 function openSheet(html,onBind){closeSheet();sheetEl=document.createElement("div");sheetEl.className="scrim";sheetEl.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;document.body.appendChild(sheetEl);
   sheetEl.addEventListener("click",e=>{if(e.target===sheetEl)closeSheet()});onBind&&onBind(sheetEl);const f=sheetEl.querySelector("input,select,textarea");f&&setTimeout(()=>f.focus({preventScroll:true}),50)}
-function closeSheet(){sheetEl?.remove();sheetEl=null}
+function closeSheet(){stopScan();sheetEl?.remove();sheetEl=null}
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheet()});
 const fv=id=>sheetEl.querySelector("#"+id)?.value;
 function twoStep(btn,fn){btn.addEventListener("click",()=>{if(btn.dataset.armed){fn()}else{btn.dataset.armed="1";btn.textContent="Tap again to delete";setTimeout(()=>{if(btn.isConnected){delete btn.dataset.armed;btn.textContent="Delete"}},3000)}})}
 
 function aiErr(e){return e?.code==="not_granted"?"Claude wasn't allowed for this page.":e?.code==="rate_limited"?"Too many requests right now. Try again in a minute.":e?.code==="invalid_json"?"Couldn't read the estimate. Try describing it differently.":e?.code==="image_rejected"?"That image couldn't be used. Try a different photo.":"Couldn't get an estimate. Try again."}
 
+/* Barcode scanning: camera (ZXing, loaded on first use) -> Open Food Facts -> one-tap log with portion and a gluten check. */
+let zxLoad=null,scanReader=null;
+function loadZX(){return zxLoad||(zxLoad=new Promise((ok,no)=>{if(window.ZXing)return ok(window.ZXing);const sc=document.createElement("script");sc.src="vendor/zxing-library-0.21.3.min.js";sc.onload=()=>ok(window.ZXing);sc.onerror=()=>{zxLoad=null;no(new Error("load"))};document.head.appendChild(sc)}))}
+function stopScan(){try{scanReader&&scanReader.reset()}catch{}scanReader=null}
+function zxReader(ZX){const h=new Map();h.set(ZX.DecodeHintType.POSSIBLE_FORMATS,[ZX.BarcodeFormat.EAN_13,ZX.BarcodeFormat.EAN_8,ZX.BarcodeFormat.UPC_A,ZX.BarcodeFormat.UPC_E]);h.set(ZX.DecodeHintType.TRY_HARDER,true);return new ZX.BrowserMultiFormatReader(h,300)}
+function scanSheet(){
+  openSheet(`<input type="file" accept="image/*" capture="environment" id="scanFile" hidden><div class="head"><h3>Scan a barcode</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
+  <div class="scanbox"><video id="scanV" playsinline muted autoplay></video><div class="scanline"></div></div>
+  <p class="sub" id="scanMsg" style="font-size:16px;margin-top:10px">Point the camera at the barcode on the package. It logs from the Open Food Facts database.</p>
+  <div class="row" style="gap:8px;margin-top:10px"><input id="scanCode" inputmode="numeric" placeholder="Or type the number" style="flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1.5px solid var(--line);border-radius:12px;padding:12px;font-size:17px"><button class="btn line" id="scanGo">Look up</button></div>
+  <button class="btn line" id="scanPhoto" style="width:100%;margin-top:8px">Take a photo of the barcode instead</button>`,async el=>{
+    const msg=el.querySelector("#scanMsg");let done=false;const go=c=>{if(done)return;done=true;stopScan();lookupBarcode(String(c).replace(/\D/g,""))};
+    el.querySelector("#scanGo").onclick=()=>{const c=el.querySelector("#scanCode").value.replace(/\D/g,"");if(c.length>=8&&c.length<=14)go(c);else msg.textContent="Barcodes have 8 to 14 digits."};
+    el.querySelector("#scanPhoto").onclick=()=>el.querySelector("#scanFile").click();
+    el.querySelector("#scanFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;msg.textContent="Reading the barcode…";try{const ZX=await loadZX();const u=URL.createObjectURL(f);const res=await zxReader(ZX).decodeFromImageUrl(u);URL.revokeObjectURL(u);go(res.getText())}catch{msg.textContent="Couldn't read that photo. Hold the phone closer, with the barcode flat and in focus, or type the number."}};
+    try{const ZX=await loadZX();if(!sheetEl||sheetEl!==el)return;scanReader=zxReader(ZX);
+      await scanReader.decodeFromConstraints({video:{facingMode:"environment"}},el.querySelector("#scanV"),res=>{if(res){try{navigator.vibrate&&navigator.vibrate(60)}catch{}go(res.getText())}})}
+    catch{msg.textContent="The camera isn't available here. Take a photo of the barcode or type the number."}})}
+function glutenInfo(p){const a=p.allergens_tags||[],t=p.traces_tags||[],l=p.labels_tags||[],ing=(p.ingredients_text_en||p.ingredients_text||"").toLowerCase();
+  if(l.some(x=>/gluten-free|no-gluten|sans-gluten/.test(x)))return{c:"good",t:"✓ Labelled gluten-free"};
+  if(a.includes("en:gluten")||/\b(wheat|barley|rye|spelt|malt|semolina|durum|farro|triticale|couscous|seitan)\b/.test(ing))return{c:"bad",t:"✕ Contains gluten",s:a.includes("en:gluten")?"Listed in the allergens.":"Found in the ingredients."};
+  if(t.includes("en:gluten"))return{c:"warn",t:"! May contain gluten",s:"Listed under “may contain” (traces)."};
+  if(!ing&&!a.length)return{c:"",t:"Gluten: no ingredient data",s:"Check the package label."};
+  return{c:"good",t:"No gluten listed",s:"Not labelled gluten-free, so check the package if you're strict."}}
+async function lookupBarcode(code){
+  openSheet(`<div class="head"><h3>Looking up ${esc(code)}…</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div><p class="sub" style="font-size:16px">Checking the Open Food Facts database.</p>`);
+  let p=null;try{const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),12000);
+    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_en,brands,nutriments,serving_size,serving_quantity,allergens_tags,traces_tags,labels_tags,ingredients_text,ingredients_text_en`,{signal:ctl.signal});clearTimeout(tm);
+    const j=await r.json();if(j&&j.status===1&&j.product)p=j.product}catch{}
+  const n=p?.nutriments||{};const k100=n["energy-kcal_100g"]??(n["energy_100g"]!=null?n["energy_100g"]/4.184:null);
+  if(!p||k100==null){openSheet(`<div class="head"><h3>${p?"No nutrition facts":"Not in the database"}</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
+    <p class="sub" style="font-size:16px">${p?esc(p.product_name_en||p.product_name||"This product")+" is listed, but without calories.":"Barcode "+esc(code)+" isn't in Open Food Facts yet."} Take a photo of the <b>nutrition label</b> and the Coach will log it.</p>
+    <div class="row" style="gap:8px;margin-top:14px"><button class="btn" style="flex:1" data-act="photo">Photo of the label</button><button class="btn line" style="flex:1" data-act="addMeal">Add manually</button></div>`);return}
+  productSheet(code,p)}
+function productSheet(code,p){
+  const n=p.nutriments||{},name=(p.product_name_en||p.product_name||"Packaged food").trim(),brand=(p.brands||"").split(",")[0].trim();
+  const per100={kcal:n["energy-kcal_100g"]??n["energy_100g"]/4.184,p:+n.proteins_100g||0,c:+n.carbohydrates_100g||0,f:+n.fat_100g||0};
+  const sg=+p.serving_quantity||0;const hasServ=sg>0||n["energy-kcal_serving"]!=null;
+  const perServ=n["energy-kcal_serving"]!=null?{kcal:+n["energy-kcal_serving"],p:+n.proteins_serving||0,c:+n.carbohydrates_serving||0,f:+n.fat_serving||0}:sg?{kcal:per100.kcal*sg/100,p:per100.p*sg/100,c:per100.c*sg/100,f:per100.f*sg/100}:null;
+  let last={};try{last=JSON.parse(localStorage.getItem("tf-bc-"+code)||"{}")}catch{}
+  let mode=hasServ&&perServ?"serv":"g",amt=last.mode===mode&&+last.amt?+last.amt:mode==="serv"?1:100;
+  const gi=glutenInfo(p);
+  openSheet(`<div class="head"><h3>${esc(name)}</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
+    ${brand?`<p class="sub" style="font-size:16px;margin-top:-4px">${esc(brand)}</p>`:""}
+    <div class="gl ${gi.c}">${gi.t}${gi.s?`<small>${esc(gi.s)}</small>`:""}</div>
+    ${perServ&&sg?`<div class="row" style="gap:6px;margin-top:14px"><button class="btn sm ${mode==="serv"?"":"line"}" data-m="serv">Servings${p.serving_size?` (${esc(p.serving_size)})`:""}</button><button class="btn sm ${mode==="g"?"":"line"}" data-m="g">Grams</button></div>`:""}
+    <div class="bcam"><button class="btn line" data-d="-1" aria-label="Less">−</button><div class="v" id="bcV"></div><button class="btn line" data-d="1" aria-label="More">+</button></div>
+    <div class="bctot" id="bcT"></div>
+    <button class="btn" id="bcLog" style="width:100%;margin-top:16px">Log it</button>`,el=>{
+    const calc=()=>{const b=mode==="serv"?perServ:per100,k=mode==="serv"?amt:amt/100;return{kcal:Math.round(b.kcal*k),protein:Math.round(b.p*k),carbs:Math.round(b.c*k),fat:Math.round(b.f*k)}};
+    const paint=()=>{el.querySelector("#bcV").textContent=mode==="serv"?`${amt} ${amt===1?"serving":"servings"}`:`${amt} g`;const t=calc();
+      el.querySelector("#bcT").innerHTML=`<b>${n0(t.kcal)}</b> kcal · ${n0(t.protein)} g protein · ${n0(t.carbs)} g carbs · ${n0(t.fat)} g fat`;
+      el.querySelectorAll("[data-m]").forEach(b=>b.classList.toggle("line",b.dataset.m!==mode))};
+    el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{mode=b.dataset.m;amt=mode==="serv"?1:(sg?Math.round(sg):100);paint()});
+    el.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{const st=mode==="serv"?0.5:(amt<50?5:10);amt=Math.max(st,Math.round((amt+st*(+b.dataset.d))*10)/10);paint()});
+    el.querySelector("#bcLog").onclick=async()=>{const t=calc();const portion=mode==="serv"?(amt===1?"":` · ${amt} servings`):` · ${amt} g`;
+      try{localStorage.setItem("tf-bc-"+code,JSON.stringify({mode,amt}))}catch{}
+      const d={name:(name+(brand&&!name.toLowerCase().includes(brand.toLowerCase())?` (${brand})`:"")+portion).slice(0,140),...t,date:date,time:date===todayStr()?nowHM():"12:00",barcode:code,created:Date.now()};
+      closeSheet();await safe(store.add("meals",d),`Logged ${d.name} · ${t.kcal} kcal`)};
+    paint()})}
 function mealSheet(m){
   const isNew=!m;m=m||{name:"",kcal:"",protein:"",carbs:"",fat:"",date:date,time:date===todayStr()?nowHM():"12:00"};
   openSheet(`<div class="head"><h3>${isNew?"Add meal":"Edit meal"}</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
@@ -2136,6 +2197,7 @@ document.addEventListener("click",async e=>{
   else if(a==="waterHelp")waterHelpSheet();
   else if(a==="settings")settingsSheet();
   else if(a==="addSaved")savedSheet();
+  else if(a==="scan")scanSheet();
   else if(a==="editSaved")savedSheet({id,...col.saved[id]});
   else if(a==="logSaved"){const m=col.saved[id];b.disabled=true;await safe(store.add("meals",{name:m.name,kcal:m.kcal,protein:m.protein,carbs:m.carbs,fat:m.fat,date,time:date===todayStr()?nowHM():"12:00",created:Date.now()}),"Logged "+m.name);b.disabled=false}
   else if(a==="moveSaved"){const sv=savedList();const i=sv.findIndex(x=>x.id===id),j=i+(+b.dataset.dir);if(j<0||j>=sv.length)return;
@@ -2211,7 +2273,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21a"; /* bump on every change so phones reload */
+const BUILD="2026-11-21b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
