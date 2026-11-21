@@ -1886,7 +1886,7 @@ function mealBuilder(start){if(start||!bld)bld={name:start?.name||"",items:[]};
     el.querySelector("#bLog").onclick=async()=>{if(!bld.items.length)return toast("Add at least one ingredient.");const t=bldTotal();
       const nm=(bld.name.trim()||bld.items.map(i=>i.name.split(",")[0]).slice(0,3).join(", ")).slice(0,140);
       const desc=bld.items.map(it=>it.fixed?it.name:`${it.name} (${+it.qty} ${it.units[it.unit].u})`).join(" · ").slice(0,600);
-      const d={name:nm,kcal:Math.round(t.k),protein:Math.round(t.p),carbs:Math.round(t.c),fat:Math.round(t.f),date:date,time:date===todayStr()?nowHM():"12:00",ingredients:desc,created:Date.now()};
+      const d={name:nm,kcal:Math.round(t.k),protein:Math.round(t.p),carbs:Math.round(t.c),fat:Math.round(t.f),date:date,time:date===todayStr()?nowHM():"12:00",ingredients:desc,parts:bld.items.map(it=>{const m=bldMacros(it);return{name:it.name,amount:it.fixed?"":`${+it.qty} ${it.units[it.unit].u}`,kcal:Math.round(m.k),protein:Math.round(m.p*10)/10,carbs:Math.round(m.c*10)/10,fat:Math.round(m.f*10)/10}}),created:Date.now()};
       const sv=Object.values(col.saved||{});const save=el.querySelector("#bSave").checked;
       closeSheet();await safe(store.add("meals",d),`Logged ${nm} · ${d.kcal} kcal, ${d.protein} g protein`);
       if(save)await store.add("saved",{name:nm,desc,kcal:d.kcal,protein:d.protein,carbs:d.carbs,fat:d.fat,order:sv.length?Math.max(...sv.map(x=>x.order??0))+1:0});
@@ -2468,7 +2468,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21s"; /* bump on every change so phones reload */
+const BUILD="2026-11-21t"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
