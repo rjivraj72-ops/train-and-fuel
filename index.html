@@ -1648,7 +1648,7 @@ function render(){
 /* ---------- sheets ---------- */
 let sheetEl=null;
 function openSheet(html,onBind){closeSheet();sheetEl=document.createElement("div");sheetEl.className="scrim";sheetEl.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;document.body.appendChild(sheetEl);
-  sheetEl.addEventListener("click",e=>{if(e.target===sheetEl)closeSheet()});onBind&&onBind(sheetEl);const f=sheetEl.querySelector("input,select,textarea");f&&setTimeout(()=>f.focus({preventScroll:true}),50)}
+  sheetEl.addEventListener("click",e=>{if(e.target===sheetEl||e.target.closest("[data-x]"))closeSheet()});onBind&&onBind(sheetEl);const f=sheetEl.querySelector("input,select,textarea");f&&setTimeout(()=>f.focus({preventScroll:true}),50)}
 function closeSheet(){stopScan();sheetEl?.remove();sheetEl=null}
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheet()});
 const fv=id=>sheetEl.querySelector("#"+id)?.value;
@@ -1661,16 +1661,22 @@ let zxLoad=null;
 function loadZX(){return zxLoad||(zxLoad=new Promise((ok,no)=>{if(window.ZXing)return ok(window.ZXing);const sc=document.createElement("script");sc.src="vendor/zxing-library-0.21.3.min.js";sc.onload=()=>ok(window.ZXing);sc.onerror=()=>{zxLoad=null;no(new Error("load"))};document.head.appendChild(sc)}))}
 let scanStream=null,scanTimer=null;
 function stopScan(){clearTimeout(scanTimer);scanTimer=null;try{scanStream&&scanStream.getTracks().forEach(t=>t.stop())}catch{}scanStream=null}
-let zxMFR=null;
-function zxCore(ZX){if(zxMFR)return zxMFR;const h=new Map();h.set(ZX.DecodeHintType.POSSIBLE_FORMATS,[ZX.BarcodeFormat.EAN_13,ZX.BarcodeFormat.EAN_8,ZX.BarcodeFormat.UPC_A,ZX.BarcodeFormat.UPC_E]);h.set(ZX.DecodeHintType.TRY_HARDER,true);zxMFR=new ZX.MultiFormatReader();zxMFR.setHints(h);return zxMFR}
-/* Decode one canvas: hybrid binarizer first, then the global one (better on glossy, low-contrast packs). */
-function zxTry(ZX,cv){const rd=zxCore(ZX);for(const B of [ZX.HybridBinarizer,ZX.GlobalHistogramBinarizer]){try{const src=new ZX.HTMLCanvasElementLuminanceSource(cv);return rd.decodeWithState(new ZX.BinaryBitmap(new B(src))).getText()}catch{}finally{try{rd.reset()}catch{}}}return null}
+/* Decoding runs in a background worker so the screen and the ✕ button stay responsive while scanning. */
+let zxW=null,zxSeq=0;const zxPend=new Map();
+function zxWorker(){if(zxW)return zxW;const lib=new URL("vendor/zxing-library-0.21.3.min.js",location.href).href;
+  const src=`importScripts(${JSON.stringify(lib)});const ZX=self.ZXing;const h=new Map();h.set(ZX.DecodeHintType.POSSIBLE_FORMATS,[ZX.BarcodeFormat.EAN_13,ZX.BarcodeFormat.EAN_8,ZX.BarcodeFormat.UPC_A,ZX.BarcodeFormat.UPC_E]);
+  const easy=new ZX.MultiFormatReader();easy.setHints(h);const h2=new Map(h);h2.set(ZX.DecodeHintType.TRY_HARDER,true);const hard=new ZX.MultiFormatReader();hard.setHints(h2);
+  onmessage=e=>{const {id,w,h:H,px,tryHard}=e.data;const g=new Uint8ClampedArray(w*H);for(let i=0,j=0;i<g.length;i++,j+=4)g[i]=(px[j]*306+px[j+1]*601+px[j+2]*117)>>10;
+    let t=null;for(const rd of tryHard?[easy,hard]:[easy]){for(const B of [ZX.HybridBinarizer,ZX.GlobalHistogramBinarizer]){try{t=rd.decodeWithState(new ZX.BinaryBitmap(new B(new ZX.RGBLuminanceSource(g,w,H)))).getText()}catch(_){}try{rd.reset()}catch(_){}if(t)break}if(t)break}
+    postMessage({id,t})}`;
+  zxW=new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})));zxW.onmessage=e=>{const f=zxPend.get(e.data.id);if(f){zxPend.delete(e.data.id);f(e.data.t)}};zxW.onerror=()=>{zxPend.forEach(f=>f(null));zxPend.clear()};return zxW}
+function zxDecode(cv,tryHard){return new Promise(ok=>{const id=++zxSeq;const d=cv.getContext("2d").getImageData(0,0,cv.width,cv.height);zxPend.set(id,ok);zxWorker().postMessage({id,w:cv.width,h:cv.height,px:d.data,tryHard},[d.data.buffer])})}
 /* Draw a region of an image/video into a canvas, scaled so the long side is at most `max`, optionally rotated 90°. */
 function zxCrop(srcEl,sw,sh,box,max,rot){const k=Math.min(1,max/Math.max(box.w,box.h));const w=Math.round(box.w*k),h=Math.round(box.h*k);const cv=document.createElement("canvas");cv.width=rot?h:w;cv.height=rot?w:h;const x=cv.getContext("2d",{willReadFrequently:true});
   if(rot){x.translate(h,0);x.rotate(Math.PI/2)}x.drawImage(srcEl,box.x,box.y,box.w,box.h,0,0,w,h);return cv}
-function zxFromImage(ZX,img){const W=img.naturalWidth||img.videoWidth||img.width,H=img.naturalHeight||img.videoHeight||img.height;
+async function zxFromImage(img,alive){const W=img.naturalWidth||img.width,H=img.naturalHeight||img.height;
   const boxes=[{x:0,y:0,w:W,h:H},{x:W*.1,y:H*.3,w:W*.8,h:H*.4},{x:W*.2,y:H*.38,w:W*.6,h:H*.24}];
-  for(const max of [1280,900,640])for(const b of boxes)for(const rot of [false,true]){const t=zxTry(ZX,zxCrop(img,W,H,b,max,rot));if(t)return t}return null}
+  for(const max of [1280,900,640])for(const b of boxes)for(const rot of [false,true]){if(alive&&!alive())return null;const t=await zxDecode(zxCrop(img,W,H,b,max,rot),true);if(t)return t}return null}
 function scanSheet(){
   openSheet(`<input type="file" accept="image/*" id="scanFile" hidden><div class="head"><h3>Scan a barcode</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
   <div class="scanbox"><video id="scanV" playsinline muted autoplay></video><div class="scanline"></div></div>
@@ -1681,19 +1687,19 @@ function scanSheet(){
     el.querySelector("#scanGo").onclick=()=>{const c=el.querySelector("#scanCode").value.replace(/\D/g,"");if(c.length>=8&&c.length<=14)go(c);else msg.textContent="Barcodes have 8 to 14 digits (the numbers printed under the bars)."};
     el.querySelector("#scanPhoto").onclick=()=>el.querySelector("#scanFile").click();
     el.querySelector("#scanFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;msg.textContent="Reading the barcode…";
-      try{const ZX=await loadZX();const u=URL.createObjectURL(f);const img=new Image();await new Promise((ok,no)=>{img.onload=ok;img.onerror=no;img.src=u});const t=zxFromImage(ZX,img);URL.revokeObjectURL(u);
+      try{const u=URL.createObjectURL(f);const img=new Image();await new Promise((ok,no)=>{img.onload=ok;img.onerror=no;img.src=u});const t=await zxFromImage(img,()=>sheetEl===el&&!done);URL.revokeObjectURL(u);if(sheetEl!==el)return;
         if(t)go(t);else msg.textContent="Couldn't find a barcode in that photo. Get closer so the barcode fills the frame, keep it flat and sharp, or type the number."}catch{msg.textContent="Couldn't open that photo. Try again or type the number."}};
-    let ZX;try{ZX=await loadZX()}catch{msg.textContent="The scanner didn't load. Check your connection, or type the number.";return}
+    try{zxWorker()}catch{msg.textContent="The scanner didn't load. Type the number instead.";return}
     try{scanStream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:"environment"},width:{ideal:1920},height:{ideal:1080}}});
       if(!sheetEl||sheetEl!==el||done){stopScan();return}
       try{const tr=scanStream.getVideoTracks()[0],cap=tr.getCapabilities?tr.getCapabilities():{};if(cap.focusMode&&cap.focusMode.includes("continuous"))await tr.applyConstraints({advanced:[{focusMode:"continuous"}]})}catch{}
       v.srcObject=scanStream;await v.play().catch(()=>{});
       const t0=Date.now();let n=0;
-      const tick=()=>{if(done||!scanStream)return;const W=v.videoWidth,H=v.videoHeight;
+      const tick=async()=>{if(done||!scanStream)return;const W=v.videoWidth,H=v.videoHeight;
         if(W&&H){n++;const band=n%3===0?{x:0,y:H*.2,w:W,h:H*.6}:{x:W*.06,y:H*.34,w:W*.88,h:H*.32};
-          const t=zxTry(ZX,zxCrop(v,W,H,band,n%2?1000:720,false));if(t)return go(t);
+          const t=await zxDecode(zxCrop(v,W,H,band,n%2?960:720,false),n%4===0);if(done||!scanStream)return;if(t)return go(t);
           if(Date.now()-t0>9000&&!msg.dataset.hint){msg.dataset.hint=1;msg.textContent="Still looking. Tilt slightly to avoid glare, move a bit further back so it's sharp, or type the number printed under the bars."}}
-        scanTimer=setTimeout(tick,90)};tick()}
+        scanTimer=setTimeout(tick,60)};tick()}
     catch{msg.textContent="The camera isn't available. Allow camera access for this app in Settings, use a photo of the barcode, or type the number."}})}
 function glutenInfo(p){const a=p.allergens_tags||[],t=p.traces_tags||[],l=p.labels_tags||[],ing=(p.ingredients_text_en||p.ingredients_text||"").toLowerCase();
   if(l.some(x=>/gluten-free|no-gluten|sans-gluten/.test(x)))return{c:"good",t:"✓ Labelled gluten-free"};
@@ -2300,7 +2306,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21d"; /* bump on every change so phones reload */
+const BUILD="2026-11-21e"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
