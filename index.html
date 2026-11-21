@@ -1684,7 +1684,7 @@ function scanSheet(){
   <p class="sub" id="scanMsg" style="font-size:16px;margin-top:10px">Hold the barcode across the orange line, about a hand's length away, until it fills most of the width.</p>
   <div class="row" style="gap:8px;margin-top:10px"><input id="scanCode" inputmode="numeric" placeholder="Or type the number" style="flex:1;min-width:0;background:var(--bg);color:var(--fg);border:1.5px solid var(--line);border-radius:12px;padding:12px;font-size:17px"><button class="btn line" id="scanGo">Look up</button></div>
   <button class="btn line" id="scanPhoto" style="width:100%;margin-top:8px">Use a photo of the barcode</button>`,async el=>{
-    const msg=el.querySelector("#scanMsg"),v=el.querySelector("#scanV");let done=false;const go=c=>{if(done)return;done=true;stopScan();try{navigator.vibrate&&navigator.vibrate(60)}catch{}lookupBarcode(String(c).replace(/\D/g,""))};
+    const msg=el.querySelector("#scanMsg"),v=el.querySelector("#scanV");let done=false;const go=c=>{if(done)return;done=true;stopScan();haptic();lookupBarcode(String(c).replace(/\D/g,""))};
     el.querySelector("#scanGo").onclick=()=>{const c=el.querySelector("#scanCode").value.replace(/\D/g,"");if(c.length>=8&&c.length<=14)go(c);else msg.textContent="Barcodes have 8 to 14 digits (the numbers printed under the bars)."};
     el.querySelector("#scanPhoto").onclick=()=>el.querySelector("#scanFile").click();
     el.querySelector("#scanFile").onchange=async e=>{const f=e.target.files[0];if(!f)return;msg.textContent="Reading the barcode…";
@@ -2013,7 +2013,11 @@ async function startConv(mode,extraOv){
 }
 async function endConv(){const c=conv;conv=null;convMode=null;convStatus="disconnected";agentSpeaking=false;clearTimeout(idleTimer);try{await c?.endSession()}catch{}updateMic()}
 function touchIdle(){clearTimeout(idleTimer);idleTimer=setTimeout(()=>{if(convMode==="text")endConv()},4*60000)}
-function addTurn(role,content){chatTurns=chatTurns||[];const t={role,content:String(content),at:Date.now()};if(role==="assistant"&&pendingActions.length)t.actions=pendingActions.splice(0);chatTurns.push(t);saveChatSoon();renderChat()}
+/* Light haptic tap. Android: vibrate. iPhone (iOS 18+): toggling a hidden switch control gives a system tap; ignored where unsupported. */
+let hapEl=null;
+function haptic(){try{if(navigator.vibrate&&navigator.vibrate(12))return}catch{}
+  try{if(!hapEl){hapEl=document.createElement("label");hapEl.setAttribute("aria-hidden","true");hapEl.style.cssText="position:fixed;left:-9999px;top:0;opacity:0;pointer-events:none";const i=document.createElement("input");i.type="checkbox";i.setAttribute("switch","");i.tabIndex=-1;hapEl.appendChild(i);document.body.appendChild(hapEl)}hapEl.click()}catch{}}
+function addTurn(role,content){chatTurns=chatTurns||[];if(role==="assistant"&&String(content).trim())haptic();const t={role,content:String(content),at:Date.now()};if(role==="assistant"&&pendingActions.length)t.actions=pendingActions.splice(0);chatTurns.push(t);saveChatSoon();renderChat()}
 function saveChatSoon(){clearTimeout(saveChatT);saveChatT=setTimeout(()=>{store.set("chat","log",{turns:(chatTurns||[]).slice(-60).map(({img,imgs,...r})=>r)})},1500)}
 async function saveChat(){await store.set("chat","log",{turns:(chatTurns||[]).slice(-60).map(({img,imgs,...r})=>r)})}
 function snippet(s){s=String(s).replace(/\s+/g," ").trim();return s.length>140?s.slice(0,137)+"…":s}
@@ -2023,7 +2027,7 @@ function setReply(i){const t=(chatTurns||[])[i];if(!t){replyTarget=null}else rep
   const ta=$("#chatIn");ta&&ta.focus()}
 async function sendText(text){
   const q=replyTarget;setReply(-1);{const ta=$("#chatIn");if(ta)ta.placeholder="Message your Coach"}
-  addTurn("user",text);if(q)chatTurns[chatTurns.length-1].quote=q.text;awaiting=true;renderChat();
+  haptic();addTurn("user",text);if(q)chatTurns[chatTurns.length-1].quote=q.text;awaiting=true;renderChat();
   const wire=q?`(Replying to ${q.role==="user"?"my":"your"} earlier message: "${q.text}")\n\n${text}`:text;
   try{const c=await startConv(convMode==="voice"?"voice":"text");c.sendUserMessage(wire);touchIdle()}
   catch(e){awaiting=false;addTurn("assistant","I couldn't connect just now ("+(e?.message||"connection failed")+"). Check your connection and try again.")}
@@ -2307,7 +2311,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21f"; /* bump on every change so phones reload */
+const BUILD="2026-11-21g"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
