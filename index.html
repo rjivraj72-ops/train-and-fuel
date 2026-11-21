@@ -878,7 +878,13 @@ const COACH_VOICES=[
 let previewAudio=null;
 function voicePickerHTML(){const cur=S().coachVoice||DEFAULT_VOICE;return`<label>Coach voice <span class="muted" style="font-weight:600">(used for voice chats, Listen and the Sunday kickoff)</span></label>
   <div class="vlist">${COACH_VOICES.map(([id,nm,ds])=>`<div class="vrow ${id===cur?"on":""}"><button type="button" class="vplay" data-act="voicePrev" data-id="${id}" aria-label="Preview ${esc(nm)}">▶</button><button type="button" class="vpick" data-act="voicePick" data-id="${id}" aria-pressed="${id===cur}"><b>${esc(nm)}</b><span>${esc(ds)}</span></button>${id===cur?'<span class="vchk">✓</span>':""}</div>`).join("")}</div>`}
-function sleepTarget(d){const s=S();return Math.round(60*(dow(d)===0?(+s.sleepTargetSun||7.5):(+s.sleepTarget||6)))}
+/* One sleep-in per weekend (Saturday + the Sunday after it). Default Sunday. If Saturday's night was 7h+,
+   or Saturday was picked, Saturday is the sleep-in and Sunday goes back to the normal goal. */
+function sleepInDay(d){const w=dow(d);if(w!==0&&w!==6)return null;const sat=w===6?d:addDays(d,-1),sun=addDays(sat,1);
+  const pk=(S().sleepInPick||{})[sun];if(pk===sat||pk===sun)return pk;return (healthOn(sat)?.sleepMin||0)>=420?sat:sun}
+function sleepTarget(d){const s=S();return Math.round(60*(sleepInDay(d)===d?(+s.sleepTargetSun||7.5):(+s.sleepTarget||6)))}
+function sleepInPickHTML(){const t=todayStr(),w=dow(t);const sat=w===6?t:w===0?addDays(t,-1):addDays(t,6-w),sun=addDays(sat,1);const pk=(S().sleepInPick||{})[sun]||"",cur=sleepInDay(sat);
+  return`<div class="f"><label for="sSlpIn">Sleep-in this weekend (${short(sat)}–${short(sun)})</label><select id="sSlpIn" data-sun="${sun}"><option value="" ${!pk?"selected":""}>Automatic (now ${cur===sat?"Saturday":"Sunday"})</option><option value="${sat}" ${pk===sat?"selected":""}>Saturday</option><option value="${sun}" ${pk===sun?"selected":""}>Sunday</option></select><span class="hint">Automatic: Saturday if you sleep 7h+ that night, otherwise Sunday. The other day goes back to your normal goal.</span></div>`}
 const shortHM=m=>m<60?Math.round(m)+"m":fmtHM(m);
 const goalT=m=>m%60?fmtHM(m):(m/60)+"h";
 const SLC={d:"var(--s-deep)",c:"var(--s-core)",r:"var(--s-rem)",a:"var(--s-core)",w:"var(--s-awake)"};
@@ -972,9 +978,9 @@ function readiness(d){const tgt=sleepTarget(d),sl=healthOn(d)?.sleepMin??null;
   const usual=chron>0?chron/cd*3:null,ratio=usual?acute/usual:null;const y=addDays(d,-1);
   const yHard=dayLoad(y)>=120||workoutsOn(y).filter(isTrain).some(w=>+w.avgHr&&hrZone(+w.avgHr)>=4&&+w.minutes>=20);
   const bi=blockInfo(d),light=!!bi?.light;
-  const short=sl!=null&&sl<tgt-60,avgShort=avg!=null&&avg<tgt-45,heavy=ratio!=null&&ratio>=1.4;
+  const base=Math.round(60*(+S().sleepTarget||6));const short=sl!=null&&sl<tgt-60,avgShort=avg!=null&&avg<base-45,heavy=ratio!=null&&ratio>=1.4;
   let call="plan";if(short||(avgShort&&heavy)||(heavy&&yHard)||(yHard&&sl!=null&&sl<tgt-30))call="easy";
-  else if(sl!=null&&sl>=tgt&&(avg==null||avg>=tgt-30)&&(ratio==null||ratio<=1.15)&&!yHard&&!light)call="push";
+  else if(sl!=null&&sl>=tgt&&(avg==null||avg>=base-30)&&(ratio==null||ratio<=1.15)&&!yHard&&!light)call="push";
   const why=[];why.push(sl!=null?`${fmtHM(sl)} sleep (target ${fmtHM(tgt)})`:"sleep not synced yet");if(avg!=null&&nights.length===3)why.push(`3-night average ${fmtHM(Math.round(avg))}`);
   if(ratio!=null)why.push(ratio>=1.4?`last 3 days ${Math.round((ratio-1)*100)}% above your usual training`:ratio>=1.15?"last 3 days a bit above your usual training":ratio<=0.7?"last 3 days lighter than usual":"last 3 days about your usual training");
   if(yHard)why.push("hard session yesterday");if(light)why.push("lighter week in your block");
@@ -1098,7 +1104,7 @@ function recordsCard(){let rc;try{rc=records()}catch{return""}let seen={};try{se
   return`<section class="card recs"><div class="eyebrow">🏆 New record${f.length>1?"s":""}</div>${f.map(x=>`<div class="rec"><span class="ri">${x.icon}</span><span>${x.text}</span></div>`).join("")}<button type="button" class="btn sm ghost" data-act="recSeen" data-k="${esc(f.map(x=>x.key).join("|"))}" style="margin-top:8px">Nice 🙌</button></section>`}
 function recordsLine(){let rc;try{rc=records()}catch{return""}const s=S();
   return`TRAINING BLOCK: ${(()=>{const b=blockInfo(todayStr());return b?`${b.label}. ${b.light?"This is the lighter week: same sessions, about a third less volume (shorter classes or fewer sets, easier intervals, no maxing). If they ask about pushing harder, remind them once that easing off this week is the plan, and that next week starts a new build.":"Build week: progress gradually (a little more weight, reps or interval time than last week); week "+(b.len)+" is the lighter week."}`:"not set up"})()}
-SLEEP (Apple Watch): ${(()=>{const t=todayStr();const L=[0,1,2,3,4,5,6].map(i=>addDays(t,-i)).map(d=>[d,healthOn(d)]).filter(([,h])=>h?.sleepMin);if(!L.length)return"no data yet";const a=L.reduce((x,[,h])=>x+h.sleepMin,0)/L.length;return`last 7 nights avg ${fmtHM(Math.round(a))}, ${L.filter(([d,h])=>h.sleepMin>=sleepTarget(d)).length} of ${L.length} at goal (goal ${fmtHM(sleepTarget(t))} tonight; 6h most nights, 7.5h into Sunday). Mention sleep only when it bears on training, recovery or food, or when asked.`})()}
+SLEEP (Apple Watch): ${(()=>{const t=todayStr();const L=[0,1,2,3,4,5,6].map(i=>addDays(t,-i)).map(d=>[d,healthOn(d)]).filter(([,h])=>h?.sleepMin);if(!L.length)return"no data yet";const a=L.reduce((x,[,h])=>x+h.sleepMin,0)/L.length;return`last 7 nights avg ${fmtHM(Math.round(a))}, ${L.filter(([d,h])=>h.sleepMin>=sleepTarget(d)).length} of ${L.length} at goal (goal ${fmtHM(sleepTarget(t))} tonight; 6h most nights, 7.5h on the weekend sleep-in: Saturday if Saturday night was 7h+, otherwise Sunday; this weekend it is ${(()=>{const w=dow(t);const sat=w===6?t:w===0?addDays(t,-1):addDays(t,6-w);return DOW[dow(sleepInDay(sat))]})()}). Mention sleep only when it bears on training, recovery or food, or when asked.`})()}
 RECORDS: biggest strength session ${rc.vol?n0(rc.vol.value)+" lb ("+rc.vol.name+", "+rc.vol.date+")":"none yet"}; longest run ${rc.longRun?n1(rc.longRun.value)+" km ("+rc.longRun.date+")":"none yet"}; clean-night streak now ${rc.clean.cur} (best ${rc.clean.best}); ${s.proteinMin} g+ protein streak now ${rc.protein.cur} (best ${rc.protein.best}).${rc.fresh.length?" NEW IN THE LAST 2 DAYS (celebrate each once, in one specific line, unless you already did in the recent chat): "+rc.fresh.map(x=>x.text.replace(/<[^>]+>/g,"")).join("; ")+".":""}\n`}
 function challengeStatus(){const ch=kickoff?.challenge;if(!ch||!Array.isArray(ch.days)||!ch.days.length)return null;const t=todayStr(),s=S();
   if(!kickoff.date||addDays(kickoff.date,7)<=t||kickoff.date>t)return null;
@@ -1796,7 +1802,8 @@ function settingsSheet(){
     <div class="f q"><label for="sBlkL">Lighter week</label><select id="sBlkL">${[1,2,3,4].map(i=>`<option value="${i}" ${(+(s.block?.light)||4)===i?"selected":""}>Week ${i}</option>`).join("")}</select></div>
     <div class="f q"><label for="sBlkOn">Block</label><select id="sBlkOn"><option value="on" ${s.block&&!s.block.off?"selected":""}>On</option><option value="off" ${!s.block||s.block.off?"selected":""}>Off</option></select></div>
     <div class="f q"><label for="sSlp">Sleep goal (h)</label><input id="sSlp" inputmode="decimal" value="${s.sleepTarget||6}"></div>
-    <div class="f q"><label for="sSlpS">Into Sunday (h)</label><input id="sSlpS" inputmode="decimal" value="${s.sleepTargetSun||7.5}"></div>
+    <div class="f q"><label for="sSlpS">Sleep-in goal (h)</label><input id="sSlpS" inputmode="decimal" value="${s.sleepTargetSun||7.5}"></div>
+    ${sleepInPickHTML()}
     <div class="f"><label>Fuel by day type</label><span class="hint">Big days get extra calories (all from carbs). Rest days can drop a little. Each routine day below has a fuel setting.</span></div>
     <div class="f q"><label for="sFup">Big day: extra kcal</label><input id="sFup" inputmode="decimal" value="${s.fuelUp==null?300:s.fuelUp}"></div>
     <div class="f q"><label for="sFdn">Rest day: fewer kcal</label><input id="sFdn" inputmode="decimal" value="${s.fuelDown==null?0:s.fuelDown}"></div>
@@ -1819,7 +1826,7 @@ function settingsSheet(){
       const g=(id,dflt)=>num(fv(id))??dflt;
       const data={...(col.settings.main||{}),kcal:g("sKcal",s.kcal),waterMl:g("sWater",s.waterMl),proteinMin:g("sPmin",s.proteinMin),proteinMax:g("sPmax",s.proteinMax),fatMin:g("sFmin",s.fatMin),fatMax:g("sFmax",s.fatMax),weightLo:g("sWlo",s.weightLo),weightHi:g("sWhi",s.weightHi),weighDays:[0,1,2,3,4,5,6].filter(i=>document.getElementById("wd"+i)?.checked),open:fv("sOpen")||s.open,close:fv("sClose")||s.close,flexDow:+fv("sFlex"),about:fv("sAbout").trim(),profile:"",coachStyle:fv("sStyle").trim(),quickPrompts:fv("sQP").split("\n").map(x=>x.trim()).filter(Boolean).slice(0,12),
         plan:[0,1,2,3,4,5,6].map(i=>({title:fv("pT"+i).trim()||"Session",detail:fv("pD"+i).trim(),kind:fv("pK"+i)})),
-        fuelDays:[0,1,2,3,4,5,6].map(i=>fv("pF"+i)||"normal"),fuelUp:g("sFup",s.fuelUp==null?300:s.fuelUp),fuelDown:g("sFdn",s.fuelDown==null?0:s.fuelDown),bigBurn:g("sBig",s.bigBurn||700),maxHr:g("sMaxHr",s.maxHr||170),restHr:g("sRestHr",s.restHr||56),fuelScale:fv("sFScale")!=="off",sleepTarget:g("sSlp",s.sleepTarget||6),block:{start:fv("sBlk")?weekStart(fv("sBlk")):(s.block?.start||""),weeks:4,light:+fv("sBlkL")||4,off:fv("sBlkOn")==="off"},sleepTargetSun:g("sSlpS",s.sleepTargetSun||7.5)};
+        fuelDays:[0,1,2,3,4,5,6].map(i=>fv("pF"+i)||"normal"),fuelUp:g("sFup",s.fuelUp==null?300:s.fuelUp),fuelDown:g("sFdn",s.fuelDown==null?0:s.fuelDown),bigBurn:g("sBig",s.bigBurn||700),maxHr:g("sMaxHr",s.maxHr||170),restHr:g("sRestHr",s.restHr||56),fuelScale:fv("sFScale")!=="off",sleepTarget:g("sSlp",s.sleepTarget||6),block:{start:fv("sBlk")?weekStart(fv("sBlk")):(s.block?.start||""),weeks:4,light:+fv("sBlkL")||4,off:fv("sBlkOn")==="off"},sleepTargetSun:g("sSlpS",s.sleepTargetSun||7.5),sleepInPick:(()=>{const el=document.getElementById("sSlpIn");const m={...(s.sleepInPick||{})};if(el){if(el.value)m[el.dataset.sun]=el.value;else delete m[el.dataset.sun]}return m})()};
       closeSheet();await safe(store.set("settings","main",data),"Targets saved")};
   });
 }
@@ -2204,7 +2211,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-20a"; /* bump on every change so phones reload */
+const BUILD="2026-11-21a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
