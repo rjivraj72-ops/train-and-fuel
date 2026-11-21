@@ -1723,6 +1723,12 @@ function scanSheet(pick){scanPick=pick||null;
           if(Date.now()-t0>9000&&!msg.dataset.hint){msg.dataset.hint=1;msg.textContent="Still looking. Tilt slightly to avoid glare, move a bit further back so it's sharp, or type the number printed under the bars."}}
         scanTimer=setTimeout(tick,60)};tick()}
     catch{msg.textContent="The camera isn't available. Allow camera access for this app in Settings, use a photo of the barcode, or type the number."}})}
+/* Is a packaged product a liquid, and how many grams of the database's basis is 1 ml?
+   Database values are per 100 ml when nutrition_data_per is "100ml", else per 100 g (then convert with a typical density). */
+function liquidInfo(p){const txt=((p.serving_size||"")+" "+(p.quantity||"")).toLowerCase(),nm=(p.product_name_en||p.product_name||"").toLowerCase(),cats=(p.categories_tags||[]).join(" ");
+  const liq=/\d\s*(ml|cl|dl|l|litre|liter|fl\.?\s?oz)\b/.test(txt)||/\b(oil|vinegar|juice|milk|dressing|syrup|vinaigrette|soy sauce|tamari|kombucha|smoothie|creamer|beverage|drink)\b/.test(nm)||/en:(beverages|vegetable-oils|olive-oils|vinegars|milks|salad-dressings|syrups|fruit-juices)/.test(cats);
+  if(!liq)return{liq:false,gpm:1};const per100ml=/ml/.test(p.nutrition_data_per||"");
+  const dens=/\boil\b/.test(nm)||/oils/.test(cats)?.92:/\b(syrup|honey)\b/.test(nm)?1.35:1.03;return{liq:true,gpm:per100ml?1:dens}}
 function glutenInfo(p){const a=p.allergens_tags||[],t=p.traces_tags||[],l=p.labels_tags||[],ing=(p.ingredients_text_en||p.ingredients_text||"").toLowerCase();
   if(l.some(x=>/gluten-free|no-gluten|sans-gluten/.test(x)))return{c:"good",t:"✓ Labelled gluten-free"};
   if(a.includes("en:gluten")||/\b(wheat|barley|rye|spelt|malt|semolina|durum|farro|triticale|couscous|seitan)\b/.test(ing))return{c:"bad",t:"✕ Contains gluten",s:a.includes("en:gluten")?"Listed in the allergens.":"Found in the ingredients."};
@@ -1735,7 +1741,7 @@ async function lookupBarcode(code,pick){
   const upcE=c=>{if(c.length!==8)return null;const m=c.slice(1,7),l=m[5];let b;if("012".includes(l))b=m.slice(0,2)+l+"0000"+m.slice(2,5);else if(l==="3")b=m.slice(0,3)+"00000"+m.slice(3,5);else if(l==="4")b=m.slice(0,4)+"00000"+m[4];else b=m.slice(0,5)+"0000"+l;return c[0]+b+c[7]};
   const cands=[...new Set([code,code.length===12?"0"+code:null,code.length===13&&code[0]==="0"?code.slice(1):null,upcE(code),upcE(code)?"0"+upcE(code):null].filter(Boolean))];
   let p=null,netFail=0;for(const c of cands){try{const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),12000);
-    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(c)}.json?fields=product_name,product_name_en,brands,quantity,nutriments,serving_size,serving_quantity,allergens_tags,traces_tags,labels_tags,ingredients_text,ingredients_text_en`,{signal:ctl.signal});clearTimeout(tm);
+    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(c)}.json?fields=product_name,product_name_en,brands,quantity,categories_tags,nutrition_data_per,nutriments,serving_size,serving_quantity,allergens_tags,traces_tags,labels_tags,ingredients_text,ingredients_text_en`,{signal:ctl.signal});clearTimeout(tm);
     const j=await r.json().catch(()=>null);if(j&&j.status===1&&j.product){p=j.product;break}}catch{netFail++}}
   if(!p&&netFail===cands.length){openSheet(`<div class="head"><h3>Couldn't reach the food database</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
     <p class="sub" style="font-size:16px">Barcode ${esc(code)} was read fine, but Open Food Facts didn't answer. Check your connection and try again, or take a photo of the nutrition label.</p>
@@ -1746,13 +1752,13 @@ async function lookupBarcode(code,pick){
     <p class="sub" style="font-size:16px">${p?esc(p.product_name_en||p.product_name||"This product")+" is listed, but without calories.":"Barcode "+esc(code)+" isn't in Open Food Facts yet."} Take a photo of the <b>nutrition label</b> and the Coach will log it.</p>
     <div class="row" style="gap:8px;margin-top:14px"><button class="btn" style="flex:1 1 0;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap" data-act="photo">Photo of the label</button><button class="btn line" style="flex:1 1 0;min-width:0;padding-left:8px;padding-right:8px;white-space:nowrap" data-act="addMeal">Add manually</button></div>`);return}
   if(pick){const n=p.nutriments||{};const k100=n["energy-kcal_100g"]??n["energy_100g"]/4.184;const sg=+p.serving_quantity||0;
-    const liq=/\bml\b|\bl\b|fl\.? ?oz/i.test((p.serving_size||"")+" "+(p.quantity||""));const units=[...(sg?[{u:p.serving_size?`serving (${p.serving_size})`:"serving",g:sg}]:[]),{u:liq?"ml":"g",g:1}];const gi=glutenInfo(p);
+    const LQ=liquidInfo(p);const units=[...(sg?[{u:p.serving_size?`serving (${p.serving_size})`:"serving",g:sg}]:[]),LQ.liq?{u:"ml",g:LQ.gpm}:{u:"g",g:1}];const gi=glutenInfo(p);
     pick({name:(p.product_name_en||p.product_name||"Packaged food").trim()+((p.brands||"")?` (${(p.brands||"").split(",")[0].trim()})`:""),per:{k:k100,p:+n.proteins_100g||0,c:+n.carbohydrates_100g||0,f:+n.fat_100g||0},units,unit:0,qty:sg?1:100,gl:gi.c==="bad"?"bad":gi.c==="warn"?"warn":""});return}
   productSheet(code,p)}
 function productSheet(code,p){
   const n=p.nutriments||{},name=(p.product_name_en||p.product_name||"Packaged food").trim(),brand=(p.brands||"").split(",")[0].trim();
   const per100={kcal:n["energy-kcal_100g"]??n["energy_100g"]/4.184,p:+n.proteins_100g||0,c:+n.carbohydrates_100g||0,f:+n.fat_100g||0};
-  const sg=+p.serving_quantity||0;const hasServ=sg>0||n["energy-kcal_serving"]!=null;const U=/\bml\b|\bl\b|fl\.? ?oz/i.test((p.serving_size||"")+" "+(p.quantity||""))?"ml":"g";
+  const sg=+p.serving_quantity||0;const hasServ=sg>0||n["energy-kcal_serving"]!=null;const LQ=liquidInfo(p),U=LQ.liq?"ml":"g";
   const perServ=n["energy-kcal_serving"]!=null?{kcal:+n["energy-kcal_serving"],p:+n.proteins_serving||0,c:+n.carbohydrates_serving||0,f:+n.fat_serving||0}:sg?{kcal:per100.kcal*sg/100,p:per100.p*sg/100,c:per100.c*sg/100,f:per100.f*sg/100}:null;
   let last={};try{last=JSON.parse(localStorage.getItem("tf-bc-"+code)||"{}")}catch{}
   let mode=hasServ&&perServ?"serv":"g",amt=last.mode===mode&&+last.amt?+last.amt:mode==="serv"?1:100;
@@ -1764,11 +1770,11 @@ function productSheet(code,p){
     <div class="bcam"><button class="btn line" data-d="-1" aria-label="Less">−</button><div class="v" id="bcV"></div><button class="btn line" data-d="1" aria-label="More">+</button></div>
     <div class="bctot" id="bcT"></div>
     <button class="btn" id="bcLog" style="width:100%;margin-top:16px">Log it</button>`,el=>{
-    const calc=()=>{const b=mode==="serv"?perServ:per100,k=mode==="serv"?amt:amt/100;return{kcal:Math.round(b.kcal*k),protein:Math.round(b.p*k),carbs:Math.round(b.c*k),fat:Math.round(b.f*k)}};
+    const calc=()=>{const b=mode==="serv"?perServ:per100,k=mode==="serv"?amt:amt*LQ.gpm/100;return{kcal:Math.round(b.kcal*k),protein:Math.round(b.p*k),carbs:Math.round(b.c*k),fat:Math.round(b.f*k)}};
     const paint=()=>{el.querySelector("#bcV").textContent=mode==="serv"?`${amt} ${amt===1?"serving":"servings"}`:`${amt} ${U}`;const t=calc();
       el.querySelector("#bcT").innerHTML=`<b>${n0(t.kcal)}</b> kcal · ${n0(t.protein)} g protein · ${n0(t.carbs)} g carbs · ${n0(t.fat)} g fat`;
       el.querySelectorAll("[data-m]").forEach(b=>b.classList.toggle("line",b.dataset.m!==mode))};
-    el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{mode=b.dataset.m;amt=mode==="serv"?1:(sg?Math.round(sg):100);paint()});
+    el.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{mode=b.dataset.m;amt=mode==="serv"?1:(sg?Math.round(sg/LQ.gpm):100);paint()});
     el.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{const st=mode==="serv"?0.5:(amt<50?5:10);amt=Math.max(st,Math.round((amt+st*(+b.dataset.d))*10)/10);paint()});
     el.querySelector("#bcLog").onclick=async()=>{const t=calc();const portion=mode==="serv"?(amt===1?"":` · ${amt} servings`):` · ${amt} ${U}`;
       try{localStorage.setItem("tf-bc-"+code,JSON.stringify({mode,amt}))}catch{}
@@ -1813,13 +1819,13 @@ function mealBuilder(start){if(start||!bld)bld={name:start?.name||"",items:[]};
       res.querySelectorAll('[data-k="loc"]').forEach(b=>b.onclick=()=>addFood(loc[+b.dataset.i]));
       clearTimeout(offT);if(v.length<3)return;const my=++offSeq;
       offT=setTimeout(async()=>{let prods=[];try{const ctl=new AbortController();setTimeout(()=>ctl.abort(),9000);
-          const r=await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(v)}&search_simple=1&json=1&page_size=8&fields=product_name,product_name_en,brands,quantity,nutriments,serving_size,serving_quantity,allergens_tags,traces_tags,labels_tags,ingredients_text`,{signal:ctl.signal});
+          const r=await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(v)}&search_simple=1&json=1&page_size=8&fields=product_name,product_name_en,brands,quantity,categories_tags,nutrition_data_per,nutriments,serving_size,serving_quantity,allergens_tags,traces_tags,labels_tags,ingredients_text`,{signal:ctl.signal});
           prods=((await r.json()).products||[]).filter(p=>(p.product_name_en||p.product_name)&&p.nutriments&&p.nutriments["energy-kcal_100g"]!=null).slice(0,5)}catch{}
         if(my!==offSeq||!el.isConnected)return;const box=el.querySelector("#bOff");if(!box)return;
         box.outerHTML=prods.length?`<div class="eyebrow" style="margin:10px 2px 2px">Packaged foods</div>${prods.map((p,i)=>row((p.product_name_en||p.product_name)+(p.brands?` (${p.brands.split(",")[0]})`:""),`${n0(p.nutriments["energy-kcal_100g"])} kcal per 100 g`,i,"off")).join("")}`:`<div class="hint" style="margin:8px 2px">${loc.length?"":"Nothing found. Try another word, scan the package, or add a custom item."}</div>`;
         res.querySelectorAll('[data-k="off"]').forEach(b=>b.onclick=()=>{const p=prods[+b.dataset.i],n=p.nutriments,sg=+p.serving_quantity||0,gi=glutenInfo(p);
-          const liq=/\bml\b|\bl\b|fl\.? ?oz/i.test((p.serving_size||"")+" "+(p.quantity||""));
-          add({name:(p.product_name_en||p.product_name)+(p.brands?` (${p.brands.split(",")[0].trim()})`:""),per:{k:+n["energy-kcal_100g"],p:+n.proteins_100g||0,c:+n.carbohydrates_100g||0,f:+n.fat_100g||0},units:[...(sg?[{u:p.serving_size?`serving (${p.serving_size})`:"serving",g:sg}]:[]),{u:liq?"ml":"g",g:1}],unit:0,qty:sg?1:100,gl:gi.c==="bad"?"bad":gi.c==="warn"?"warn":""})})},450)};
+          const LQ=liquidInfo(p);
+          add({name:(p.product_name_en||p.product_name)+(p.brands?` (${p.brands.split(",")[0].trim()})`:""),per:{k:+n["energy-kcal_100g"],p:+n.proteins_100g||0,c:+n.carbohydrates_100g||0,f:+n.fat_100g||0},units:[...(sg?[{u:p.serving_size?`serving (${p.serving_size})`:"serving",g:sg}]:[]),LQ.liq?{u:"ml",g:LQ.gpm}:{u:"g",g:1}],unit:0,qty:sg?1:100,gl:gi.c==="bad"?"bad":gi.c==="warn"?"warn":""})})},450)};
     el.querySelector("#bScan").onclick=()=>scanSheet(it=>{bld.items.push(it);mealBuilder()});
     el.querySelector("#bCustom").onclick=()=>{const res=el.querySelector("#bRes");res.innerHTML=`<div class="form" style="margin-top:10px"><div class="f"><label for="cN">Item</label><input id="cN" placeholder="e.g. homemade dressing, 2 tbsp"></div>
         <div class="f q"><label for="cK">kcal</label><input id="cK" inputmode="decimal"></div><div class="f q"><label for="cP">Protein g</label><input id="cP" inputmode="decimal"></div><div class="f q"><label for="cC">Carbs g</label><input id="cC" inputmode="decimal"></div><div class="f q"><label for="cF">Fat g</label><input id="cF" inputmode="decimal"></div>
@@ -2410,7 +2416,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21l"; /* bump on every change so phones reload */
+const BUILD="2026-11-21m"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
