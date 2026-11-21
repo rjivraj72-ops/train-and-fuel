@@ -1682,9 +1682,15 @@ function glutenInfo(p){const a=p.allergens_tags||[],t=p.traces_tags||[],l=p.labe
   return{c:"good",t:"No gluten listed",s:"Not labelled gluten-free, so check the package if you're strict."}}
 async function lookupBarcode(code){
   openSheet(`<div class="head"><h3>Looking up ${esc(code)}…</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div><p class="sub" style="font-size:16px">Checking the Open Food Facts database.</p>`);
-  let p=null;try{const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),12000);
-    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_en,brands,nutriments,serving_size,serving_quantity,allergens_tags,traces_tags,labels_tags,ingredients_text,ingredients_text_en`,{signal:ctl.signal});clearTimeout(tm);
-    const j=await r.json();if(j&&j.status===1&&j.product)p=j.product}catch{}
+  /* Scanners read North American UPC-A as 12 digits; the database stores most of them as 13 (leading 0). Try every form. */
+  const upcE=c=>{if(c.length!==8)return null;const m=c.slice(1,7),l=m[5];let b;if("012".includes(l))b=m.slice(0,2)+l+"0000"+m.slice(2,5);else if(l==="3")b=m.slice(0,3)+"00000"+m.slice(3,5);else if(l==="4")b=m.slice(0,4)+"00000"+m[4];else b=m.slice(0,5)+"0000"+l;return c[0]+b+c[7]};
+  const cands=[...new Set([code,code.length===12?"0"+code:null,code.length===13&&code[0]==="0"?code.slice(1):null,upcE(code),upcE(code)?"0"+upcE(code):null].filter(Boolean))];
+  let p=null,netFail=0;for(const c of cands){try{const ctl=new AbortController();const tm=setTimeout(()=>ctl.abort(),12000);
+    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(c)}.json?fields=product_name,product_name_en,brands,nutriments,serving_size,serving_quantity,allergens_tags,traces_tags,labels_tags,ingredients_text,ingredients_text_en`,{signal:ctl.signal});clearTimeout(tm);
+    const j=await r.json().catch(()=>null);if(j&&j.status===1&&j.product){p=j.product;break}}catch{netFail++}}
+  if(!p&&netFail===cands.length){openSheet(`<div class="head"><h3>Couldn't reach the food database</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
+    <p class="sub" style="font-size:16px">Barcode ${esc(code)} was read fine, but Open Food Facts didn't answer. Check your connection and try again, or take a photo of the nutrition label.</p>
+    <div class="row" style="gap:8px;margin-top:14px"><button class="btn" style="flex:1" id="bcRetry">Try again</button><button class="btn line" style="flex:1" data-act="photo">Photo of the label</button></div>`,el=>{el.querySelector("#bcRetry").onclick=()=>lookupBarcode(code)});return}
   const n=p?.nutriments||{};const k100=n["energy-kcal_100g"]??(n["energy_100g"]!=null?n["energy_100g"]/4.184:null);
   if(!p||k100==null){openSheet(`<div class="head"><h3>${p?"No nutrition facts":"Not in the database"}</h3><button class="iconbtn" data-x aria-label="Close">✕</button></div>
     <p class="sub" style="font-size:16px">${p?esc(p.product_name_en||p.product_name||"This product")+" is listed, but without calories.":"Barcode "+esc(code)+" isn't in Open Food Facts yet."} Take a photo of the <b>nutrition label</b> and the Coach will log it.</p>
@@ -2273,7 +2279,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21b"; /* bump on every change so phones reload */
+const BUILD="2026-11-21c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
