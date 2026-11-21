@@ -565,6 +565,7 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 
 .slp{margin:14px 0 4px;padding-top:12px;border-top:1px solid var(--line)}.slp-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.slp-h .l{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.slp-h .v{font-family:var(--f-display);font-size:34px;font-weight:800;line-height:1.1}.slp-h .v span{font-size:inherit}
 .scanbox{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin-top:4px}.scanbox video{width:100%;height:100%;object-fit:cover;display:block}.scanline{position:absolute;left:8%;right:8%;top:50%;height:3px;border-radius:3px;background:var(--accent);box-shadow:0 0 10px var(--accent)}.gl{margin-top:12px;padding:12px 14px;border-radius:14px;font-weight:800;font-size:17px;border:1.5px solid var(--line);background:var(--surface-2)}.gl.bad{color:var(--bad);border-color:var(--bad)}.gl.warn{color:var(--warn)}.gl.good{color:var(--good)}.gl small{display:block;font-weight:500;font-size:14px;color:var(--muted);margin-top:3px}.bcam{display:flex;align-items:center;gap:10px;margin-top:14px}.bcam .v{font-size:22px;font-weight:800;min-width:110px;text-align:center}.bctot{margin-top:12px;font-size:17px}.bctot b{font-size:26px}
+.pat{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;margin-top:10px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);border-left-width:5px;background:var(--surface-2)}.pat.good{border-left-color:var(--good)}.pat.watch{border-left-color:var(--warn)}.pat-t{font-weight:800;font-size:17px}.pat.good .pat-t{color:var(--good)}.pat.watch .pat-t{color:var(--warn)}.pat-d{margin-top:4px;font-size:15.5px;line-height:1.45}
 .rdy{margin-top:12px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface-2)}.rdy-h{font-size:19px;font-weight:800}.rdy.good .rdy-h{color:var(--good)}.rdy.warn .rdy-h{color:var(--warn)}.rdy.acc .rdy-h{color:var(--fg)}.rdy-w{margin-top:4px;font-size:15px;color:var(--muted);line-height:1.4}
 .chat{padding-bottom:12px}.cmp{font-size:14px;font-weight:700;margin-top:3px;color:var(--muted)}.cmp.up{color:var(--good)}.cmp.down{color:var(--warn)}
 .rxq{display:flex;gap:6px;margin:6px 0 2px 4px}.rxq button{border:1px solid var(--line);background:var(--surface);border-radius:999px;font-size:20px;line-height:1;padding:7px 10px;min-width:44px;min-height:40px;cursor:pointer}.rxq button:active{transform:scale(.92);background:var(--accent-soft)}
@@ -1404,9 +1405,12 @@ function insights(){
 function coachPatterns(){const P=col.patterns.main||{};const dis=new Set(P.dismissed||[]);return(P.items||[]).filter(x=>x&&x.text&&!dis.has(x.text))}
 function patternsCard(){
   const ins=insights(),cp=coachPatterns();
-  return`<section class="card"><div class="eyebrow">Learning</div><h2>Patterns in your log</h2><p class="sub">Worked out from the last 8 weeks; the Coach uses these when they matter.</p>
-  <div class="list" style="margin-top:6px">${ins.map(x=>`<div class="item" style="grid-template-columns:1fr;padding-block:9px"><span class="small${x.pending?" muted":""}">${esc(x.text)}</span></div>`).join("")}
-  ${cp.map(x=>`<div class="item" style="grid-template-columns:1fr auto;padding-block:9px"><span class="small"><span class="pill acc">Check-in</span> ${esc(x.text)}</span><button type="button" class="btn sm ghost" data-act="dismissPattern" data-t="${esc(x.text)}">Not right</button></div>`).join("")}</div></section>`;
+  const tone=x=>x.tone||(/\b(under|over|missed|short|late|below|above|skipped|dropped|fewer)\b/i.test(x.text)?"watch":"good");
+  return`<section class="card"><div class="eyebrow">Learning</div><h2>Patterns in your log</h2><p class="sub">From your last 8 weeks. The Coach uses these when they matter.</p>
+  <div class="list" style="margin-top:6px">${ins.map(x=>`<div class="item" style="grid-template-columns:1fr;padding-block:9px"><span class="small${x.pending?" muted":""}">${esc(x.text)}</span></div>`).join("")}</div>
+  ${cp.length?`<div class="eyebrow" style="margin-top:18px">Spotted by your weekly check-in</div>
+  ${cp.map(x=>{const t=tone(x);return`<div class="pat ${t}"><div class="pat-b"><div class="pat-t">${t==="good"?"✓":"!"} ${esc(x.title||(t==="good"?"Going well":"Worth a look"))}</div><div class="pat-d">${esc(x.text)}</div></div><button type="button" class="btn sm ghost" data-act="dismissPattern" data-t="${esc(x.text)}" aria-label="Hide this pattern">Hide</button></div>`}).join("")}
+  <p class="hint" style="margin-top:8px">Hide any that don't look right, and the check-in won't bring it back.</p>`:""}</section>`;
 }
 let reportMonth=null;const reportText={};let reportWeek=null;
 function weekStats(ws,lim){
@@ -2275,7 +2279,7 @@ document.addEventListener("click",async e=>{
   else if(a==="fullReport"){openReport(b.dataset.m)}
   else if(a==="week"){reportWeek=b.dataset.w;render()}
   else if(a==="healthHelp"){healthSheet()}
-  else if(a==="dismissPattern"){const P={...(col.patterns.main||{})};P.dismissed=[...new Set([...(P.dismissed||[]),b.dataset.t])];await safe(store.set("patterns","main",P),"Removed. The check-in won't bring it back.")}
+  else if(a==="dismissPattern"){const P={...(col.patterns.main||{})};P.dismissed=[...new Set([...(P.dismissed||[]),b.dataset.t])];await safe(store.set("patterns","main",P),"Hidden. The check-in won't bring it back.")}
   else if(a==="forgetNote"){const list=notes().slice();list.splice(+b.dataset.i,1);await safe(store.set("settings","memory",{notes:list}),"Removed")}
   else if(a==="kickoffPlay"){playKickoff()}
   else if(a==="recSeen"){let seen={};try{seen=JSON.parse(localStorage.getItem("tf-rec-seen")||"{}")}catch{}for(const k of (b.dataset.k||"").split("|"))seen[k]=1;try{localStorage.setItem("tf-rec-seen",JSON.stringify(seen))}catch{}render()}
@@ -2311,7 +2315,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21g"; /* bump on every change so phones reload */
+const BUILD="2026-11-21h"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
