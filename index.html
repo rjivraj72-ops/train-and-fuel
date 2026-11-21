@@ -1825,7 +1825,7 @@ function labelReview(g,mode){const direct=mode==="log";const found=[g.kcal,g.pro
     <button type="submit" class="btn" style="grid-column:1/-1">${direct?"Log it":"Add to meal"}</button></form>`,el=>{
     let qty=1;el.querySelectorAll("#lbQ button").forEach(b=>b.onclick=()=>{qty=+b.dataset.v;el.querySelectorAll("#lbQ button").forEach(x=>x.classList.toggle("on",x===b))});
     el.querySelector("#lbF").onsubmit=e=>{e.preventDefault();const v=id=>num(el.querySelector(id).value);const k=v("#lbK");if(k==null)return toast("Add the calories per serving.");
-      const nm=el.querySelector("#lbN").value.trim()||"Label item",sv=el.querySelector("#lbS").value.trim(),w=v("#lbW"),u=el.querySelector("#lbU").value;
+      const nm=el.querySelector("#lbN").value.trim();if(!nm){el.querySelector("#lbN").focus();return toast("Give it a name first, e.g. Olives.")}const sv=el.querySelector("#lbS").value.trim(),w=v("#lbW"),u=el.querySelector("#lbU").value;
       const per=w?{k:k/w*100,p:(v("#lbP")||0)/w*100,c:(v("#lbC")||0)/w*100,f:(v("#lbFa")||0)/w*100}:null;
       const it=per?{name:nm,per,units:[{u:`serving${sv?` (${sv})`:""}`,g:w},{u,g:1}],unit:0,qty,gl:""}:{name:nm,per:{k:k,p:v("#lbP")||0,c:v("#lbC")||0,f:v("#lbFa")||0},units:[{u:`serving${sv?` (${sv})`:""}`,g:100}],unit:0,qty,gl:""};
       if(direct){const m=bldMacros(it);const portion=qty===1?"":` · ${qty} servings`;const d={name:(nm+portion).slice(0,140),kcal:Math.round(m.k),protein:Math.round(m.p),carbs:Math.round(m.c),fat:Math.round(m.f),date:el.querySelector("#lbD").value||date,time:el.querySelector("#lbT").value||nowHM(),created:Date.now()};
@@ -2468,7 +2468,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21r"; /* bump on every change so phones reload */
+const BUILD="2026-11-21s"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
