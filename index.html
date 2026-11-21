@@ -1192,7 +1192,7 @@ function chartWeight(pts,lo,hi){
   s+=`<path d="${pts.map((p,i)=>(i?"L":"M")+x(t[i]).toFixed(1)+" "+y(+p.lb).toFixed(1)).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
   pts.forEach((p,i)=>{const last=i===pts.length-1;s+=`<circle cx="${x(t[i])}" cy="${y(+p.lb)}" r="${last?5:3.2}" fill="${last?"var(--accent)":"var(--surface)"}" stroke="var(--accent)" stroke-width="2"><title>${short(p.date)}: ${n1(p.lb)} lb</title></circle>`;
     if(i===0&&!last)s+=`<text x="${x(t[i])+8}" y="${y(+p.lb)-9}" text-anchor="start" class="halo" style="fill:var(--fg);font-weight:700">${n1(p.lb)}</text>`;
-    if(last)s+=`<text x="${x(t[i])}" y="${y(+p.lb)-11}" text-anchor="end" class="halo" style="fill:var(--fg);font-weight:700">${n1(p.lb)}</text>`});
+    if(last){const down=i>0&&+pts[i-1].lb>+p.lb;s+=`<text x="${x(t[i])-(down?13:10)}" y="${y(+p.lb)+(down?5:-11)}" text-anchor="end" class="halo" style="fill:var(--fg);font-weight:800;font-size:14px">${n1(p.lb)}</text>`}});
   return`<svg class="chart" viewBox="0 0 ${W} ${h}" role="img" aria-label="Weight trend">${s}</svg>`;
 }
 
@@ -1583,7 +1583,9 @@ function sleepTrendCard(){const t=todayStr();const days=[];for(let i=13;i>=0;i--
   <p class="sub">${avg!=null?`Last 7: average <b>${fmtHM(Math.round(avg))}</b>, ${met} of ${last7.length} nights at target${beds.length>1?`, asleep between ${bf(Math.min(...beds))} and ${bf(Math.max(...beds))}`:""}.`:""} Dashed line is the goal: ${goalT(sleepTarget("2026-11-16"))} most nights, ${goalT(sleepTarget("2026-11-15"))} into Sunday.</p>
   <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sleep per night, last 14 nights">${g}</svg>${sleepLegend().replace(/<span><i style="background:var\(--s-awake\)"><\/i>Awake<\/span>/,"")}</section>`}
 function vTrends(){
-  const s=S(),t=todayStr(),wts=weights(),last=wts[wts.length-1],first=wts[0];
+  const s=S(),t=todayStr(),allW=weights(),lastW=allW[allW.length-1];
+  /* Last 6 weeks only, so the chart and labels stay readable (at least 3 weigh-ins when older ones are all there is). */
+  let wts=lastW?allW.filter(w=>w.date>=addDays(lastW.date,-42)):[];if(wts.length<3)wts=allW.slice(-3);const last=wts[wts.length-1],first=wts[0];
   const ws0=weekStart(t);const weeks=[];for(let i=7;i>=0;i--)weeks.push(addDays(ws0,-7*i));
   const hs=H().weeklyScores||{};
   const scores=weeks.map(w=>{const live=weekScore(w);const imp=hs[w]??hs[addDays(w,1)];return imp?.score??((live.counted||weekWorkouts(w).length)?live.score:null)});
@@ -1602,9 +1604,9 @@ function vTrends(){
   ${checkinCard(true,true)}
   ${monthCard()}
   ${patternsCard()}
-  <section class="card"><div class="head"><div><div class="eyebrow">Weight · target ${s.weightLo}–${s.weightHi} lb</div>
+  <section class="card"><div class="head"><div><div class="eyebrow">Weight</div>
     <div class="big" style="margin-top:8px">${last?n1(last.lb):"—"}<small>lb</small></div>
-    ${last&&first&&last!==first?`<p class="sub">${short(last.date)} · ${(last.lb-first.lb>0?"+":"")+n1(last.lb-first.lb)} lb since ${short(first.date)} · ${last.lb<s.weightLo?'<b style="color:var(--warn)">below target range</b>':last.lb>s.weightHi?'<b style="color:var(--warn)">above target range</b>':'<b style="color:var(--good)">in target range</b>'}</p>`:""}</div>
+    ${last&&first&&last!==first?`<p class="sub">${short(last.date)} · ${(last.lb-first.lb>0?"+":"")+n1(last.lb-first.lb)} lb in 6 weeks<br>${last.lb<s.weightLo?'<b style="color:var(--warn)">Below</b>':last.lb>s.weightHi?'<b style="color:var(--warn)">Above</b>':'<b style="color:var(--good)">In</b>'} your ${s.weightLo}–${s.weightHi} lb target</p>`:""}</div>
     <button class="btn sm" data-act="addWeight">Weigh in</button></div>
     ${chartWeight(wts,s.weightLo,s.weightHi)}</section>
   <section class="card"><div class="eyebrow">Last ${ND} days</div><h2>Calories vs ${n0(s.kcal)} target</h2><p class="sub">${avgK?`Average ${n0(avgK)} kcal over ${logged.length} finished days. Today (faded) is still in progress.`:"No food logged recently."}</p>
@@ -2315,7 +2317,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21h"; /* bump on every change so phones reload */
+const BUILD="2026-11-21i"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
