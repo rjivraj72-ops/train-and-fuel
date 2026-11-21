@@ -564,6 +564,7 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 @media (prefers-reduced-motion:reduce){.rxsheet,.rxs-pill,.rxs-msg,.rxs-menu{animation:none}}
 
 .slp{margin:14px 0 4px;padding-top:12px;border-top:1px solid var(--line)}.slp-h{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.slp-h .l{font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.slp-h .v{font-family:var(--f-display);font-size:34px;font-weight:800;line-height:1.1}.slp-h .v span{font-size:inherit}
+.rdy{margin-top:12px;padding:12px 14px;border-radius:14px;border:1.5px solid var(--line);background:var(--surface-2)}.rdy-h{font-size:19px;font-weight:800}.rdy.good .rdy-h{color:var(--good)}.rdy.warn .rdy-h{color:var(--warn)}.rdy.acc .rdy-h{color:var(--fg)}.rdy-w{margin-top:4px;font-size:15px;color:var(--muted);line-height:1.4}
 .chat{padding-bottom:12px}.cmp{font-size:14px;font-weight:700;margin-top:3px;color:var(--muted)}.cmp.up{color:var(--good)}.cmp.down{color:var(--warn)}
 .rxq{display:flex;gap:6px;margin:6px 0 2px 4px}.rxq button{border:1px solid var(--line);background:var(--surface);border-radius:999px;font-size:20px;line-height:1;padding:7px 10px;min-width:44px;min-height:40px;cursor:pointer}.rxq button:active{transform:scale(.92);background:var(--accent-soft)}
 .vlist{display:flex;flex-direction:column;gap:8px}.vrow{display:flex;align-items:center;gap:10px;border:1.5px solid var(--line);border-radius:14px;padding:8px 10px;background:var(--surface-2)}.vrow.on{border-color:var(--accent);background:var(--accent-soft)}.vplay{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);font-size:16px;font-weight:800;cursor:pointer}.vpick{flex:1;min-width:0;text-align:left;background:none;border:0;color:var(--fg);font:inherit;cursor:pointer;padding:2px 0;display:flex;flex-direction:column;gap:2px}.vpick b{font-size:17px}.vpick span{font-size:14px;color:var(--muted)}.vchk{color:var(--accent);font-weight:800;font-size:20px}
@@ -795,6 +796,11 @@ async function loadAll(){
 /* Apple Health: an iPhone Shortcut drops inbox/health-*.json files; the app folds them into the log and deletes them. */
 async function processInbox(){const imported=[];
   try{const r=await gh("contents/inbox");if(!r.ok)return;const list=await r.json();if(!Array.isArray(list))return;
+    for(const f of list.filter(x=>x.type==="file"&&/^weight-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
+      try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text)||{};const d=toDay(j.date)||(f.name.match(/weight-(\d{4})(\d\d)(\d\d)/)||[]).slice(1).join("-")||todayStr();
+        const v=num(String(j.lb??j.weight??j.ml??j.value??raw.text).replace(/[^\d.]/g,""));
+        if(d&&v>=80&&v<=400){const lb=Math.round(v*10)/10;await store.set("weights",d,{date:d,lb});imported.push({name:`Weigh-in ${lb} lb`})}
+        await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
     for(const f of list.filter(x=>x.type==="file"&&/^water-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
       try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const d=toDay(j.date)||(f.name.match(/water-(\d{4})(\d\d)(\d\d)/)||[]).slice(1).join("-")||todayStr();const ml=Math.round(num(String(j.ml??"").replace(/[^\d.]/g,""))||0);
         if(d&&ml>=50&&ml<=3000){const cur=col.water[d]||{};const seen=Array.isArray(cur.inbox)?cur.inbox:[];if(!seen.includes(f.name))await store.set("water",d,{...cur,ml:(+cur.ml||0)+ml,inbox:[...seen,f.name].slice(-40)})}
@@ -802,7 +808,7 @@ async function processInbox(){const imported=[];
     for(const f of list.filter(x=>x.type==="file"&&/^workouts?-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
       try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const got=importWatchWorkouts(j?.workouts??raw.text);for(const w of got){if(w.id){const id=w.id;delete w.id;await store.set("workouts",id,w)}else await store.add("workouts",w);imported.push(w)}
         await gh("contents/inbox/"+f.name,{method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:"Processed "+f.name,sha:raw.sha||f.sha})})}catch{}}
-    if(imported.length)toast(`⌚ From Watch: ${imported.map(w=>w.walkDay?`${w.name} (${w.note})`:w.name).join(", ")}`,6000);
+    if(imported.length)toast(`✓ Synced: ${imported.map(w=>w.walkDay?`${w.name} (${w.note})`:w.name).join(", ")}`,6000);
     for(const f of list.filter(x=>x.type==="file"&&/^health-.*\.json$/.test(x.name)).sort((a,b)=>a.name.localeCompare(b.name))){
       try{const raw=await getRaw("inbox/"+f.name);const j=looseJSON(raw.text);const d=toDay(j.date)||todayStr();
         if(d){const hn=v=>Math.round(num(String(v??"").replace(/[,\s]/g,""))||0);const ak=hn(j.activeKcal),st=hn(j.steps);const prev=col.health[d]||{};const rec={...prev,activeKcal:Math.max(ak,prev.activeKcal||0),steps:Math.max(st,prev.steps||0),syncedAt:new Date().toISOString()};
@@ -958,6 +964,24 @@ const ZONE_W=[0,1,1.5,2,3,4];
 function wIntensity(w){const hr=+w.avgHr;const k=hr>0?ZONE_W[hrZone(hr)]:(LOAD_NOHR[w.type]??1.5);return w.type==="yoga"?Math.min(k,1):k}
 function dayLoad(d){return workoutsOn(d).filter(isTrain).reduce((a,w)=>a+(+w.minutes||0)*wIntensity(w),0)}
 const r50=x=>Math.round(x/50)*50;
+/* Morning readiness: last night's sleep vs target, the 3-night average, and the last 3 days of training load
+   against the usual 3-day load over the 4 weeks before. Gives one call: push, as planned, or easy. */
+function readiness(d){const tgt=sleepTarget(d),sl=healthOn(d)?.sleepMin??null;
+  const nights=[0,1,2].map(i=>healthOn(addDays(d,-i))?.sleepMin).filter(v=>v>0);const avg=nights.length>=2?nights.reduce((a,b)=>a+b,0)/nights.length:null;
+  let acute=0;for(let i=1;i<=3;i++)acute+=dayLoad(addDays(d,-i));let chron=0,cd=0;for(let i=4;i<=31;i++){const x=addDays(d,-i);chron+=dayLoad(x);cd++}
+  const usual=chron>0?chron/cd*3:null,ratio=usual?acute/usual:null;const y=addDays(d,-1);
+  const yHard=dayLoad(y)>=120||workoutsOn(y).filter(isTrain).some(w=>+w.avgHr&&hrZone(+w.avgHr)>=4&&+w.minutes>=20);
+  const bi=blockInfo(d),light=!!bi?.light;
+  const short=sl!=null&&sl<tgt-60,avgShort=avg!=null&&avg<tgt-45,heavy=ratio!=null&&ratio>=1.4;
+  let call="plan";if(short||(avgShort&&heavy)||(heavy&&yHard)||(yHard&&sl!=null&&sl<tgt-30))call="easy";
+  else if(sl!=null&&sl>=tgt&&(avg==null||avg>=tgt-30)&&(ratio==null||ratio<=1.15)&&!yHard&&!light)call="push";
+  const why=[];why.push(sl!=null?`${fmtHM(sl)} sleep (target ${fmtHM(tgt)})`:"sleep not synced yet");if(avg!=null&&nights.length===3)why.push(`3-night average ${fmtHM(Math.round(avg))}`);
+  if(ratio!=null)why.push(ratio>=1.4?`last 3 days ${Math.round((ratio-1)*100)}% above your usual training`:ratio>=1.15?"last 3 days a bit above your usual training":ratio<=0.7?"last 3 days lighter than usual":"last 3 days about your usual training");
+  if(yHard)why.push("hard session yesterday");if(light)why.push("lighter week in your block");
+  const L={push:"Good day to push",plan:"Go as planned",easy:"Keep it easy today"};
+  return{call,label:L[call],why,sleep:sl,target:tgt,avg,ratio:ratio==null?null:Math.round(ratio*100)/100,yHard,light}}
+function readinessHTML(d){const r=readiness(d);const c=r.call==="push"?"good":r.call==="easy"?"warn":"acc";
+  return`<div class="rdy ${c}"><div class="rdy-h">${r.call==="push"?"▲":r.call==="easy"?"▼":"●"} ${r.label}</div><div class="rdy-w">${esc(r.why.join(" · "))}</div></div>`}
 function dayFuel(d){const s=S(),i=(dow(d)+6)%7,p=s.plan[i];let tier=(s.fuelDays||[])[i]||defaultFuel(p),auto=false;const load=dayLoad(d);
   if(tier!=="hard"&&(load>=120||burnOn(d)>=(+s.bigBurn||700))){tier="hard";auto=true}
   const up=s.fuelUp==null?300:+s.fuelUp,down=s.fuelDown==null?0:+s.fuelDown;
@@ -1213,6 +1237,7 @@ function vToday(){
   <section class="card">
     <div class="head"><div><div class="eyebrow">${isT?"Today's session":"Session · "+longD(d)}</div><h2>${esc(ss.p.title)}</h2><p class="sub">${esc(ss.p.detail)}</p></div>
       <span class="pill ${ss.st==="done"?"good":ss.st==="today"?"acc":ss.st==="miss"?"bad":""}">${ss.label}</span></div>
+    ${isT&&ss.p.kind!=="rest"?readinessHTML(d):""}
     ${ss.all.length?`<div class="list" style="margin-top:8px">${ss.all.map(wItem).join("")}</div>`:""}
     <div class="row" style="margin-top:12px;gap:8px"><button class="btn line" style="flex:1" data-act="addWorkout">Log workout</button><button class="btn" style="flex:1" data-act="wkShot" data-d="${d}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg> Photo</button></div>
   </section>
@@ -1580,6 +1605,10 @@ function vTrends(){
     ${chartBars({labels:weeks.map(short),dates:weeks,values:scores,colors:scoreCol,hatchLast:true})}</section>
   <section class="card"><div class="eyebrow">Training</div><h2>Weekly strength volume</h2>${weeks.some(w=>blockInfo(w)?.light)?`<p class="sub">Paler bars are lighter weeks in your 4-week block.</p>`:""}
     ${chartBars({labels:weeks.map(short),dates:weeks,values:vols,colors:weeks.map(w=>blockInfo(w)?.light?"var(--cool)":"var(--t-str)"),fmt:v=>(v>=10000?Math.round(v/1000):(v/1000).toFixed(1))+"k",hatchLast:true})}</section>
+  ${(()=>{const ld=weeks.map(w=>{let a=0;for(let i=0;i<7;i++)a+=dayLoad(addDays(w,i));return Math.round(a)});if(!ld.some(v=>v))return"";
+    const full=ld.slice(0,-1).filter(v=>v),avg=full.length?full.reduce((a,b)=>a+b,0)/full.length:0;
+    return`<section class="card"><div class="eyebrow">Training</div><h2>Weekly training load</h2><p class="sub">Minutes × heart-rate zone (Z1 ×1 up to Z5 ×4), all sessions except walks.${weeks.some(w=>blockInfo(w)?.light)?" Paler bars are lighter weeks: they should dip.":""}${avg?` Average of full weeks: ${n0(avg)}.`:""}</p>
+    ${chartBars({labels:weeks.map(short),dates:weeks,values:ld.map(v=>v||null),colors:weeks.map(w=>blockInfo(w)?.light?"var(--cool)":"var(--accent)"),hatchLast:true})}</section>`})()}
   ${monKeys.length?`<section class="card"><div class="eyebrow">Monthly reports</div>${monKeys.map(k=>{const m=mon[k];return`<h2 style="margin-top:6px">${esc(m.label||k)}</h2><div class="stats" style="margin-top:10px"><div class="stat"><div class="l">Workouts</div><div class="mid">${n0(m.workouts)}</div></div><div class="stat"><div class="l">Volume</div><div class="mid">${n0((m.volumeKg||0)/1000)}<small>k lb</small></div></div><div class="stat"><div class="l">Run</div><div class="mid">${n1(m.runKm)}<small>km</small></div></div></div><p class="sub">${esc(m.note||"")}</p>`}).join("")}</section>`:""}
   </div>`;
 }
@@ -1811,6 +1840,7 @@ TARGETS: base ${s.kcal} kcal/day (±200 counts as on target), adjusted by day ty
 ${(s.about||s.profile)?"ABOUT THEM (in their words):\n"+(s.about||s.profile)+"\n":""}${s.coachStyle?"THEIR COACHING STYLE INSTRUCTIONS (follow these): "+s.coachStyle+"\n":""}${notes().length?"LEARNED IN PAST CHATS:\n"+notes().map(n=>"- "+n.text).join("\n")+"\n":""}WEEK-OVER-WEEK FLAGS (this week vs last): ${(()=>{const ws0=weekStart(t);const f=weekFlags(weekStats(ws0),weekStats(addDays(ws0,-7)));return f.length?f.map(x=>x.level.toUpperCase()+": "+x.txt).join(" | "):"none"})()}\nPATTERNS FROM THEIR LOG (last 8 weeks):\n${insights().map(x=>"- "+x.text).join("\n")}\n${coachPatterns().length?"PATTERNS FROM WEEKLY CHECK-INS:\n"+coachPatterns().map(x=>"- "+x.text).join("\n")+"\n":""}
 ${Object.keys(S().travel||{}).length?"TRAVEL DAYS (recent): "+Object.keys(S().travel||{}).filter(x=>x>=addDays(t,-30)).sort().join(", ")+". On travel days, estimate restaurant portions generously (bigger plates, more oil and sauce) and read their numbers in that context.\n":""}TODAY: ${dayDigest(t)}
 TODAY'S MEALS (id | time | name | kcal P/C/F):${today.length?today.map(m=>`\n- ${m.id} | ${m.time} | ${m.name} | ${m.kcal} ${m.protein}/${m.carbs}/${m.fat}${m.est?" | your estimate, not yet checked: "+(m.est.note||"portions"):m.adjusted?" | they corrected your estimate":""}`).join(""):" none yet"}${(()=>{const ad=Object.values(col.meals).filter(m=>m.adjusted&&m.date>=addDays(t,-30));return ad.length?`\nTHEIR CORRECTIONS TO YOUR ESTIMATES (last 30 days, learn their real portions from these): ${ad.slice(-8).map(m=>m.name+" → "+m.kcal+" kcal").join("; ")}`:""})()}
+READINESS TODAY: ${(()=>{const q=readiness(t);return q.label+' ('+q.why.join('; ')+')'})()}. Use it when advising on today's session.
 TODAY'S WORKOUTS (id | name): ${workoutsOn(t).map(w=>`${w.id} | ${w.name}`).join("; ")||"none"}
 THIS WEEK'S ROUTINE:
 ${wk}
@@ -2174,7 +2204,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-19a"; /* bump on every change so phones reload */
+const BUILD="2026-11-20a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
