@@ -229,6 +229,9 @@ input,select,textarea{font-size:16px!important}
 body.kb .tabs{display:none}
 body.kb .app{padding-bottom:8px}
 body.kb .composer{bottom:0}
+/* Phone + keyboard on Coach: pin the message box to the top of the keyboard (like the Claude app) */
+body.kb:not(.wide)[data-view="coach"] .composer.pin{position:fixed;left:0;right:0;bottom:var(--kbo,0px);margin:0 auto;max-width:560px;padding:8px max(16px,env(safe-area-inset-left,0px)) 8px max(16px,env(safe-area-inset-right,0px));background:var(--bg)}
+body.kb:not(.wide)[data-view="coach"] .app{padding-bottom:calc(var(--comph,140px) + 8px)}
 .composer{z-index:4;flex-wrap:wrap}
 .flags{display:flex;flex-direction:column;gap:6px;margin-top:10px}
 .flag{font-size:13px;padding:8px 10px;border-radius:10px;border-left:3px solid var(--warn);background:var(--warn-soft)}
@@ -2471,13 +2474,18 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   function update(){
     const open=isField(document.activeElement)&&(!vv||window.innerHeight-vv.height>120||matchMedia("(pointer:coarse)").matches);
     document.body.classList.toggle("kb",!!open);
+    const c=document.getElementById("composer");
+    if(c){const pin=!!open&&document.activeElement?.id==="chatIn";c.classList.toggle("pin",pin);
+      const o=vv?Math.max(0,window.innerHeight-vv.height-vv.offsetTop):0;document.documentElement.style.setProperty("--kbo",o+"px");
+      document.documentElement.style.setProperty("--comph",c.offsetHeight+"px")}
   }
-  document.addEventListener("focusin",e=>{if(isField(e.target)){update();if(e.target.id==="chatIn")setTimeout(()=>e.target.scrollIntoView({block:"end"}),250)}});
+  document.addEventListener("focusin",e=>{if(isField(e.target)){update();if(e.target.id==="chatIn")setTimeout(()=>{update();window.scrollTo(0,document.documentElement.scrollHeight)},300)}});
   document.addEventListener("focusout",()=>setTimeout(update,80));
-  vv&&vv.addEventListener("resize",update);
+  vv&&vv.addEventListener("resize",update);vv&&vv.addEventListener("scroll",update);
+  document.addEventListener("input",e=>{if(e.target.id==="chatIn")update()});
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21y"; /* bump on every change so phones reload */
+const BUILD="2026-11-22a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
