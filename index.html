@@ -488,13 +488,13 @@ body.wide #coachPane .chatset-body{width:340px}
 .composer .ctools .sp{flex:1}
 .composer .cplus{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--fg);display:grid;place-items:center;flex:none;cursor:pointer}
 .composer .cplus:hover{border-color:var(--accent);color:var(--accent)}
-.composer .ctip{font-size:13px;color:var(--muted)}
+.composer .chint{font-size:13px;color:var(--muted)}
 .composer .micbtn{width:40px;height:40px}
 .composer .sendbtn{width:40px;height:40px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none;cursor:pointer;animation:tfpop .15s ease-out}
 @keyframes tfpop{from{transform:scale(.7);opacity:0}to{transform:none;opacity:1}}
 .composer .phototray{margin:0 0 8px}
 .composer .cstatus{margin-bottom:4px}
-@media (max-width:380px){.composer .ctip{display:none}}
+@media (max-width:380px){.composer .chint{display:none}}
 .chat .msg.u{max-width:82%}
 .chat .msg.a{max-width:100%;background:transparent;border:0;padding:4px 2px}
 .chat .mwrap.a{align-items:stretch}
@@ -2313,7 +2313,7 @@ function vCoach(){
   <div id="replyBar" class="replybar" hidden></div>
   <form class="composer" id="composer"><div class="cbox"><div id="photoTray" class="phototray" hidden></div><div id="coachStatus" class="cstatus" hidden></div>
     <textarea id="chatIn" rows="1" placeholder="Message your Coach" aria-label="Message"></textarea>
-    <div class="ctools"><button type="button" class="cplus" data-act="photo" aria-label="Add photos or screenshots"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><span class="ctip">Photos, screenshots</span><span class="sp"></span>
+    <div class="ctools"><button type="button" class="cplus" data-act="photo" aria-label="Add photos or screenshots"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><span class="chint">Photos, screenshots</span><span class="sp"></span>
     <button type="button" class="micbtn" id="micBtn" aria-pressed="false" aria-label="Start voice conversation"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
     <button class="sendbtn" id="chatSend" type="submit" hidden aria-label="Send"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></div></form></div>`;
 }
@@ -2485,7 +2485,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   document.addEventListener("input",e=>{if(e.target.id==="chatIn")update()});
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-22a"; /* bump on every change so phones reload */
+const BUILD="2026-11-22b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
