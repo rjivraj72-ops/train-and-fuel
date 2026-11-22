@@ -846,7 +846,12 @@ function parseSleepNights(txt){const all=[];
   const segs=all.filter(x=>x[2]!=="w"&&x[2]!=="b");if(!segs.length)return[];segs.sort((x,y)=>x[0]-y[0]);
   const groups=[];let cur=[segs[0]],end=segs[0][1];for(const g of segs.slice(1)){if(g[0]-end>4*36e5){groups.push(cur);cur=[]}cur.push(g);end=Math.max(end,g[1])}groups.push(cur);
   const hmL=t=>new Date(t).toLocaleTimeString("en-CA",{timeZone:HOME_TZ,hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
-  return groups.map(gs=>{const staged=gs.some(x=>"drc".includes(x[2]));const use=staged?gs.filter(x=>x[2]!=="a"):gs;
+  return groups.map(gs=>{const staged=gs.some(x=>"drc".includes(x[2]));let use=staged?gs.filter(x=>x[2]!=="a"):gs;
+    /* Watch stages win where they exist; plain "Asleep" from another source (iPhone, a sleep app, a manual entry) still counts outside the Watch's span, minus any awake time. */
+    if(staged){const sA=Math.min(...use.map(x=>x[0])),sB=Math.max(...use.map(x=>x[1]));const cut=(iv,[c0,c1])=>iv.flatMap(([a,b])=>b<=c0||a>=c1?[[a,b]]:[...(a<c0?[[a,c0]]:[]),...(b>c1?[[c1,b]]:[])]);
+      let ex=[];for(const [a,b] of gs.filter(x=>x[2]==="a").map(x=>[x[0],x[1]]))ex.push(...cut([[a,b]],[sA,sB]));
+      ex.sort((x,y)=>x[0]-y[0]);const mg=[];for(const iv of ex){const l=mg[mg.length-1];if(l&&iv[0]<=l[1])l[1]=Math.max(l[1],iv[1]);else mg.push([...iv])}
+      let rest=mg;for(const w of all.filter(x=>x[2]==="w"))rest=cut(rest,w);use=[...use,...rest.filter(([a,b])=>b-a>=6e4).map(([a,b])=>[a,b,"a"])]}
     const st={deep:0,rem:0,core:0};for(const [a,b,c] of use){const m=(b-a)/6e4;if(c==="d")st.deep+=m;else if(c==="r")st.rem+=m;else if(c==="c")st.core+=m}
     const sorted=use.slice().sort((x,y)=>x[0]-y[0]);let tot=0,cs=sorted[0][0],ce=sorted[0][1];for(const [a,b] of sorted.slice(1)){if(a<=ce)ce=Math.max(ce,b);else{tot+=ce-cs;cs=a;ce=b}}tot+=ce-cs;
     const b0=Math.min(...gs.map(x=>x[0])),wk=Math.max(...gs.map(x=>x[1]));
@@ -2485,7 +2490,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   document.addEventListener("input",e=>{if(e.target.id==="chatIn")update()});
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-22b"; /* bump on every change so phones reload */
+const BUILD="2026-11-22c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
