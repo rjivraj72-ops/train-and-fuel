@@ -1270,7 +1270,7 @@ function vToday(){
   ${overnightCard(d)}
   </div>`;
 }
-function mItem(m){return`<button class="item" data-act="editMeal" data-id="${esc(m.id)}"><span class="t">${fmtT(m.time)}</span><span class="n">${esc(m.name)}${m.est?` <span class="pill">est.</span>`:""}${isLate(m)&&!isFlex(m.date)?` <span class="pill warn">after ${fmtT(S().close)}</span>`:""}<div class="m">${n0(m.protein)}g protein · ${n0(m.carbs)}g carbs · ${n0(m.fat)}g fat</div>${m.ingredients?`<div class="m" style="margin-top:2px">${esc(m.ingredients)}</div>`:""}</span><span class="k">${n0(m.kcal)}<small>kcal</small></span></button>`}
+function mItem(m){return`<button class="item" data-act="editMeal" data-id="${esc(m.id)}"><span class="t">${fmtT(m.time)}</span><span class="n">${esc(m.name)}${m.est?` <span class="pill">est.</span>`:""}${isLate(m)&&!isFlex(m.date)?` <span class="pill warn">after ${fmtT(S().close)}</span>`:""}<div class="m">${n0(m.protein)}g protein · ${n0(m.carbs)}g carbs · ${n0(m.fat)}g fat</div></span><span class="k">${n0(m.kcal)}<small>kcal</small></span></button>`}
 /* Compare a workout with earlier sessions of the same kind (same type, similar name), last 8 weeks. */
 /* Apple Watch workouts from the "Workout Sync" shortcut (Actions app → Find Workout).
    Each piece: Identifier~Workout Type~Start Date~Duration~Active Calories~Total Distance~Average Heart Rate~Source Name~Is Indoor
@@ -1903,6 +1903,7 @@ function mealSheet(m){
   ${isNew?`<div class="row" style="gap:8px;margin-bottom:12px"><button type="button" class="btn line" data-act="buildMeal" style="flex:1 1 0;min-width:0">＋ From ingredients</button><button type="button" class="btn" id="mLabel" style="flex:1 1 0;min-width:0">Label photo</button></div><input type="file" accept="image/*" id="mLabelIn" hidden>`:""}
   <form class="form" id="mealForm">
     <div class="f"><label for="mName">What did you eat?</label><input id="mName" value="${esc(m.name)}" required></div>
+    ${!isNew&&(m.parts?.length||m.ingredients)?`<details class="f" style="grid-column:1/-1"><summary style="font-size:16px;font-weight:700;cursor:pointer">Ingredients${m.parts?.length?` (${m.parts.length})`:""}</summary><div class="small" style="margin-top:6px;line-height:1.5">${m.parts?.length?m.parts.map(x=>`${esc(x.name)}${x.amount?` (${esc(x.amount)})`:""} · ${n0(x.kcal)} kcal`).join("<br>"):esc(m.ingredients)}</div></details>`:""}
     ${m.est?`<div class="note estnote" style="grid-column:1/-1;margin:0"><div class="eyebrow">Coach's ${m.est.conf==="low"?"rough guess":"estimate"}</div><div class="small" style="margin-top:4px">${m.est.note?esc(m.est.note):"Portions estimated from your message or photo."}</div></div>`:""}
     ${isNew?"":`<div class="f" style="grid-column:1/-1"><label>Portion was actually</label><div class="row wrap" style="gap:6px">${[0.5,0.75,1.25,1.5,2].map(k=>`<button type="button" class="btn sm line" data-scale="${k}">×${k}</button>`).join("")}</div><span class="hint">Scales kcal and macros. Or type exact numbers below. Saving confirms the entry.</span></div>`}
     <div class="f q"><label for="mKcal">kcal</label><input id="mKcal" inputmode="decimal" value="${esc(m.kcal)}" required></div>
@@ -2476,7 +2477,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   vv&&vv.addEventListener("resize",update);
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-21x"; /* bump on every change so phones reload */
+const BUILD="2026-11-21y"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
