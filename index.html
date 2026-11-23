@@ -604,7 +604,7 @@ body.wide .rxbar .rx{flex:none;min-width:58px}
 <body>
 <div class="app">
   <header class="top">
-    <div class="brand">Train <b>&amp;</b> Fuel</div>
+    <a class="brand" id="brandHome" href="#today" aria-label="Train &amp; Fuel, go to Today" style="color:inherit;text-decoration:none">Train <b>&amp;</b> Fuel</a>
     <div class="sp"></div>
     <div class="datenav" id="datenav">
       <button id="prevDay" aria-label="Previous day"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -2460,6 +2460,7 @@ document.addEventListener("click",async e=>{
 $("#prevDay").onclick=()=>{date=addDays(date,-1);render()};
 $("#nextDay").onclick=()=>{date=addDays(date,1);render()};
 $("#dateLabel").onclick=()=>{date=todayStr();render()};
+$("#brandHome").onclick=e=>{e.preventDefault();closeSheet?.();date=todayStr();if(location.hash!=="#today")location.hash="#today";else render();window.scrollTo({top:0,behavior:"smooth"})};
 $("#settingsBtn").onclick=settingsSheet;
 let toastT;function toast(m,ms){document.querySelector(".toast")?.remove();const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.textContent=m;t.onclick=()=>t.remove();document.body.appendChild(t);clearTimeout(toastT);toastT=setTimeout(()=>t.remove(),ms||2200)}
 const VIEWS=["today","food","train","trends","coach"];
@@ -2489,7 +2490,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   document.addEventListener("input",e=>{if(e.target.id==="chatIn")update()});
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-23c"; /* bump on every change so phones reload */
+const BUILD="2026-11-23d"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
