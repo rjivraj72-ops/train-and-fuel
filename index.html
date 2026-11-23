@@ -1629,7 +1629,7 @@ function vTrends(){
   ${patternsCard()}
   <section class="card"><div class="head"><div><div class="eyebrow">Weight</div>
     <div class="big" style="margin-top:8px">${last?n1(last.lb):"—"}<small>lb</small></div>
-    ${last&&first&&last!==first?`<p class="sub">${short(last.date)} · ${(last.lb-first.lb>0?"+":"")+n1(last.lb-first.lb)} lb in ${spanW} ${spanW===1?"week":"weeks"}<br>${last.lb<s.weightLo?'<b style="color:var(--warn)">Below</b>':last.lb>s.weightHi?'<b style="color:var(--warn)">Above</b>':'<b style="color:var(--good)">In</b>'} your ${s.weightLo}–${s.weightHi} lb target</p>`:""}</div>
+    ${last&&first&&last!==first?`<p class="sub">${short(last.date)} · ${(last.lb-first.lb>0?"+":"")+n1(last.lb-first.lb)} lb in ${spanW} ${spanW===1?"week":"weeks"}${allW[0]&&allW[0].date<first.date?`<br>Started at ${n1(allW[0].lb)} lb on ${short(allW[0].date)}<br><b>${(last.lb-allW[0].lb>0?"+":"")+n1(last.lb-allW[0].lb)} lb</b> since you started`:""}<br>${last.lb<s.weightLo?'<b style="color:var(--warn)">Below</b>':last.lb>s.weightHi?'<b style="color:var(--warn)">Above</b>':'<b style="color:var(--good)">In</b>'} your ${s.weightLo}–${s.weightHi} lb target</p>`:""}</div>
     <button class="btn sm" data-act="addWeight">Weigh in</button></div>
     ${chartWeight(wts,s.weightLo,s.weightHi)}
     <p class="hint" style="margin-top:4px">Tap a point to see the exact weigh-in.</p></section>
@@ -2489,7 +2489,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   document.addEventListener("input",e=>{if(e.target.id==="chatIn")update()});
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-23b"; /* bump on every change so phones reload */
+const BUILD="2026-11-23c"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
