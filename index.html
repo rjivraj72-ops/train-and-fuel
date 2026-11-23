@@ -1187,7 +1187,7 @@ function chartBars({labels,values,target,h=150,color="var(--accent)",colors,fmt=
 function wRange(){try{const v=localStorage.getItem("tf-wrange");if(v!=null)return +v}catch{}return 42}
 function chartWeight(pts,lo,hi){
   if(!pts.length)return`<div class="empty">No weigh-ins yet. Add your first one above.</div>`;
-  const W=340,h=196,top=24,bot=46,left=34,right=14,iw=W-left-right,ih=h-top-bot;
+  const W=340,h=210,top=24,bot=46,left=34,right=14,iw=W-left-right,ih=h-top-bot;
   const t=pts.map(p=>parse(p.date).getTime());const t0=Math.min(...t),t1=Math.max(...t)||t0+1;
   const vs=pts.map(p=>+p.lb);const mn=Math.floor(Math.min(lo,...vs)-1),mx=Math.ceil(Math.max(hi,...vs)+1);
   const x=tt=>left+(t1===t0?iw/2:(tt-t0)/(t1-t0)*iw),y=v=>top+ih-(v-mn)/(mx-mn)*ih;
@@ -1208,7 +1208,7 @@ function chartWeight(pts,lo,hi){
   s+=`<path d="${pts.map((p,i)=>(i?"L":"M")+x(t[i]).toFixed(1)+" "+y(+p.lb).toFixed(1)).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
   pts.forEach((p,i)=>{const last=i===pts.length-1;s+=`<circle data-col="${i}" cx="${x(t[i])}" cy="${y(+p.lb)}" r="${last?5:3.2}" fill="${last?"var(--accent)":"var(--surface)"}" stroke="var(--accent)" stroke-width="2"><title>${short(p.date)}: ${n1(p.lb)} lb</title></circle>`;
     if(i===0&&!last)s+=`<text x="${x(t[i])+8}" y="${y(+p.lb)-9}" text-anchor="start" class="halo" style="fill:var(--fg);font-weight:700">${n1(p.lb)}</text>`;
-    if(last){const down=i>0&&+pts[i-1].lb>+p.lb;s+=`<text x="${x(t[i])-(down?13:10)}" y="${y(+p.lb)+(down?5:-11)}" text-anchor="end" class="halo" style="fill:var(--fg);font-weight:800;font-size:14px">${n1(p.lb)}</text>`}});
+});
   pts.forEach((p,i)=>{const dlt=i?(+p.lb)-(+pts[i-1].lb):null;const tip=`${longD(p.date)}: ${n1(p.lb)} lb${dlt!=null?` (${dlt>0?"+":""}${n1(dlt)} vs ${short(pts[i-1].date)})`:""}`;
     s+=`<circle class="hit" data-col="${i}" data-tip="${esc(tip)}" cx="${x(t[i])}" cy="${y(+p.lb)}" r="16" fill="transparent"/>`});
   return`<svg class="chart ia" viewBox="0 0 ${W} ${h}" role="img" aria-label="Weight trend">${s}</svg>`;
@@ -1607,7 +1607,7 @@ function sleepTrendCard(){const t=todayStr();const days=[];for(let i=13;i>=0;i--
 function vTrends(){
   const s=S(),t=todayStr(),allW=weights(),lastW=allW[allW.length-1];
   /* Last 6 weeks only, so the chart and labels stay readable (at least 3 weigh-ins when older ones are all there is). */
-  const rg=wRange();let wts=lastW?(rg?allW.filter(w=>w.date>=addDays(lastW.date,-rg)):allW.slice()):[];if(wts.length<3)wts=allW.slice(-3);const last=wts[wts.length-1],first=wts[0];
+  const rg=42;let wts=lastW?(rg?allW.filter(w=>w.date>=addDays(lastW.date,-rg)):allW.slice()):[];if(wts.length<3)wts=allW.slice(-3);const last=wts[wts.length-1],first=wts[0];
   const spanW=first&&last?Math.max(1,Math.round((parse(last.date)-parse(first.date))/6048e5)):0;
   const ws0=weekStart(t);const weeks=[];for(let i=7;i>=0;i--)weeks.push(addDays(ws0,-7*i));
   const hs=H().weeklyScores||{};
@@ -1631,7 +1631,6 @@ function vTrends(){
     <div class="big" style="margin-top:8px">${last?n1(last.lb):"—"}<small>lb</small></div>
     ${last&&first&&last!==first?`<p class="sub">${short(last.date)} · ${(last.lb-first.lb>0?"+":"")+n1(last.lb-first.lb)} lb in ${spanW} ${spanW===1?"week":"weeks"}<br>${last.lb<s.weightLo?'<b style="color:var(--warn)">Below</b>':last.lb>s.weightHi?'<b style="color:var(--warn)">Above</b>':'<b style="color:var(--good)">In</b>'} your ${s.weightLo}–${s.weightHi} lb target</p>`:""}</div>
     <button class="btn sm" data-act="addWeight">Weigh in</button></div>
-    <div class="seg" role="group" aria-label="Weight chart range">${[[42,"6 wk"],[91,"3 mo"],[182,"6 mo"],[0,"All"]].map(([v,l])=>`<button type="button" class="${rg===v?"on":""}" data-act="wRange" data-r="${v}">${l}</button>`).join("")}</div>
     ${chartWeight(wts,s.weightLo,s.weightHi)}
     <p class="hint" style="margin-top:4px">Tap a point to see the exact weigh-in.</p></section>
   <section class="card"><div class="eyebrow">Last ${ND} days</div><h2>Calories vs ${n0(s.kcal)} target</h2><p class="sub">${avgK?`Average ${n0(avgK)} kcal over ${logged.length} finished days. Today (faded) is still in progress.`:"No food logged recently."}</p>
@@ -2490,7 +2489,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   document.addEventListener("input",e=>{if(e.target.id==="chatIn")update()});
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-23a"; /* bump on every change so phones reload */
+const BUILD="2026-11-23b"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
