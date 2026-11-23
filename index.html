@@ -1447,9 +1447,9 @@ function weekStats(ws,lim){
     water:avg(wd,waterOn),weight:wts.length?wts[wts.length-1].lb:null,travel:days.filter(isTravel).length,late:core.filter(d=>mealsOn(d).some(isLate)).length};
 }
 function weekFlags(a,b){
-  const s=S(),f=[];const add=(level,txt)=>f.push({level,txt});const cmp=b.logged>=3;
+  const s=S(),f=[];const add=(level,txt)=>f.push({level,txt});const cmp=b.days>0&&b.logged>=Math.min(3,b.days);
   if(a.days>=3&&a.logged<a.days-1)add("watch",`Food logged on ${a.logged} of ${a.days} days so far, so the numbers below are thin.`);
-  if(!cmp&&b.days)add("watch",`Last week has only ${b.logged} day${b.logged===1?"":"s"} of food logged, so week-over-week food changes aren't flagged yet.`);
+  if(!cmp&&b.days>=3)add("watch",`Not enough food logged on the same days last week (${b.logged} of ${b.days}) to compare food with this week.`);
   if(a.protein!=null&&a.protein<s.proteinMin)add("concern",`Protein averaging ${Math.round(a.protein)} g, under the ${s.proteinMin} g floor${b.protein!=null?` (last week ${Math.round(b.protein)} g)`:""}.`);
   else if(cmp&&a.protein!=null&&b.protein!=null&&b.protein-a.protein>=15)add("watch",`Protein down ${Math.round(b.protein-a.protein)} g/day vs last week (${Math.round(a.protein)} vs ${Math.round(b.protein)} g).`);
   if(a.kcal!=null&&a.kcal>s.kcal+200)add("concern",`Calories averaging ${n0(a.kcal)}, ${n0(a.kcal-s.kcal)} over target${b.kcal!=null?` (last week ${n0(b.kcal)})`:""}.`);
@@ -2490,7 +2490,7 @@ let lastDay=todayStr();setInterval(()=>{const t=todayStr();if(t!==lastDay){if(da
   document.addEventListener("input",e=>{if(e.target.id==="chatIn")update()});
 })();
 /* ---------- boot ---------- */
-const BUILD="2026-11-22c"; /* bump on every change so phones reload */
+const BUILD="2026-11-23a"; /* bump on every change so phones reload */
 async function checkBuild(){try{const r=await fetch(location.pathname+"?check="+Date.now(),{cache:"no-store"});const t=await r.text();const m=t.match(/const BUILD="([^"]+)"/);
   if(m&&m[1]!==BUILD){const u=new URL(location.href);if(u.searchParams.get("v")!==m[1]){u.searchParams.set("v",m[1]);location.replace(u.toString())}}}catch{}}
 checkBuild();document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")checkBuild()});
