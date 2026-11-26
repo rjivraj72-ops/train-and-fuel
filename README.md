@@ -39,3 +39,14 @@ An iPhone Shortcut PUTs `inbox/health-<stamp>.json` (`{date, activeKcal, steps, 
 
 ## Monthly report
 Trends → Monthly report computes the month from the log. A scheduled task on the 1st writes `reports/YYYY-MM.md`, shown as the Coach's write-up.
+
+## Automated checks
+
+Run before every update:
+
+```
+npm i -D playwright && npx playwright install chromium   # first time only
+node tests/run.js
+```
+
+`tests/run.js` loads the app on an iPhone-sized screen with made-up data and a fake GitHub, then checks every tab, the Watch/Health/weight sync, sleep merging, the meal builder, the Coach composer, the Trends layout and Sync health. It exits with an error if anything fails.
